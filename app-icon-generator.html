@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NKLE 앱 아이콘 생성기</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            margin: 0;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 20px;
+        }
+        .container {
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            text-align: center;
+            max-width: 600px;
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 30px;
+        }
+        canvas {
+            border: 2px solid #ddd;
+            border-radius: 10px;
+            margin: 20px 0;
+            cursor: pointer;
+        }
+        .controls {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            margin: 20px 0;
+        }
+        .control-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            justify-content: center;
+        }
+        label {
+            min-width: 100px;
+            text-align: right;
+            font-weight: 600;
+            color: #555;
+        }
+        input[type="color"] {
+            width: 60px;
+            height: 40px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        input[type="text"] {
+            padding: 8px 12px;
+            border: 2px solid #ddd;
+            border-radius: 5px;
+            font-size: 16px;
+            width: 150px;
+        }
+        button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 15px 40px;
+            font-size: 16px;
+            font-weight: 600;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            margin: 10px;
+        }
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(0,0,0,0.2);
+        }
+        button:active {
+            transform: translateY(0);
+        }
+        .preview {
+            display: flex;
+            gap: 20px;
+            justify-content: center;
+            margin-top: 20px;
+        }
+        .preview-item {
+            text-align: center;
+        }
+        .preview-item img {
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .preview-item p {
+            margin-top: 5px;
+            font-size: 12px;
+            color: #666;
+        }
+        .info {
+            background: #f0f7ff;
+            border-left: 4px solid #667eea;
+            padding: 15px;
+            margin: 20px 0;
+            text-align: left;
+            border-radius: 5px;
+        }
+        .info h3 {
+            margin-top: 0;
+            color: #667eea;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎨 NKLE 앱 아이콘 생성기</h1>
+        
+        <div class="info">
+            <h3>📋 Meta 요구사항</h3>
+            <ul style="margin: 10px 0; padding-left: 20px;">
+                <li>크기: 1024x1024 픽셀</li>
+                <li>형식: PNG (투명 배경 가능)</li>
+                <li>최대 파일 크기: 5MB</li>
+            </ul>
+        </div>
+
+        <div class="controls">
+            <div class="control-group">
+                <label>배경 색상 1:</label>
+                <input type="color" id="bgColor1" value="#667eea">
+            </div>
+            <div class="control-group">
+                <label>배경 색상 2:</label>
+                <input type="color" id="bgColor2" value="#764ba2">
+            </div>
+            <div class="control-group">
+                <label>텍스트 색상:</label>
+                <input type="color" id="textColor" value="#ffffff">
+            </div>
+            <div class="control-group">
+                <label>앱 이름:</label>
+                <input type="text" id="appName" value="NKLE">
+            </div>
+            <div class="control-group">
+                <label>부제:</label>
+                <input type="text" id="subtitle" value="Marketing AI">
+            </div>
+        </div>
+
+        <canvas id="iconCanvas" width="1024" height="1024"></canvas>
+
+        <div style="display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;">
+            <button onclick="generateIcon()">🎨 아이콘 생성</button>
+            <button onclick="downloadIcon()">💾 다운로드 (1024x1024)</button>
+            <button onclick="generatePreset(1)">🎯 프리셋 1</button>
+            <button onclick="generatePreset(2)">🎯 프리셋 2</button>
+            <button onclick="generatePreset(3)">🎯 프리셋 3</button>
+        </div>
+
+        <div class="preview">
+            <div class="preview-item">
+                <div style="width: 64px; height: 64px; overflow: hidden; border-radius: 8px; margin: 0 auto;">
+                    <canvas id="preview64" width="64" height="64"></canvas>
+                </div>
+                <p>64x64 미리보기</p>
+            </div>
+            <div class="preview-item">
+                <div style="width: 128px; height: 128px; overflow: hidden; border-radius: 12px; margin: 0 auto;">
+                    <canvas id="preview128" width="128" height="128"></canvas>
+                </div>
+                <p>128x128 미리보기</p>
+            </div>
+        </div>
+
+        <div class="info" style="margin-top: 30px;">
+            <h3>💡 사용 방법</h3>
+            <ol style="margin: 10px 0; padding-left: 20px; text-align: left;">
+                <li>원하는 색상과 텍스트를 선택하세요</li>
+                <li>"아이콘 생성" 버튼을 클릭하세요</li>
+                <li>마음에 들면 "다운로드" 버튼으로 저장하세요</li>
+                <li>Meta 개발자 콘솔에 업로드하세요</li>
+            </ol>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('iconCanvas');
+        const ctx = canvas.getContext('2d');
+        const preview64 = document.getElementById('preview64');
+        const preview128 = document.getElementById('preview128');
+
+        // 페이지 로드 시 자동 생성
+        window.onload = () => {
+            generateIcon();
+        };
+
+        function generateIcon() {
+            const bgColor1 = document.getElementById('bgColor1').value;
+            const bgColor2 = document.getElementById('bgColor2').value;
+            const textColor = document.getElementById('textColor').value;
+            const appName = document.getElementById('appName').value || 'NKLE';
+            const subtitle = document.getElementById('subtitle').value || 'Marketing AI';
+
+            // 그라디언트 배경
+            const gradient = ctx.createLinearGradient(0, 0, 1024, 1024);
+            gradient.addColorStop(0, bgColor1);
+            gradient.addColorStop(1, bgColor2);
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, 1024, 1024);
+
+            // 장식 요소 - 큰 원들
+            ctx.globalAlpha = 0.1;
+            ctx.fillStyle = '#ffffff';
+            ctx.beginPath();
+            ctx.arc(200, 200, 300, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.arc(824, 824, 350, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.globalAlpha = 1.0;
+
+            // AI 관련 아이콘 - 네트워크 노드들
+            ctx.strokeStyle = textColor;
+            ctx.globalAlpha = 0.3;
+            ctx.lineWidth = 3;
+            
+            const nodes = [
+                [300, 400], [500, 350], [700, 400],
+                [400, 600], [600, 600], [500, 750]
+            ];
+
+            // 노드 연결선
+            for (let i = 0; i < nodes.length - 1; i++) {
+                for (let j = i + 1; j < nodes.length; j++) {
+                    ctx.beginPath();
+                    ctx.moveTo(nodes[i][0], nodes[i][1]);
+                    ctx.lineTo(nodes[j][0], nodes[j][1]);
+                    ctx.stroke();
+                }
+            }
+
+            // 노드 점들
+            ctx.globalAlpha = 0.5;
+            ctx.fillStyle = textColor;
+            nodes.forEach(([x, y]) => {
+                ctx.beginPath();
+                ctx.arc(x, y, 15, 0, Math.PI * 2);
+                ctx.fill();
+            });
+
+            ctx.globalAlpha = 1.0;
+
+            // 텍스트 그리기
+            ctx.fillStyle = textColor;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+
+            // 앱 이름 (큰 텍스트)
+            ctx.font = 'bold 220px "Segoe UI", Arial, sans-serif';
+            ctx.fillText(appName, 512, 450);
+
+            // 부제 (작은 텍스트)
+            ctx.font = '80px "Segoe UI", Arial, sans-serif';
+            ctx.globalAlpha = 0.9;
+            ctx.fillText(subtitle, 512, 600);
+            ctx.globalAlpha = 1.0;
+
+            // 하단 작은 아이콘 - 차트 모양
+            ctx.strokeStyle = textColor;
+            ctx.lineWidth = 8;
+            ctx.globalAlpha = 0.6;
+            
+            const barX = 350;
+            const barY = 780;
+            const barWidth = 40;
+            const barGap = 50;
+            const heights = [40, 70, 50, 90, 60];
+            
+            heights.forEach((h, i) => {
+                ctx.fillStyle = textColor;
+                ctx.fillRect(barX + i * (barWidth + barGap), barY - h, barWidth, h);
+            });
+
+            ctx.globalAlpha = 1.0;
+
+            // 미리보기 생성
+            updatePreviews();
+        }
+
+        function updatePreviews() {
+            // 64x64 미리보기
+            const ctx64 = preview64.getContext('2d');
+            ctx64.drawImage(canvas, 0, 0, 1024, 1024, 0, 0, 64, 64);
+
+            // 128x128 미리보기
+            const ctx128 = preview128.getContext('2d');
+            ctx128.drawImage(canvas, 0, 0, 1024, 1024, 0, 0, 128, 128);
+        }
+
+        function downloadIcon() {
+            const link = document.createElement('a');
+            link.download = 'nkle-app-icon-1024x1024.png';
+            link.href = canvas.toDataURL('image/png');
+            link.click();
+            alert('✅ 아이콘이 다운로드되었습니다!\n\nMeta 개발자 콘솔 > 앱 설정 > 기본 설정 > 앱 아이콘에 업로드하세요.');
+        }
+
+        function generatePreset(num) {
+            if (num === 1) {
+                // 프리셋 1: 보라/핑크
+                document.getElementById('bgColor1').value = '#667eea';
+                document.getElementById('bgColor2').value = '#764ba2';
+                document.getElementById('textColor').value = '#ffffff';
+            } else if (num === 2) {
+                // 프리셋 2: 파랑/초록
+                document.getElementById('bgColor1').value = '#11998e';
+                document.getElementById('bgColor2').value = '#38ef7d';
+                document.getElementById('textColor').value = '#ffffff';
+            } else if (num === 3) {
+                // 프리셋 3: 주황/빨강
+                document.getElementById('bgColor1').value = '#f857a6';
+                document.getElementById('bgColor2').value = '#ff5858';
+                document.getElementById('textColor').value = '#ffffff';
+            }
+            generateIcon();
+        }
+
+        // 입력 필드 변경 시 자동 업데이트
+        document.querySelectorAll('input').forEach(input => {
+            input.addEventListener('input', generateIcon);
+        });
+    </script>
+</body>
+</html>

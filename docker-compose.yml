@@ -1,0 +1,49 @@
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: marketing_postgres
+    environment:
+      POSTGRES_DB: marketing_platform
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-changeme}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
+    networks:
+      - marketing_network
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: marketing_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - marketing_network
+    restart: unless-stopped
+
+  # 개발 환경용 Adminer (DB 관리 도구)
+  adminer:
+    image: adminer
+    container_name: marketing_adminer
+    ports:
+      - "8080:8080"
+    networks:
+      - marketing_network
+    environment:
+      ADMINER_DEFAULT_SERVER: postgres
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+
+networks:
+  marketing_network:
+    driver: bridge
