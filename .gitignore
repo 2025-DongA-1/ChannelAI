@@ -54,3 +54,12 @@ ENV/
 # Uploaded files
 uploads/
 reports/
+
+# Deploy secrets
+deploy/.env*
+deploy/*.pem
+deploy/*.key
+
+# Sensitive config
+*.secret
+*.credentials
