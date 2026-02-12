@@ -131,6 +131,13 @@ export const budgetAPI = {
     api.put(`/budget/campaign/${id}`, data),
 };
 
+// AI Marketing Agent API
+export const aiAgentAPI = {
+  getStatus: () => api.get('/ai/agent/status'),
+  analyze: (data: { totalBudget?: number; period?: number }) =>
+    api.post('/ai/agent/analyze', data),
+};
+
 // Insights API
 export const insightsAPI = {
   getTrends: (params?: { start_date?: string; end_date?: string; period?: string }) =>

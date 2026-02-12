@@ -1,8 +1,11 @@
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { dashboardAPI } from '@/lib/api';
+import { useQuery, useMutation } from '@tanstack/react-query';
+import { dashboardAPI, aiAgentAPI } from '@/lib/api';
 import { formatCurrency, formatPercent, formatCompactNumber } from '@/lib/utils';
-import { TrendingUp, MousePointerClick, DollarSign, Target, ArrowUp, ArrowDown, Calendar } from 'lucide-react';
+import { 
+  TrendingUp, MousePointerClick, DollarSign, Target, ArrowUp, ArrowDown, Calendar,
+  Bot, Play, AlertTriangle, Pause, TrendingDown, Zap, ShieldCheck, Loader2
+} from 'lucide-react';
 
 export default function DashboardPage() {
   // 기본 기간: 최근 30일
@@ -30,6 +33,26 @@ export default function DashboardPage() {
 
   const metrics = summary?.data?.metrics;
   const budget = summary?.data?.budget;
+
+  // AI 마케팅 에이전트
+  const { data: agentStatus } = useQuery({
+    queryKey: ['agent-status'],
+    queryFn: () => aiAgentAPI.getStatus(),
+  });
+
+  const analyzeMutation = useMutation({
+    mutationFn: (data: { totalBudget?: number; period?: number }) =>
+      aiAgentAPI.analyze(data),
+  });
+
+  const agentData = analyzeMutation.data?.data?.data;
+
+  const handleRunAgent = () => {
+    analyzeMutation.mutate({
+      totalBudget: budget?.total || undefined,
+      period: selectedPreset === '7days' ? 7 : selectedPreset === '90days' ? 90 : 30,
+    });
+  };
 
   // 날짜 프리셋 선택
   const handlePresetChange = (preset: string) => {
@@ -271,48 +294,209 @@ export default function DashboardPage() {
         />
       </div>
 
-      {/* Channel Performance */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100">
-        <div className="p-6 border-b border-gray-100">
-          <h2 className="text-xl font-bold text-gray-900">채널별 성과</h2>
-          <p className="text-sm text-gray-600 mt-1">각 광고 플랫폼의 실시간 성과를 확인하세요</p>
-        </div>
-        <div className="p-6">
-          <div className="space-y-6">
-            {performance?.data?.performance?.map((channel: any) => (
-              <div key={channel.platform} className="border-b border-gray-100 pb-6 last:border-0 last:pb-0">
-                <div className="flex justify-between items-center mb-4">
-                  <div className="flex items-center">
-                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${getPlatformBgColor(channel.platform)}`}>
-                      {getPlatformIcon(channel.platform)}
+      {/* Channel Performance + AI Agent Side-by-Side */}
+      <div className="grid grid-cols-1 xl:grid-cols-5 gap-6">
+        {/* 채널별 성과 (왼쪽 3/5) */}
+        <div className="xl:col-span-3 bg-white rounded-xl shadow-sm border border-gray-100">
+          <div className="p-6 border-b border-gray-100">
+            <h2 className="text-xl font-bold text-gray-900">채널별 성과</h2>
+            <p className="text-sm text-gray-600 mt-1">각 광고 플랫폼의 실시간 성과를 확인하세요</p>
+          </div>
+          <div className="p-6">
+            <div className="space-y-6">
+              {performance?.data?.performance?.map((channel: any) => (
+                <div key={channel.platform} className="border-b border-gray-100 pb-6 last:border-0 last:pb-0">
+                  <div className="flex justify-between items-center mb-4">
+                    <div className="flex items-center">
+                      <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${getPlatformBgColor(channel.platform)}`}>
+                        {getPlatformIcon(channel.platform)}
+                      </div>
+                      <div className="ml-3">
+                        <h3 className="font-semibold text-gray-900 capitalize">{channel.platform}</h3>
+                        <p className="text-sm text-gray-500">{channel.campaigns}개 캠페인 진행 중</p>
+                      </div>
                     </div>
-                    <div className="ml-3">
-                      <h3 className="font-semibold text-gray-900 capitalize">{channel.platform}</h3>
-                      <p className="text-sm text-gray-500">{channel.campaigns}개 캠페인 진행 중</p>
+                  </div>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div>
+                      <p className="text-xs text-gray-500 mb-1">노출수</p>
+                      <p className="text-lg font-semibold text-gray-900">{formatCompactNumber(channel.metrics.impressions)}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-500 mb-1">클릭수</p>
+                      <p className="text-lg font-semibold text-gray-900">{formatCompactNumber(channel.metrics.clicks)}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-500 mb-1">CTR</p>
+                      <p className="text-lg font-semibold text-gray-900">{formatPercent(channel.metrics.ctr)}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-500 mb-1">ROAS</p>
+                      <p className="text-lg font-semibold text-green-600">{channel.metrics.roas.toFixed(2)}x</p>
                     </div>
                   </div>
                 </div>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <div>
-                    <p className="text-xs text-gray-500 mb-1">노출수</p>
-                    <p className="text-lg font-semibold text-gray-900">{formatCompactNumber(channel.metrics.impressions)}</p>
+              ))}
+              {(!performance?.data?.performance || performance.data.performance.length === 0) && (
+                <div className="text-center py-8 text-gray-500">
+                  <p>연동된 채널의 성과 데이터가 아직 없습니다.</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* AI 마케팅 에이전트 (오른쪽 2/5) */}
+        <div className="xl:col-span-2 space-y-4">
+          {/* AI 에이전트 헤더 */}
+          <div className="bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-500 rounded-xl shadow-lg p-6 text-white">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="p-2 bg-white/20 backdrop-blur rounded-lg">
+                <Bot className="w-6 h-6" />
+              </div>
+              <div>
+                <h2 className="text-lg font-bold">AI 마케팅 에이전트</h2>
+                <p className="text-sm text-white/80">광고 데이터 기반 예산 최적화</p>
+              </div>
+            </div>
+            <p className="text-sm text-white/70 mb-4">
+              실제 광고 성과를 분석하여 플랫폼별 예산 배분과 액션을 추천합니다.
+            </p>
+            <button
+              onClick={handleRunAgent}
+              disabled={analyzeMutation.isPending}
+              className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-white text-indigo-700 font-semibold rounded-lg hover:bg-white/90 transition disabled:opacity-50"
+            >
+              {analyzeMutation.isPending ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  분석 중...
+                </>
+              ) : (
+                <>
+                  <Play className="w-4 h-4" />
+                  에이전트 분석 실행
+                </>
+              )}
+            </button>
+          </div>
+
+          {/* 분석 결과 */}
+          {agentData && (
+            <>
+              {/* 종합 인사이트 */}
+              <div className={`rounded-xl shadow-sm border-2 p-5 ${
+                agentData.overallInsight.riskLevel === 'high' 
+                  ? 'bg-red-50 border-red-200' 
+                  : agentData.overallInsight.riskLevel === 'medium'
+                  ? 'bg-yellow-50 border-yellow-200'
+                  : 'bg-green-50 border-green-200'
+              }`}>
+                <div className="flex items-center gap-2 mb-3">
+                  {agentData.overallInsight.riskLevel === 'high' ? (
+                    <AlertTriangle className="w-5 h-5 text-red-600" />
+                  ) : agentData.overallInsight.riskLevel === 'medium' ? (
+                    <AlertTriangle className="w-5 h-5 text-yellow-600" />
+                  ) : (
+                    <ShieldCheck className="w-5 h-5 text-green-600" />
+                  )}
+                  <span className={`text-sm font-semibold ${
+                    agentData.overallInsight.riskLevel === 'high' ? 'text-red-700'
+                    : agentData.overallInsight.riskLevel === 'medium' ? 'text-yellow-700'
+                    : 'text-green-700'
+                  }`}>
+                    리스크: {agentData.overallInsight.riskLevel === 'high' ? '높음' : agentData.overallInsight.riskLevel === 'medium' ? '보통' : '낮음'}
+                  </span>
+                </div>
+                <p className="text-sm text-gray-700 leading-relaxed">{agentData.overallInsight.summary}</p>
+                
+                {agentData.overallInsight.keyFindings.length > 0 && (
+                  <div className="mt-3 space-y-1">
+                    {agentData.overallInsight.keyFindings.map((f: string, i: number) => (
+                      <p key={i} className="text-xs text-gray-600 flex items-start gap-1.5">
+                        <span className="mt-0.5 w-1.5 h-1.5 rounded-full bg-gray-400 flex-shrink-0"></span>
+                        {f}
+                      </p>
+                    ))}
                   </div>
-                  <div>
-                    <p className="text-xs text-gray-500 mb-1">클릭수</p>
-                    <p className="text-lg font-semibold text-gray-900">{formatCompactNumber(channel.metrics.clicks)}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-gray-500 mb-1">CTR</p>
-                    <p className="text-lg font-semibold text-gray-900">{formatPercent(channel.metrics.ctr)}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-gray-500 mb-1">ROAS</p>
-                    <p className="text-lg font-semibold text-green-600">{channel.metrics.roas.toFixed(2)}x</p>
-                  </div>
+                )}
+              </div>
+
+              {/* 플랫폼별 추천 액션 */}
+              <div className="bg-white rounded-xl shadow-sm border border-gray-100">
+                <div className="p-4 border-b border-gray-100">
+                  <h3 className="font-bold text-gray-900 flex items-center gap-2">
+                    <Zap className="w-4 h-4 text-purple-500" />
+                    추천 액션
+                  </h3>
+                </div>
+                <div className="divide-y divide-gray-100">
+                  {agentData.recommendations?.map((rec: any) => (
+                    <div key={rec.platform} className="p-4">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${getPlatformBgColor(rec.platform)}`}>
+                            {getPlatformIcon(rec.platform)}
+                          </div>
+                          <span className="font-semibold text-gray-900 capitalize text-sm">{rec.platform}</span>
+                        </div>
+                        <ActionBadge action={rec.action} />
+                      </div>
+                      
+                      {/* 예산 변동 */}
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="text-xs text-gray-500">예산:</span>
+                        <span className="text-xs text-gray-700">{formatCurrency(rec.currentBudget)}</span>
+                        <span className="text-xs text-gray-400">→</span>
+                        <span className={`text-xs font-semibold ${
+                          rec.budgetChange > 0 ? 'text-green-600' : rec.budgetChange < 0 ? 'text-red-600' : 'text-gray-600'
+                        }`}>
+                          {formatCurrency(rec.recommendedBudget)}
+                          {rec.budgetChangePercent !== 0 && (
+                            <span className="ml-1">
+                              ({rec.budgetChangePercent > 0 ? '+' : ''}{rec.budgetChangePercent}%)
+                            </span>
+                          )}
+                        </span>
+                      </div>
+                      
+                      <p className="text-xs text-gray-600 leading-relaxed">{rec.reason}</p>
+                      <p className="text-xs text-purple-600 mt-1 font-medium">{rec.expectedImpact}</p>
+                    </div>
+                  ))}
+                  {(!agentData.recommendations || agentData.recommendations.length === 0) && (
+                    <div className="p-6 text-center text-sm text-gray-500">
+                      분석할 플랫폼 데이터가 없습니다.
+                    </div>
+                  )}
                 </div>
               </div>
-            ))}
-          </div>
+
+              {/* 실행 항목 */}
+              {agentData.overallInsight.actionItems.length > 0 && (
+                <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
+                  <h3 className="font-bold text-gray-900 text-sm mb-3">📋 실행 체크리스트</h3>
+                  <div className="space-y-2">
+                    {agentData.overallInsight.actionItems.map((action: string, i: number) => (
+                      <label key={i} className="flex items-start gap-2 text-xs text-gray-700 cursor-pointer group">
+                        <input type="checkbox" className="mt-0.5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" />
+                        <span className="group-hover:text-gray-900">{action}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+
+          {/* 분석 미실행 시 안내 */}
+          {!agentData && !analyzeMutation.isPending && (
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 text-center">
+              <Bot className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+              <p className="text-sm text-gray-500 mb-1">아직 분석이 실행되지 않았습니다</p>
+              <p className="text-xs text-gray-400">상단 버튼을 눌러 AI 에이전트를 실행하세요</p>
+            </div>
+          )}
         </div>
       </div>
 
@@ -538,6 +722,26 @@ function MetricCard({ title, value, change, icon: Icon, color }: MetricCardProps
       <p className="text-sm text-gray-600 mb-1">{title}</p>
       <p className="text-2xl font-bold text-gray-900">{value}</p>
     </div>
+  );
+}
+
+// ActionBadge Component for AI Agent recommendations
+function ActionBadge({ action }: { action: string }) {
+  const config: Record<string, { label: string; bg: string; text: string; icon: any }> = {
+    increase: { label: '예산 증액', bg: 'bg-green-100', text: 'text-green-700', icon: TrendingUp },
+    decrease: { label: '예산 감축', bg: 'bg-orange-100', text: 'text-orange-700', icon: TrendingDown },
+    pause: { label: '집행 중단', bg: 'bg-red-100', text: 'text-red-700', icon: Pause },
+    maintain: { label: '현행 유지', bg: 'bg-blue-100', text: 'text-blue-700', icon: ShieldCheck },
+  };
+
+  const c = config[action] || config.maintain;
+  const Icon = c.icon;
+
+  return (
+    <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-semibold ${c.bg} ${c.text}`}>
+      <Icon className="w-3 h-3" />
+      {c.label}
+    </span>
   );
 }
 
