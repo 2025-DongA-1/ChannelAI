@@ -81,39 +81,67 @@ jobs:
           proxy_username: root
           proxy_key: ${{ secrets.WEB_SSH_KEY }}
           proxy_port: 22
+          command_timeout: 10m
           script: |
-            cd /opt/marketing-platform
+            set -e
 
-            # 소스 업데이트
-            cd backend
-            git pull origin main || true
+            # ========== 1. Node.js 설치 (없으면) ==========
+            if ! command -v node &> /dev/null; then
+              echo ">> Node.js 설치 중..."
+              curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
+              apt-get install -y nodejs
+            fi
+            echo "Node.js: $(node -v), npm: $(npm -v)"
 
-            # 환경변수 설정 (.env 파일 생성)
-            cat > .env << 'ENVEOF'
+            # ========== 2. PM2 설치 (없으면) ==========
+            if ! command -v pm2 &> /dev/null; then
+              echo ">> PM2 설치 중..."
+              npm install -g pm2
+            fi
+
+            # ========== 3. Git 설치 (없으면) ==========
+            if ! command -v git &> /dev/null; then
+              echo ">> Git 설치 중..."
+              apt-get update && apt-get install -y git
+            fi
+
+            # ========== 4. 프로젝트 디렉토리 준비 ==========
+            APP_DIR="/opt/marketing-platform"
+            mkdir -p $APP_DIR
+
+            if [ ! -d "$APP_DIR/.git" ]; then
+              echo ">> 최초 clone..."
+              git clone https://github.com/Kum-donghyun/channel_AI.git $APP_DIR
+            else
+              echo ">> git pull..."
+              cd $APP_DIR
+              git pull origin main || true
+            fi
+
+            cd $APP_DIR/backend
+
+            # ========== 5. 환경변수 설정 ==========
+            cat > .env << ENVEOF
             DB_HOST=${{ secrets.DB_HOST }}
             DB_PORT=${{ secrets.DB_PORT }}
             DB_NAME=${{ secrets.DB_NAME }}
             DB_USER=${{ secrets.DB_USER }}
             DB_PASSWORD=${{ secrets.DB_PASSWORD }}
-            REDIS_HOST=${{ secrets.REDIS_HOST }}
-            REDIS_PORT=${{ secrets.REDIS_PORT }}
-            REDIS_PASSWORD=${{ secrets.REDIS_PASSWORD }}
+            REDIS_HOST=127.0.0.1
+            REDIS_PORT=6379
+            REDIS_PASSWORD=
             JWT_SECRET=${{ secrets.JWT_SECRET }}
-            META_APP_ID=${{ secrets.META_APP_ID }}
-            META_APP_SECRET=${{ secrets.META_APP_SECRET }}
-            NAVER_API_KEY=${{ secrets.NAVER_API_KEY }}
-            NAVER_SECRET_KEY=${{ secrets.NAVER_SECRET_KEY }}
-            NAVER_CUSTOMER_ID=${{ secrets.NAVER_CUSTOMER_ID }}
             NODE_ENV=production
             PORT=3000
             ENVEOF
 
-            # 의존성 설치 & 빌드
+            # ========== 6. 의존성 설치 & 빌드 ==========
             npm ci --production=false
             npx tsc
 
-            # PM2 재시작
-            pm2 restart marketing-api || pm2 start ecosystem.config.js
+            # ========== 7. PM2 시작/재시작 ==========
+            cd $APP_DIR
+            pm2 restart marketing-api 2>/dev/null || pm2 start deploy/ecosystem.config.js
             pm2 save
 
   # ============================================
