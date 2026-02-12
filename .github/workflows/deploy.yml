@@ -60,7 +60,9 @@ jobs:
   deploy-was:
     needs: build
     runs-on: ubuntu-latest
-    if: github.event_name == 'workflow_dispatch' && (github.event.inputs.deploy_target == 'all' || github.event.inputs.deploy_target == 'was')
+    if: |
+      (github.ref == 'refs/heads/main' && github.event_name == 'push') ||
+      (github.event_name == 'workflow_dispatch' && (github.event.inputs.deploy_target == 'all' || github.event.inputs.deploy_target == 'was'))
 
     steps:
       - name: Checkout
@@ -71,12 +73,12 @@ jobs:
         with:
           # WAS (Private Subnet) 접속 정보
           host: ${{ secrets.WAS_HOST }}
-          username: ${{ secrets.WAS_USER }}
+          username: root
           key: ${{ secrets.WAS_SSH_KEY }}
           port: 22
           # WEB (Public) 서버를 Proxy로 경유
           proxy_host: ${{ secrets.WEB_HOST }}
-          proxy_username: ${{ secrets.WEB_USER }}
+          proxy_username: root
           proxy_key: ${{ secrets.WEB_SSH_KEY }}
           proxy_port: 22
           script: |
@@ -120,7 +122,9 @@ jobs:
   deploy-web:
     needs: build
     runs-on: ubuntu-latest
-    if: github.event_name == 'workflow_dispatch' && (github.event.inputs.deploy_target == 'all' || github.event.inputs.deploy_target == 'web')
+    if: |
+      (github.ref == 'refs/heads/main' && github.event_name == 'push') ||
+      (github.event_name == 'workflow_dispatch' && (github.event.inputs.deploy_target == 'all' || github.event.inputs.deploy_target == 'web'))
 
     steps:
       - name: Checkout
@@ -143,7 +147,7 @@ jobs:
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.WEB_HOST }}
-          username: ${{ secrets.WEB_USER }}
+          username: root
           key: ${{ secrets.WEB_SSH_KEY }}
           port: 22
           script: |
@@ -154,7 +158,7 @@ jobs:
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.WEB_HOST }}
-          username: ${{ secrets.WEB_USER }}
+          username: root
           key: ${{ secrets.WEB_SSH_KEY }}
           port: 22
           source: "frontend/dist/*"
@@ -165,7 +169,7 @@ jobs:
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.WEB_HOST }}
-          username: ${{ secrets.WEB_USER }}
+          username: root
           key: ${{ secrets.WEB_SSH_KEY }}
           port: 22
           script: |
