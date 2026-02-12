@@ -1,5 +1,5 @@
-# PM2 프로세스 관리 설정
-# 경로: /opt/marketing-platform/ecosystem.config.js
+// PM2 프로세스 관리 설정
+// 경로: /opt/marketing-platform/ecosystem.config.js
 
 module.exports = {
   apps: [
