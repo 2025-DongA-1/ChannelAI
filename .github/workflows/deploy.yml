@@ -5,6 +5,17 @@ on:
     branches: [ main ]
   pull_request:
     branches: [ main ]
+  workflow_dispatch:
+    inputs:
+      deploy_target:
+        description: '배포 대상 선택'
+        required: true
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - was
+          - web
 
 env:
   NODE_VERSION: '20'
@@ -49,19 +60,25 @@ jobs:
   deploy-was:
     needs: build
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    if: github.event_name == 'workflow_dispatch' && (github.event.inputs.deploy_target == 'all' || github.event.inputs.deploy_target == 'was')
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Deploy to WAS server via SSH
+      - name: Deploy to WAS server via SSH (WEB 경유)
         uses: appleboy/ssh-action@v1.0.3
         with:
+          # WAS (Private Subnet) 접속 정보
           host: ${{ secrets.WAS_HOST }}
           username: ${{ secrets.WAS_USER }}
           key: ${{ secrets.WAS_SSH_KEY }}
-          port: ${{ secrets.WAS_SSH_PORT || '22' }}
+          port: 22
+          # WEB (Public) 서버를 Proxy로 경유
+          proxy_host: ${{ secrets.WEB_HOST }}
+          proxy_username: ${{ secrets.WEB_USER }}
+          proxy_key: ${{ secrets.WEB_SSH_KEY }}
+          proxy_port: 22
           script: |
             cd /opt/marketing-platform
 
@@ -103,7 +120,7 @@ jobs:
   deploy-web:
     needs: build
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    if: github.event_name == 'workflow_dispatch' && (github.event.inputs.deploy_target == 'all' || github.event.inputs.deploy_target == 'web')
 
     steps:
       - name: Checkout
@@ -128,7 +145,7 @@ jobs:
           host: ${{ secrets.WEB_HOST }}
           username: ${{ secrets.WEB_USER }}
           key: ${{ secrets.WEB_SSH_KEY }}
-          port: ${{ secrets.WEB_SSH_PORT || '22' }}
+          port: 22
           script: |
             # Nginx 정적 파일 업데이트
             rm -rf /var/www/marketing-platform/*
@@ -139,7 +156,7 @@ jobs:
           host: ${{ secrets.WEB_HOST }}
           username: ${{ secrets.WEB_USER }}
           key: ${{ secrets.WEB_SSH_KEY }}
-          port: ${{ secrets.WEB_SSH_PORT || '22' }}
+          port: 22
           source: "frontend/dist/*"
           target: "/var/www/marketing-platform/"
           strip_components: 2
@@ -150,6 +167,6 @@ jobs:
           host: ${{ secrets.WEB_HOST }}
           username: ${{ secrets.WEB_USER }}
           key: ${{ secrets.WEB_SSH_KEY }}
-          port: ${{ secrets.WEB_SSH_PORT || '22' }}
+          port: 22
           script: |
             sudo nginx -t && sudo systemctl reload nginx
