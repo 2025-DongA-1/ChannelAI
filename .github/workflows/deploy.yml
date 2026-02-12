@@ -1,0 +1,155 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  NODE_VERSION: '20'
+
+jobs:
+  # ============================================
+  # 빌드 & 테스트
+  # ============================================
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install backend dependencies
+        working-directory: ./backend
+        run: npm ci
+
+      - name: TypeScript build
+        working-directory: ./backend
+        run: npx tsc --noEmit
+
+      - name: Install frontend dependencies
+        working-directory: ./frontend
+        run: npm ci
+
+      - name: Frontend build
+        working-directory: ./frontend
+        run: npm run build
+
+  # ============================================
+  # WAS 서버 배포 (main 브랜치 push 시)
+  # ============================================
+  deploy-was:
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Deploy to WAS server via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.WAS_HOST }}
+          username: ${{ secrets.WAS_USER }}
+          key: ${{ secrets.WAS_SSH_KEY }}
+          port: ${{ secrets.WAS_SSH_PORT || '22' }}
+          script: |
+            cd /opt/marketing-platform
+
+            # 소스 업데이트
+            cd backend
+            git pull origin main || true
+
+            # 환경변수 설정 (.env 파일 생성)
+            cat > .env << 'ENVEOF'
+            DB_HOST=${{ secrets.DB_HOST }}
+            DB_PORT=${{ secrets.DB_PORT }}
+            DB_NAME=${{ secrets.DB_NAME }}
+            DB_USER=${{ secrets.DB_USER }}
+            DB_PASSWORD=${{ secrets.DB_PASSWORD }}
+            REDIS_HOST=${{ secrets.REDIS_HOST }}
+            REDIS_PORT=${{ secrets.REDIS_PORT }}
+            REDIS_PASSWORD=${{ secrets.REDIS_PASSWORD }}
+            JWT_SECRET=${{ secrets.JWT_SECRET }}
+            META_APP_ID=${{ secrets.META_APP_ID }}
+            META_APP_SECRET=${{ secrets.META_APP_SECRET }}
+            NAVER_API_KEY=${{ secrets.NAVER_API_KEY }}
+            NAVER_SECRET_KEY=${{ secrets.NAVER_SECRET_KEY }}
+            NAVER_CUSTOMER_ID=${{ secrets.NAVER_CUSTOMER_ID }}
+            NODE_ENV=production
+            PORT=3000
+            ENVEOF
+
+            # 의존성 설치 & 빌드
+            npm ci --production=false
+            npx tsc
+
+            # PM2 재시작
+            pm2 restart marketing-api || pm2 start ecosystem.config.js
+            pm2 save
+
+  # ============================================
+  # WEB 서버 배포 (main 브랜치 push 시)
+  # ============================================
+  deploy-web:
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Build frontend
+        working-directory: ./frontend
+        run: |
+          npm ci
+          npm run build
+
+      - name: Deploy to WEB server via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.WEB_HOST }}
+          username: ${{ secrets.WEB_USER }}
+          key: ${{ secrets.WEB_SSH_KEY }}
+          port: ${{ secrets.WEB_SSH_PORT || '22' }}
+          script: |
+            # Nginx 정적 파일 업데이트
+            rm -rf /var/www/marketing-platform/*
+
+      - name: Copy build to WEB server
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.WEB_HOST }}
+          username: ${{ secrets.WEB_USER }}
+          key: ${{ secrets.WEB_SSH_KEY }}
+          port: ${{ secrets.WEB_SSH_PORT || '22' }}
+          source: "frontend/dist/*"
+          target: "/var/www/marketing-platform/"
+          strip_components: 2
+
+      - name: Reload Nginx
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.WEB_HOST }}
+          username: ${{ secrets.WEB_USER }}
+          key: ${{ secrets.WEB_SSH_KEY }}
+          port: ${{ secrets.WEB_SSH_PORT || '22' }}
+          script: |
+            sudo nginx -t && sudo systemctl reload nginx

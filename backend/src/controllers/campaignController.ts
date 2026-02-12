@@ -20,42 +20,43 @@ export const getCampaigns = async (req: Request, res: Response) => {
         (SELECT COUNT(*) FROM campaign_metrics WHERE campaign_id = c.id) as metrics_count
       FROM campaigns c
       JOIN marketing_accounts ma ON c.marketing_account_id = ma.id
-      WHERE ma.user_id = $1
+      WHERE ma.user_id = ?
     `;
     
     const params: any[] = [userId];
-    let paramIndex = 2;
     
     if (platform) {
-      query += ` AND c.platform = $${paramIndex}`;
+      query += ` AND c.platform = ?`;
       params.push(String(platform));
-      paramIndex++;
     }
     
     if (status) {
-      query += ` AND c.status = $${paramIndex}`;
+      query += ` AND c.status = ?`;
       params.push(String(status));
-      paramIndex++;
     }
     
-    query += ` ORDER BY c.created_at DESC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
+    query += ` ORDER BY c.created_at DESC LIMIT ? OFFSET ?`;
     params.push(Number(limit), offset);
     
     const result = await client.query(query, params);
     
     // 전체 개수 조회
-    const countQuery = `
-      SELECT COUNT(*) 
+    let countQuery = `
+      SELECT COUNT(*) as count
       FROM campaigns c
       JOIN marketing_accounts ma ON c.marketing_account_id = ma.id
-      WHERE ma.user_id = $1
-      ${platform ? ` AND c.platform = $2` : ''}
-      ${status ? ` AND c.status = $${platform ? 3 : 2}` : ''}
+      WHERE ma.user_id = ?
     `;
     
     const countParams: any[] = [userId];
-    if (platform) countParams.push(String(platform));
-    if (status) countParams.push(String(status));
+    if (platform) {
+      countQuery += ` AND c.platform = ?`;
+      countParams.push(String(platform));
+    }
+    if (status) {
+      countQuery += ` AND c.status = ?`;
+      countParams.push(String(status));
+    }
     
     const countResult = await client.query(countQuery, countParams);
     const totalCount = parseInt(countResult.rows[0].count);
@@ -96,7 +97,7 @@ export const getCampaignById = async (req: Request, res: Response) => {
         ma.account_id as external_account_id
       FROM campaigns c
       JOIN marketing_accounts ma ON c.marketing_account_id = ma.id
-      WHERE c.id = $1 AND ma.user_id = $2`,
+      WHERE c.id = ? AND ma.user_id = ?`,
       [id, userId]
     );
     
@@ -110,7 +111,7 @@ export const getCampaignById = async (req: Request, res: Response) => {
     // 최신 메트릭 조회
     const metricsResult = await client.query(
       `SELECT * FROM campaign_metrics 
-       WHERE campaign_id = $1 
+       WHERE campaign_id = ? 
        ORDER BY date DESC 
        LIMIT 1`,
       [id]
@@ -160,7 +161,7 @@ export const createCampaign = async (req: Request, res: Response) => {
     
     // 마케팅 계정 권한 확인
     const accountCheck = await client.query(
-      'SELECT id FROM marketing_accounts WHERE id = $1 AND user_id = $2',
+      'SELECT id FROM marketing_accounts WHERE id = ? AND user_id = ?',
       [marketing_account_id, userId]
     );
     
@@ -171,13 +172,12 @@ export const createCampaign = async (req: Request, res: Response) => {
       });
     }
     
-    const result = await client.query(
+    const insertResult = await client.query(
       `INSERT INTO campaigns (
         marketing_account_id, platform, campaign_name, campaign_id, 
         objective, daily_budget, total_budget, start_date, end_date, status
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-      RETURNING *`,
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         marketing_account_id,
         platform,
@@ -190,6 +190,11 @@ export const createCampaign = async (req: Request, res: Response) => {
         end_date || null,
         status || 'active',
       ]
+    );
+    
+    const result = await client.query(
+      'SELECT * FROM campaigns WHERE id = ?',
+      [insertResult.insertId]
     );
     
     res.status(201).json({
@@ -227,7 +232,7 @@ export const updateCampaign = async (req: Request, res: Response) => {
     const authCheck = await client.query(
       `SELECT c.id FROM campaigns c
        JOIN marketing_accounts ma ON c.marketing_account_id = ma.id
-       WHERE c.id = $1 AND ma.user_id = $2`,
+       WHERE c.id = ? AND ma.user_id = ?`,
       [id, userId]
     );
     
@@ -238,20 +243,21 @@ export const updateCampaign = async (req: Request, res: Response) => {
       });
     }
     
-    const result = await client.query(
+    await client.query(
       `UPDATE campaigns SET
-        campaign_name = COALESCE($1, campaign_name),
-        objective = COALESCE($2, objective),
-        daily_budget = COALESCE($3, daily_budget),
-        total_budget = COALESCE($4, total_budget),
-        start_date = COALESCE($5, start_date),
-        end_date = COALESCE($6, end_date),
-        status = COALESCE($7, status),
+        campaign_name = COALESCE(?, campaign_name),
+        objective = COALESCE(?, objective),
+        daily_budget = COALESCE(?, daily_budget),
+        total_budget = COALESCE(?, total_budget),
+        start_date = COALESCE(?, start_date),
+        end_date = COALESCE(?, end_date),
+        status = COALESCE(?, status),
         updated_at = CURRENT_TIMESTAMP
-      WHERE id = $8
-      RETURNING *`,
+      WHERE id = ?`,
       [campaign_name, objective, daily_budget, total_budget, start_date, end_date, status, id]
     );
+    
+    const result = await client.query('SELECT * FROM campaigns WHERE id = ?', [id]);
     
     res.json({
       campaign: result.rows[0],
@@ -279,7 +285,7 @@ export const deleteCampaign = async (req: Request, res: Response) => {
     const authCheck = await client.query(
       `SELECT c.id FROM campaigns c
        JOIN marketing_accounts ma ON c.marketing_account_id = ma.id
-       WHERE c.id = $1 AND ma.user_id = $2`,
+       WHERE c.id = ? AND ma.user_id = ?`,
       [id, userId]
     );
     
@@ -290,7 +296,7 @@ export const deleteCampaign = async (req: Request, res: Response) => {
       });
     }
     
-    await client.query('DELETE FROM campaigns WHERE id = $1', [id]);
+    await client.query('DELETE FROM campaigns WHERE id = ?', [id]);
     
     res.json({
       message: '캠페인이 삭제되었습니다.',
@@ -319,7 +325,7 @@ export const getCampaignMetrics = async (req: Request, res: Response) => {
     const authCheck = await client.query(
       `SELECT c.id FROM campaigns c
        JOIN marketing_accounts ma ON c.marketing_account_id = ma.id
-       WHERE c.id = $1 AND ma.user_id = $2`,
+       WHERE c.id = ? AND ma.user_id = ?`,
       [id, userId]
     );
     
@@ -332,24 +338,21 @@ export const getCampaignMetrics = async (req: Request, res: Response) => {
     
     let query = `
       SELECT * FROM campaign_metrics
-      WHERE campaign_id = $1
+      WHERE campaign_id = ?
     `;
     const params: any[] = [id];
-    let paramIndex = 2;
     
     if (start_date) {
-      query += ` AND date >= $${paramIndex}`;
+      query += ` AND date >= ?`;
       params.push(start_date);
-      paramIndex++;
     }
     
     if (end_date) {
-      query += ` AND date <= $${paramIndex}`;
+      query += ` AND date <= ?`;
       params.push(end_date);
-      paramIndex++;
     }
     
-    query += ` ORDER BY date DESC LIMIT $${paramIndex}`;
+    query += ` ORDER BY date DESC LIMIT ?`;
     params.push(Number(limit));
     
     const result = await client.query(query, params);

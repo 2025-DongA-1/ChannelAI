@@ -132,7 +132,7 @@ const startServer = async () => {
     // 데이터베이스 연결 테스트
     console.log('📊 데이터베이스 연결 테스트 중...');
     await pool.query('SELECT NOW()');
-    console.log('✅ PostgreSQL 연결 성공');
+    console.log('✅ MySQL 데이터베이스 연결 성공');
     
     // Redis 연결
     console.log('🔴 Redis 연결 중...');
@@ -145,7 +145,7 @@ const startServer = async () => {
       console.log(`📡 포트: ${PORT}`);
       console.log(`🌍 환경: ${process.env.NODE_ENV}`);
       console.log(`🔗 로컬 URL: http://localhost:${PORT}`);
-      console.log(`🔗 네트워크 URL: http://192.168.219.90:${PORT}`);
+      console.log(`🔗 네트워크 URL: http://0.0.0.0:${PORT}`);
       console.log('');
       console.log('사용 가능한 엔드포인트:');
       console.log('  GET  /           - API 정보');

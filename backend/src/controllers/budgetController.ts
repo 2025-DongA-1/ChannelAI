@@ -15,7 +15,7 @@ export const getBudgetSummary = async (req: AuthRequest, res: Response) => {
     const queryParams: any[] = [userId];
 
     if (startDate && endDate) {
-      dateFilter = `AND cm.date >= $2 AND cm.date <= $3`;
+      dateFilter = `AND cm.date >= ? AND cm.date <= ?`;
       queryParams.push(startDate, endDate);
     }
 
@@ -25,11 +25,11 @@ export const getBudgetSummary = async (req: AuthRequest, res: Response) => {
         COALESCE(SUM(c.daily_budget), 0) as total_daily_budget,
         COALESCE(SUM(c.total_budget), 0) as total_budget,
         COALESCE(SUM(cm.cost), 0) as total_spent,
-        COUNT(DISTINCT c.id) FILTER (WHERE c.status = 'active') as active_campaigns
+        SUM(CASE WHEN c.status = 'active' THEN 1 ELSE 0 END) as active_campaigns
       FROM campaigns c
       LEFT JOIN marketing_accounts ma ON c.marketing_account_id = ma.id
       LEFT JOIN campaign_metrics cm ON c.id = cm.campaign_id
-      WHERE ma.user_id = $1
+      WHERE ma.user_id = ?
         ${dateFilter}
     `;
 
@@ -73,7 +73,7 @@ export const getBudgetByPlatform = async (req: AuthRequest, res: Response) => {
     const queryParams: any[] = [userId];
 
     if (startDate && endDate) {
-      dateFilter = `AND cm.date >= $2 AND cm.date <= $3`;
+      dateFilter = `AND cm.date >= ? AND cm.date <= ?`;
       queryParams.push(startDate, endDate);
     }
 
@@ -88,7 +88,7 @@ export const getBudgetByPlatform = async (req: AuthRequest, res: Response) => {
       FROM campaigns c
       LEFT JOIN marketing_accounts ma ON c.marketing_account_id = ma.id
       LEFT JOIN campaign_metrics cm ON c.id = cm.campaign_id
-      WHERE ma.user_id = $1
+      WHERE ma.user_id = ?
         AND c.status = 'active'
         ${dateFilter}
       GROUP BY c.platform
@@ -130,16 +130,14 @@ export const getBudgetByCampaign = async (req: AuthRequest, res: Response) => {
     let platformFilter = '';
     let dateFilter = '';
     const queryParams: any[] = [userId];
-    let paramIndex = 2;
 
     if (platform) {
-      platformFilter = `AND c.platform = $${paramIndex}`;
+      platformFilter = `AND c.platform = ?`;
       queryParams.push(platform);
-      paramIndex++;
     }
 
     if (startDate && endDate) {
-      dateFilter = `AND cm.date >= $${paramIndex} AND cm.date <= $${paramIndex + 1}`;
+      dateFilter = `AND cm.date >= ? AND cm.date <= ?`;
       queryParams.push(startDate, endDate);
     }
 
@@ -158,7 +156,7 @@ export const getBudgetByCampaign = async (req: AuthRequest, res: Response) => {
       FROM campaigns c
       LEFT JOIN marketing_accounts ma ON c.marketing_account_id = ma.id
       LEFT JOIN campaign_metrics cm ON c.id = cm.campaign_id
-      WHERE ma.user_id = $1
+      WHERE ma.user_id = ?
         ${platformFilter}
         ${dateFilter}
       GROUP BY c.id, c.campaign_name, c.platform, c.status, c.daily_budget, c.total_budget
@@ -210,7 +208,7 @@ export const updateCampaignBudget = async (req: AuthRequest, res: Response) => {
     const authCheck = await pool.query(
       `SELECT c.id FROM campaigns c
        JOIN marketing_accounts ma ON c.marketing_account_id = ma.id
-       WHERE c.id = $1 AND ma.user_id = $2`,
+       WHERE c.id = ? AND ma.user_id = ?`,
       [id, userId]
     );
 
@@ -221,17 +219,17 @@ export const updateCampaignBudget = async (req: AuthRequest, res: Response) => {
     }
 
     // 예산 업데이트
-    const updateQuery = `
-      UPDATE campaigns
-      SET 
-        daily_budget = COALESCE($1, daily_budget),
-        total_budget = COALESCE($2, total_budget),
+    await pool.query(
+      `UPDATE campaigns
+       SET 
+        daily_budget = COALESCE(?, daily_budget),
+        total_budget = COALESCE(?, total_budget),
         updated_at = CURRENT_TIMESTAMP
-      WHERE id = $3
-      RETURNING *
-    `;
+       WHERE id = ?`,
+      [dailyBudget, totalBudget, id]
+    );
 
-    const result = await pool.query(updateQuery, [dailyBudget, totalBudget, id]);
+    const result = await pool.query('SELECT * FROM campaigns WHERE id = ?', [id]);
 
     res.json({
       success: true,

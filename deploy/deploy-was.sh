@@ -7,6 +7,14 @@
 set -e
 APP_DIR="/opt/marketing-platform"
 
+# 환경변수에서 비밀번호 로드
+if [ -f "$(dirname "$0")/.env.production" ]; then
+    source "$(dirname "$0")/.env.production"
+fi
+
+# 필수 환경변수 확인
+DB_PASSWORD=${DB_PASSWORD:?"DB_PASSWORD 환경변수가 설정되지 않았습니다."}
+
 echo "=========================================="
 echo "  WAS 서버 배포 시작"
 echo "=========================================="
@@ -33,12 +41,17 @@ echo "✅ 빌드 완료: $APP_DIR/backend/dist/"
 # 4. 데이터베이스 스키마 적용
 echo ""
 echo "[3/5] 데이터베이스 스키마 확인..."
+DB_HOST=${DB_HOST:-"project-db-cgi.smhrd.com"}
+DB_PORT=${DB_PORT:-3307}
+DB_NAME=${DB_NAME:-"cgi_25K_DA1_p3_1"}
+DB_USER=${DB_USER:-"cgi_25K_DA1_p3_1"}
+
 if [ -f "$APP_DIR/database/schema.sql" ]; then
-    PGPASSWORD='Marketing@2026!Secure' psql -U marketing_admin -d marketing_platform -h localhost -f $APP_DIR/database/schema.sql 2>/dev/null || echo "⚠️  스키마 이미 적용됨 (무시 가능)"
+    mysql -h "${DB_HOST}" -P "${DB_PORT}" -u "${DB_USER}" -p"${DB_PASSWORD}" "${DB_NAME}" < $APP_DIR/database/schema.sql 2>/dev/null || echo "⚠️  스키마 이미 적용됨 (무시 가능)"
 fi
 
 if [ -f "$APP_DIR/database/add-karrot-data.sql" ]; then
-    PGPASSWORD='Marketing@2026!Secure' psql -U marketing_admin -d marketing_platform -h localhost -f $APP_DIR/database/add-karrot-data.sql 2>/dev/null || echo "⚠️  기초 데이터 이미 적용됨 (무시 가능)"
+    mysql -h "${DB_HOST}" -P "${DB_PORT}" -u "${DB_USER}" -p"${DB_PASSWORD}" "${DB_NAME}" < $APP_DIR/database/add-karrot-data.sql 2>/dev/null || echo "⚠️  기초 데이터 이미 적용됨 (무시 가능)"
 fi
 
 # 5. Python 환경 설정 (AI 추천 서비스)

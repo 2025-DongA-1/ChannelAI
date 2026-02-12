@@ -7,10 +7,13 @@ yarn-error.log*
 
 # Environment files
 .env
+.env.*
+!.env.example
 .env.local
 .env.development.local
 .env.test.local
 .env.production.local
+.env.production
 
 # Build outputs
 dist/
@@ -63,3 +66,11 @@ deploy/*.key
 # Sensitive config
 *.secret
 *.credentials
+
+# SSH keys
+id_rsa
+id_rsa.pub
+*.pem
+*.key
+*.cert
+*.crt

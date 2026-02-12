@@ -34,8 +34,8 @@ export const getTrends = async (req: Request, res: Response) => {
       FROM campaign_metrics cm
       JOIN campaigns c ON cm.campaign_id = c.id
       JOIN marketing_accounts ma ON c.marketing_account_id = ma.id
-      WHERE ma.user_id = $1
-        AND cm.date BETWEEN $2 AND $3
+      WHERE ma.user_id = ?
+        AND cm.date BETWEEN ? AND ?
       GROUP BY DATE(cm.date)
       ORDER BY DATE(cm.date)
     `;
@@ -61,8 +61,8 @@ export const getTrends = async (req: Request, res: Response) => {
       FROM campaign_metrics cm
       JOIN campaigns c ON cm.campaign_id = c.id
       JOIN marketing_accounts ma ON c.marketing_account_id = ma.id
-      WHERE ma.user_id = $1
-        AND cm.date BETWEEN $2 AND $3
+      WHERE ma.user_id = ?
+        AND cm.date BETWEEN ? AND ?
     `;
     
     const previousData = await client.query(previousPeriodQuery, [
@@ -163,22 +163,22 @@ export const getComparison = async (req: Request, res: Response) => {
         SUM(cm.conversions) as conversions,
         SUM(cm.cost) as cost,
         SUM(cm.revenue) as revenue,
-        AVG(CASE WHEN cm.impressions > 0 THEN (cm.clicks::float / cm.impressions) * 100 ELSE 0 END) as avg_ctr,
+        AVG(CASE WHEN cm.impressions > 0 THEN (cm.clicks / cm.impressions) * 100 ELSE 0 END) as avg_ctr,
         AVG(CASE WHEN cm.clicks > 0 THEN cm.cost / cm.clicks ELSE 0 END) as avg_cpc,
         SUM(CASE WHEN cm.cost > 0 THEN cm.revenue / cm.cost ELSE 0 END) as total_roas
       FROM marketing_accounts ma
       JOIN campaigns c ON c.marketing_account_id = ma.id
       LEFT JOIN campaign_metrics cm ON cm.campaign_id = c.id
-        AND cm.date BETWEEN $2 AND $3
-      WHERE ma.user_id = $1
+        AND cm.date BETWEEN ? AND ?
+      WHERE ma.user_id = ?
       GROUP BY ma.platform
       ORDER BY SUM(cm.cost) DESC
     `;
     
     const result = await client.query(query, [
-      userId,
       startDate.toISOString().split('T')[0],
       endDate.toISOString().split('T')[0],
+      userId,
     ]);
     
     const platforms = result.rows.map(row => ({
@@ -254,25 +254,25 @@ export const getRecommendations = async (req: Request, res: Response) => {
         SUM(cm.conversions) as conversions,
         SUM(cm.cost) as cost,
         SUM(cm.revenue) as revenue,
-        AVG(CASE WHEN cm.impressions > 0 THEN (cm.clicks::float / cm.impressions) * 100 ELSE 0 END) as avg_ctr,
+        AVG(CASE WHEN cm.impressions > 0 THEN (cm.clicks / cm.impressions) * 100 ELSE 0 END) as avg_ctr,
         CASE WHEN SUM(cm.cost) > 0 THEN SUM(cm.revenue) / SUM(cm.cost) ELSE 0 END as roas
       FROM campaigns c
       JOIN marketing_accounts ma ON c.marketing_account_id = ma.id
       LEFT JOIN campaign_metrics cm ON cm.campaign_id = c.id
-        AND cm.date BETWEEN $2 AND $3
-      WHERE ma.user_id = $1
+        AND cm.date BETWEEN ? AND ?
+      WHERE ma.user_id = ?
       GROUP BY c.id, c.campaign_name, c.platform, c.status, c.daily_budget
       HAVING SUM(cm.cost) > 0
       ORDER BY roas DESC
     `;
     
     const campaigns = await client.query(campaignQuery, [
-      userId,
       startDate.toISOString().split('T')[0],
       endDate.toISOString().split('T')[0],
+      userId,
     ]);
     
-    const recommendations = [];
+    const recommendations: any[] = [];
     
     // 1. 고성과 캠페인 예산 증액 추천
     const topPerformers = campaigns.rows
@@ -331,7 +331,7 @@ export const getRecommendations = async (req: Request, res: Response) => {
     const platformQuery = `
       SELECT DISTINCT platform
       FROM marketing_accounts
-      WHERE user_id = $1
+      WHERE user_id = ?
     `;
     
     const activePlatforms = await client.query(platformQuery, [userId]);
@@ -356,8 +356,8 @@ export const getRecommendations = async (req: Request, res: Response) => {
         end: endDate.toISOString().split('T')[0],
       },
       recommendations: recommendations.sort((a, b) => {
-        const priority = { high: 3, medium: 2, low: 1 };
-        return priority[b.priority as keyof typeof priority] - priority[a.priority as keyof typeof priority];
+        const priority: Record<string, number> = { high: 3, medium: 2, low: 1 };
+        return (priority[b.priority] || 0) - (priority[a.priority] || 0);
       }),
       summary: {
         total_campaigns: campaigns.rows.length,

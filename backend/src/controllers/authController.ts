@@ -20,7 +20,7 @@ export const register = async (req: Request, res: Response) => {
     
     // 이메일 중복 확인
     const existingUser = await client.query(
-      'SELECT id FROM users WHERE email = $1',
+      'SELECT id FROM users WHERE email = ?',
       [email]
     );
     
@@ -35,11 +35,15 @@ export const register = async (req: Request, res: Response) => {
     const hashedPassword = await bcrypt.hash(password, 10);
     
     // 사용자 생성
-    const result = await client.query(
+    const insertResult = await client.query(
       `INSERT INTO users (email, password_hash, name, company_name, role)
-       VALUES ($1, $2, $3, $4, 'user')
-       RETURNING id, email, name, company_name, role, created_at`,
+       VALUES (?, ?, ?, ?, 'user')`,
       [email, hashedPassword, name, company_name || null]
+    );
+    
+    const result = await client.query(
+      'SELECT id, email, name, company_name, role, created_at FROM users WHERE id = ?',
+      [insertResult.insertId]
     );
     
     const user = result.rows[0];
@@ -91,7 +95,7 @@ export const login = async (req: Request, res: Response) => {
     
     // 사용자 조회
     const result = await client.query(
-      'SELECT id, email, password_hash, name, company_name, role FROM users WHERE email = $1 AND is_active = true',
+      'SELECT id, email, password_hash, name, company_name, role FROM users WHERE email = ? AND is_active = true',
       [email]
     );
     
@@ -116,7 +120,7 @@ export const login = async (req: Request, res: Response) => {
     
     // 마지막 로그인 시간 업데이트
     await client.query(
-      'UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = $1',
+      'UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = ?',
       [user.id]
     );
     
@@ -164,7 +168,7 @@ export const checkEmail = async (req: Request, res: Response) => {
     }
     
     const result = await client.query(
-      'SELECT id FROM users WHERE email = $1',
+      'SELECT id FROM users WHERE email = ?',
       [email]
     );
     
@@ -193,7 +197,7 @@ export const getMe = async (req: Request, res: Response) => {
     const userId = (req as any).user.id;
     
     const result = await client.query(
-      'SELECT id, email, name, company_name, role, created_at, last_login FROM users WHERE id = $1',
+      'SELECT id, email, name, company_name, role, created_at, last_login FROM users WHERE id = ?',
       [userId]
     );
     

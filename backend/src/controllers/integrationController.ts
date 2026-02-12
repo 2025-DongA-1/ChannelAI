@@ -14,7 +14,6 @@ const serviceMap: Record<string, IAdService> = {
   google: googleAdsService,
   meta: metaAdsService,
   naver: naverAdsService,
-  // karrot은 동적 생성 필요 (계정별 access token)
 };
 
 /**
@@ -92,12 +91,11 @@ export const handleOAuthCallback = async (req: AuthRequest, res: Response) => {
         INSERT INTO marketing_accounts (
           user_id, platform, account_id, account_name,
           access_token, refresh_token, token_expires_at, is_connected
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, true)
-        ON CONFLICT (user_id, platform, account_id)
-        DO UPDATE SET
-          access_token = EXCLUDED.access_token,
-          refresh_token = EXCLUDED.refresh_token,
-          token_expires_at = EXCLUDED.token_expires_at,
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, true)
+        ON DUPLICATE KEY UPDATE
+          access_token = VALUES(access_token),
+          refresh_token = VALUES(refresh_token),
+          token_expires_at = VALUES(token_expires_at),
           is_connected = true,
           updated_at = CURRENT_TIMESTAMP
       `, [
@@ -132,7 +130,7 @@ export const syncCampaigns = async (req: AuthRequest, res: Response) => {
 
     // 계정 정보 조회
     const accountResult = await pool.query(
-      'SELECT * FROM marketing_accounts WHERE id = $1 AND user_id = $2',
+      'SELECT * FROM marketing_accounts WHERE id = ? AND user_id = ?',
       [accountId, userId]
     );
 
@@ -155,39 +153,43 @@ export const syncCampaigns = async (req: AuthRequest, res: Response) => {
 
     // 캠페인 DB 저장
     for (const campaign of campaigns) {
-      const result = await pool.query(`
-        INSERT INTO campaigns (
-          marketing_account_id, platform, campaign_id, campaign_name,
-          status, objective, daily_budget, total_budget, start_date, end_date
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-        ON CONFLICT (marketing_account_id, campaign_id)
-        DO UPDATE SET
-          campaign_name = EXCLUDED.campaign_name,
-          status = EXCLUDED.status,
-          objective = EXCLUDED.objective,
-          daily_budget = EXCLUDED.daily_budget,
-          total_budget = EXCLUDED.total_budget,
-          start_date = EXCLUDED.start_date,
-          end_date = EXCLUDED.end_date,
-          updated_at = CURRENT_TIMESTAMP
-        RETURNING (xmax = 0) AS inserted
-      `, [
-        accountId,
-        account.platform,
-        campaign.id,
-        campaign.name,
-        campaign.status,
-        campaign.objective,
-        campaign.budget?.daily || 0,
-        campaign.budget?.total || 0,
-        campaign.startDate || null,
-        campaign.endDate || null
-      ]);
+      // 기존 캠페인 확인
+      const existing = await pool.query(
+        'SELECT id FROM campaigns WHERE marketing_account_id = ? AND campaign_id = ?',
+        [accountId, campaign.id]
+      );
 
-      syncedCount++;
-      if (result.rows[0].inserted) {
+      if (existing.rows.length > 0) {
+        // 기존 캠페인 업데이트
+        await pool.query(`
+          UPDATE campaigns SET
+            campaign_name = ?, status = ?, objective = ?,
+            daily_budget = ?, total_budget = ?,
+            start_date = ?, end_date = ?,
+            updated_at = CURRENT_TIMESTAMP
+          WHERE marketing_account_id = ? AND campaign_id = ?
+        `, [
+          campaign.name, campaign.status, campaign.objective,
+          campaign.budget?.daily || 0, campaign.budget?.total || 0,
+          campaign.startDate || null, campaign.endDate || null,
+          accountId, campaign.id
+        ]);
+      } else {
+        // 새 캠페인 삽입
+        await pool.query(`
+          INSERT INTO campaigns (
+            marketing_account_id, platform, campaign_id, campaign_name,
+            status, objective, daily_budget, total_budget, start_date, end_date
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `, [
+          accountId, account.platform, campaign.id, campaign.name,
+          campaign.status, campaign.objective,
+          campaign.budget?.daily || 0, campaign.budget?.total || 0,
+          campaign.startDate || null, campaign.endDate || null
+        ]);
         newCount++;
       }
+      syncedCount++;
     }
 
     // 동기화 로그 저장
@@ -195,11 +197,8 @@ export const syncCampaigns = async (req: AuthRequest, res: Response) => {
       INSERT INTO data_sync_logs (
         marketing_account_id, sync_type, status, records_synced,
         started_at, completed_at
-      ) VALUES ($1, 'campaigns', 'success', $2, NOW(), NOW())
-    `, [
-      accountId,
-      syncedCount
-    ]);
+      ) VALUES (?, 'campaigns', 'success', ?, NOW(), NOW())
+    `, [accountId, syncedCount]);
 
     res.json({
       success: true,
@@ -237,7 +236,7 @@ export const syncMetrics = async (req: AuthRequest, res: Response) => {
       SELECT c.*, ma.access_token, ma.account_id, ma.platform
       FROM campaigns c
       JOIN marketing_accounts ma ON c.marketing_account_id = ma.id
-      WHERE c.id = $1 AND ma.user_id = $2
+      WHERE c.id = ? AND ma.user_id = ?
     `, [campaignId, userId]);
 
     if (campaignResult.rows.length === 0) {
@@ -265,17 +264,17 @@ export const syncMetrics = async (req: AuthRequest, res: Response) => {
     // 메트릭 DB 저장
     for (const metric of metrics) {
       const existing = await pool.query(
-        'SELECT id FROM campaign_metrics WHERE campaign_id = $1 AND date = $2',
+        'SELECT id FROM campaign_metrics WHERE campaign_id = ? AND date = ?',
         [campaignId, metric.date]
       );
 
       if (existing.rows.length > 0) {
         await pool.query(`
           UPDATE campaign_metrics
-          SET impressions = $1, clicks = $2, conversions = $3,
-              cost = $4, revenue = $5, ctr = $6, cpc = $7, roas = $8,
+          SET impressions = ?, clicks = ?, conversions = ?,
+              cost = ?, revenue = ?, ctr = ?, cpc = ?, roas = ?,
               updated_at = CURRENT_TIMESTAMP
-          WHERE campaign_id = $9 AND date = $10
+          WHERE campaign_id = ? AND date = ?
         `, [
           metric.impressions, metric.clicks, metric.conversions,
           metric.cost, metric.revenue || 0, metric.ctr || 0,
@@ -287,7 +286,7 @@ export const syncMetrics = async (req: AuthRequest, res: Response) => {
           INSERT INTO campaign_metrics (
             campaign_id, date, impressions, clicks, conversions,
             cost, revenue, ctr, cpc, roas
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `, [
           campaignId, metric.date,
           metric.impressions, metric.clicks, metric.conversions,
@@ -295,7 +294,6 @@ export const syncMetrics = async (req: AuthRequest, res: Response) => {
           metric.cpc || 0, metric.roas || 0
         ]);
       }
-
       syncedCount++;
     }
 
@@ -304,11 +302,8 @@ export const syncMetrics = async (req: AuthRequest, res: Response) => {
       INSERT INTO data_sync_logs (
         marketing_account_id, sync_type, status, records_synced,
         started_at, completed_at
-      ) VALUES ($1, 'metrics', 'success', $2, NOW(), NOW())
-    `, [
-      campaign.marketing_account_id,
-      syncedCount
-    ]);
+      ) VALUES (?, 'metrics', 'success', ?, NOW(), NOW())
+    `, [campaign.marketing_account_id, syncedCount]);
 
     res.json({
       success: true,
@@ -345,11 +340,11 @@ export const syncAllMetrics = async (req: AuthRequest, res: Response) => {
     }
 
     // 1. 먼저 계정 정보 조회
-    let accountQuery = 'SELECT * FROM marketing_accounts WHERE user_id = $1';
+    let accountQuery = 'SELECT * FROM marketing_accounts WHERE user_id = ?';
     const accountParams: any[] = [userId];
     
     if (platform) {
-      accountQuery += ' AND platform = $2';
+      accountQuery += ' AND platform = ?';
       accountParams.push(platform);
     }
 
@@ -383,7 +378,7 @@ export const syncAllMetrics = async (req: AuthRequest, res: Response) => {
         for (const campaign of campaigns) {
           // 캠페인 저장
           const existingCampaign = await pool.query(
-            'SELECT id FROM campaigns WHERE marketing_account_id = $1 AND campaign_id = $2',
+            'SELECT id FROM campaigns WHERE marketing_account_id = ? AND campaign_id = ?',
             [account.id, campaign.id]
           );
 
@@ -392,10 +387,10 @@ export const syncAllMetrics = async (req: AuthRequest, res: Response) => {
           if (existingCampaign.rows.length > 0) {
             await pool.query(`
               UPDATE campaigns
-              SET campaign_name = $1, status = $2, daily_budget = $3, 
-                  total_budget = $4, start_date = $5, end_date = $6,
+              SET campaign_name = ?, status = ?, daily_budget = ?, 
+                  total_budget = ?, start_date = ?, end_date = ?,
                   updated_at = CURRENT_TIMESTAMP
-              WHERE id = $7
+              WHERE id = ?
             `, [
               campaign.name, campaign.status, campaign.budget?.daily,
               campaign.budget?.total, campaign.startDate, campaign.endDate,
@@ -408,14 +403,13 @@ export const syncAllMetrics = async (req: AuthRequest, res: Response) => {
                 marketing_account_id, platform, campaign_id,
                 campaign_name, status, daily_budget, total_budget,
                 start_date, end_date
-              ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-              RETURNING id
+              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             `, [
               account.id, account.platform, campaign.id,
               campaign.name, campaign.status, campaign.budget?.daily,
               campaign.budget?.total, campaign.startDate, campaign.endDate
             ]);
-            dbCampaignId = insertResult.rows[0].id;
+            dbCampaignId = insertResult.insertId!;
             syncedCampaigns++;
           }
 
@@ -432,17 +426,17 @@ export const syncAllMetrics = async (req: AuthRequest, res: Response) => {
 
           for (const metric of metrics) {
             const existing = await pool.query(
-              'SELECT id FROM campaign_metrics WHERE campaign_id = $1 AND date = $2',
+              'SELECT id FROM campaign_metrics WHERE campaign_id = ? AND date = ?',
               [dbCampaignId, metric.date]
             );
 
             if (existing.rows.length > 0) {
               await pool.query(`
                 UPDATE campaign_metrics
-                SET impressions = $1, clicks = $2, conversions = $3,
-                    cost = $4, revenue = $5, ctr = $6, cpc = $7, roas = $8,
+                SET impressions = ?, clicks = ?, conversions = ?,
+                    cost = ?, revenue = ?, ctr = ?, cpc = ?, roas = ?,
                     updated_at = CURRENT_TIMESTAMP
-                WHERE campaign_id = $9 AND date = $10
+                WHERE campaign_id = ? AND date = ?
               `, [
                 metric.impressions, metric.clicks, metric.conversions,
                 metric.cost, metric.revenue || 0, metric.ctr || 0,
@@ -454,7 +448,7 @@ export const syncAllMetrics = async (req: AuthRequest, res: Response) => {
                 INSERT INTO campaign_metrics (
                   campaign_id, date, impressions, clicks, conversions,
                   cost, revenue, ctr, cpc, roas
-                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
               `, [
                 dbCampaignId, metric.date,
                 metric.impressions, metric.clicks, metric.conversions,
@@ -517,7 +511,7 @@ export const disconnectAccount = async (req: AuthRequest, res: Response) => {
 
     // 계정 정보 조회
     const accountResult = await pool.query(
-      'SELECT id FROM marketing_accounts WHERE user_id = $1 AND platform = $2',
+      'SELECT id FROM marketing_accounts WHERE user_id = ? AND platform = ?',
       [userId, platform]
     );
 
@@ -528,9 +522,9 @@ export const disconnectAccount = async (req: AuthRequest, res: Response) => {
     const accountId = accountResult.rows[0].id;
 
     // 관련 데이터 삭제 (캠페인 메트릭, 캠페인, 계정 순서)
-    await pool.query('DELETE FROM campaign_metrics WHERE campaign_id IN (SELECT id FROM campaigns WHERE marketing_account_id = $1)', [accountId]);
-    await pool.query('DELETE FROM campaigns WHERE marketing_account_id = $1', [accountId]);
-    await pool.query('DELETE FROM marketing_accounts WHERE id = $1', [accountId]);
+    await pool.query('DELETE FROM campaign_metrics WHERE campaign_id IN (SELECT id FROM campaigns WHERE marketing_account_id = ?)', [accountId]);
+    await pool.query('DELETE FROM campaigns WHERE marketing_account_id = ?', [accountId]);
+    await pool.query('DELETE FROM marketing_accounts WHERE id = ?', [accountId]);
 
     res.json({
       success: true,

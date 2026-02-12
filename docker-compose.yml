@@ -1,19 +1,22 @@
 services:
-  postgres:
-    image: postgres:15-alpine
-    container_name: marketing_postgres
-    environment:
-      POSTGRES_DB: marketing_platform
-      POSTGRES_USER: admin
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-changeme}
-    ports:
-      - "5432:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-      - ./database/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
-    networks:
-      - marketing_network
-    restart: unless-stopped
+  # MySQL은 외부 DB(project-db-cgi.smhrd.com:3307) 사용
+  # 로컬 개발 시 필요하면 아래 주석 해제
+  # mysql:
+  #   image: mysql:8.0
+  #   container_name: marketing_mysql
+  #   environment:
+  #     MYSQL_DATABASE: cgi_25K_DA1_p3_1
+  #     MYSQL_USER: cgi_25K_DA1_p3_1
+  #     MYSQL_PASSWORD: ${DB_PASSWORD:-changeme}
+  #     MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-rootchangeme}
+  #   ports:
+  #     - "3307:3306"
+  #   volumes:
+  #     - mysql_data:/var/lib/mysql
+  #     - ./database/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
+  #   networks:
+  #     - marketing_network
+  #   restart: unless-stopped
 
   redis:
     image: redis:7-alpine
@@ -35,12 +38,12 @@ services:
     networks:
       - marketing_network
     environment:
-      ADMINER_DEFAULT_SERVER: postgres
+      ADMINER_DEFAULT_SERVER: project-db-cgi.smhrd.com
     restart: unless-stopped
 
 volumes:
-  postgres_data:
-    driver: local
+  # mysql_data:
+  #   driver: local
   redis_data:
     driver: local
 

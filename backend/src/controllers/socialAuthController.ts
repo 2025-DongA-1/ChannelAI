@@ -66,7 +66,7 @@ export const handleKakaoCallback = async (req: Request, res: Response) => {
     // 3. 기존 사용자 확인 또는 생성
     let user;
     const existingUser = await client.query(
-      'SELECT * FROM users WHERE email = $1',
+      'SELECT * FROM users WHERE email = ?',
       [email]
     );
 
@@ -75,16 +75,19 @@ export const handleKakaoCallback = async (req: Request, res: Response) => {
       
       // 마지막 로그인 시간 업데이트
       await client.query(
-        'UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = $1',
+        'UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = ?',
         [user.id]
       );
     } else {
       // 새 사용자 생성
-      const newUser = await client.query(
+      const insertResult = await client.query(
         `INSERT INTO users (email, password_hash, name, role)
-         VALUES ($1, $2, $3, 'user')
-         RETURNING id, email, name, company_name, role, created_at`,
+         VALUES (?, ?, ?, 'user')`,
         [email, 'KAKAO_OAUTH', name]
+      );
+      const newUser = await client.query(
+        'SELECT id, email, name, company_name, role, created_at FROM users WHERE id = ?',
+        [insertResult.insertId]
       );
       user = newUser.rows[0];
     }
@@ -169,7 +172,7 @@ export const handleNaverCallback = async (req: Request, res: Response) => {
     // 3. 기존 사용자 확인 또는 생성
     let user;
     const existingUser = await client.query(
-      'SELECT * FROM users WHERE email = $1',
+      'SELECT * FROM users WHERE email = ?',
       [email]
     );
 
@@ -177,15 +180,18 @@ export const handleNaverCallback = async (req: Request, res: Response) => {
       user = existingUser.rows[0];
       
       await client.query(
-        'UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = $1',
+        'UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = ?',
         [user.id]
       );
     } else {
-      const newUser = await client.query(
+      const insertResult = await client.query(
         `INSERT INTO users (email, password_hash, name, role)
-         VALUES ($1, $2, $3, 'user')
-         RETURNING id, email, name, company_name, role, created_at`,
+         VALUES (?, ?, ?, 'user')`,
         [email, 'NAVER_OAUTH', name]
+      );
+      const newUser = await client.query(
+        'SELECT id, email, name, company_name, role, created_at FROM users WHERE id = ?',
+        [insertResult.insertId]
       );
       user = newUser.rows[0];
     }
@@ -269,7 +275,7 @@ export const handleGoogleCallback = async (req: Request, res: Response) => {
     // 3. 기존 사용자 확인 또는 생성
     let user;
     const existingUser = await client.query(
-      'SELECT * FROM users WHERE email = $1',
+      'SELECT * FROM users WHERE email = ?',
       [email]
     );
 
@@ -277,15 +283,18 @@ export const handleGoogleCallback = async (req: Request, res: Response) => {
       user = existingUser.rows[0];
       
       await client.query(
-        'UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = $1',
+        'UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = ?',
         [user.id]
       );
     } else {
-      const newUser = await client.query(
+      const insertResult = await client.query(
         `INSERT INTO users (email, password_hash, name, role)
-         VALUES ($1, $2, $3, 'user')
-         RETURNING id, email, name, company_name, role, created_at`,
+         VALUES (?, ?, ?, 'user')`,
         [email, 'GOOGLE_OAUTH', name]
+      );
+      const newUser = await client.query(
+        'SELECT id, email, name, company_name, role, created_at FROM users WHERE id = ?',
+        [insertResult.insertId]
       );
       user = newUser.rows[0];
     }
@@ -312,7 +321,6 @@ export const handleGoogleCallback = async (req: Request, res: Response) => {
  * 당근마켓 광고 플랫폼 연동 URL 생성
  */
 export const getKarrotAuthUrl = (req: Request, res: Response) => {
-  // 당근마켓 비즈니스 API OAuth URL
   const karrotAuthUrl = `https://business.daangn.com/oauth/authorize?client_id=${process.env.KARROT_CLIENT_ID}&redirect_uri=${process.env.KARROT_REDIRECT_URI}&response_type=code&scope=ads:read ads:write`;
   
   res.json({
@@ -334,51 +342,6 @@ export const handleKarrotCallback = async (req: Request, res: Response) => {
     if (!code) {
       return res.redirect(`${frontendUrl}/integration?error=missing_code&platform=karrot`);
     }
-
-    // TODO: 실제 당근마켓 API 연동 시 주석 해제
-    /*
-    // 1. 당근마켓 액세스 토큰 받기
-    const tokenResponse = await axios.post(
-      'https://business.daangn.com/oauth/token',
-      {
-        grant_type: 'authorization_code',
-        client_id: process.env.KARROT_CLIENT_ID,
-        client_secret: process.env.KARROT_CLIENT_SECRET,
-        redirect_uri: process.env.KARROT_REDIRECT_URI,
-        code,
-      },
-      {
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      }
-    );
-
-    const { access_token, refresh_token } = tokenResponse.data;
-
-    // 2. 당근마켓 광고 계정 정보 조회
-    const accountResponse = await axios.get(
-      'https://business.daangn.com/api/v1/accounts',
-      {
-        headers: {
-          Authorization: `Bearer ${access_token}`,
-        },
-      }
-    );
-
-    const accountInfo = accountResponse.data;
-
-    // 3. 마케팅 계정 저장
-    const userId = req.user?.id; // auth middleware에서 추출
-    
-    await client.query(
-      `INSERT INTO marketing_accounts (user_id, platform, account_id, account_name, access_token, refresh_token, is_connected)
-       VALUES ($1, 'KARROT', $2, $3, $4, $5, true)
-       ON CONFLICT (user_id, platform, account_id) 
-       DO UPDATE SET access_token = $4, refresh_token = $5, is_connected = true, updated_at = CURRENT_TIMESTAMP`,
-      [userId, accountInfo.id, accountInfo.name, access_token, refresh_token]
-    );
-    */
 
     // Mock: 임시 성공 처리
     console.log('당근마켓 OAuth 콜백 - Mock 처리');

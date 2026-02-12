@@ -16,7 +16,7 @@ export const getSummary = async (req: AuthRequest, res: Response) => {
     const queryParams: any[] = [userId];
     
     if (startDate && endDate) {
-      dateFilter = `AND cm.date >= $2 AND cm.date <= $3`;
+      dateFilter = `AND cm.date >= ? AND cm.date <= ?`;
       queryParams.push(startDate, endDate);
     }
 
@@ -32,23 +32,23 @@ export const getSummary = async (req: AuthRequest, res: Response) => {
         COALESCE(SUM(cm.revenue), 0) as total_revenue,
         CASE 
           WHEN SUM(cm.impressions) > 0 
-          THEN ROUND((SUM(cm.clicks)::numeric / SUM(cm.impressions) * 100), 2)
+          THEN ROUND(SUM(cm.clicks) / SUM(cm.impressions) * 100, 2)
           ELSE 0 
         END as avg_ctr,
         CASE 
           WHEN SUM(cm.clicks) > 0 
-          THEN ROUND((SUM(cm.cost)::numeric / SUM(cm.clicks)), 2)
+          THEN ROUND(SUM(cm.cost) / SUM(cm.clicks), 2)
           ELSE 0 
         END as avg_cpc,
         CASE 
           WHEN SUM(cm.cost) > 0 
-          THEN ROUND((SUM(cm.revenue)::numeric / SUM(cm.cost)), 2)
+          THEN ROUND(SUM(cm.revenue) / SUM(cm.cost), 2)
           ELSE 0 
         END as avg_roas
       FROM campaigns c
       LEFT JOIN marketing_accounts ma ON c.marketing_account_id = ma.id
       LEFT JOIN campaign_metrics cm ON c.id = cm.campaign_id
-      WHERE ma.user_id = $1
+      WHERE ma.user_id = ?
         AND c.status = 'active'
         ${dateFilter}
     `;
@@ -63,7 +63,7 @@ export const getSummary = async (req: AuthRequest, res: Response) => {
         COUNT(*) as count
       FROM campaigns c
       LEFT JOIN marketing_accounts ma ON c.marketing_account_id = ma.id
-      WHERE ma.user_id = $1
+      WHERE ma.user_id = ?
       GROUP BY c.status
     `;
 
@@ -78,7 +78,7 @@ export const getSummary = async (req: AuthRequest, res: Response) => {
       FROM campaigns c
       LEFT JOIN marketing_accounts ma ON c.marketing_account_id = ma.id
       LEFT JOIN campaign_metrics cm ON c.id = cm.campaign_id
-      WHERE ma.user_id = $1
+      WHERE ma.user_id = ?
         AND c.status = 'active'
         ${dateFilter}
     `;
@@ -136,7 +136,7 @@ export const getChannelPerformance = async (req: AuthRequest, res: Response) => 
     const params: any[] = [userId];
 
     if (startDate && endDate) {
-      dateFilter = `AND cm.date BETWEEN $2 AND $3`;
+      dateFilter = `AND cm.date BETWEEN ? AND ?`;
       params.push(startDate, endDate);
     }
 
@@ -151,23 +151,23 @@ export const getChannelPerformance = async (req: AuthRequest, res: Response) => 
         COALESCE(SUM(cm.revenue), 0) as total_revenue,
         CASE 
           WHEN SUM(cm.impressions) > 0 
-          THEN ROUND((SUM(cm.clicks)::numeric / SUM(cm.impressions) * 100), 2)
+          THEN ROUND(SUM(cm.clicks) / SUM(cm.impressions) * 100, 2)
           ELSE 0 
         END as avg_ctr,
         CASE 
           WHEN SUM(cm.clicks) > 0 
-          THEN ROUND((SUM(cm.cost)::numeric / SUM(cm.clicks)), 2)
+          THEN ROUND(SUM(cm.cost) / SUM(cm.clicks), 2)
           ELSE 0 
         END as avg_cpc,
         CASE 
           WHEN SUM(cm.cost) > 0 
-          THEN ROUND((SUM(cm.revenue)::numeric / SUM(cm.cost)), 2)
+          THEN ROUND(SUM(cm.revenue) / SUM(cm.cost), 2)
           ELSE 0 
         END as avg_roas
       FROM campaigns c
       LEFT JOIN marketing_accounts ma ON c.marketing_account_id = ma.id
       LEFT JOIN campaign_metrics cm ON c.id = cm.campaign_id
-      WHERE ma.user_id = $1
+      WHERE ma.user_id = ?
         ${dateFilter}
       GROUP BY c.platform
       ORDER BY total_cost DESC
@@ -219,7 +219,7 @@ export const getInsights = async (req: AuthRequest, res: Response) => {
     const params: any[] = [userId, limit];
 
     if (priority) {
-      filters += ` AND i.priority = $${params.length + 1}`;
+      filters += ` AND i.priority = ?`;
       params.push(priority);
     }
 
@@ -237,7 +237,7 @@ export const getInsights = async (req: AuthRequest, res: Response) => {
         c.platform
       FROM insights i
       LEFT JOIN campaigns c ON i.campaign_id = c.id
-      WHERE i.user_id = $1
+      WHERE i.user_id = ?
         ${filters}
       ORDER BY 
         CASE i.priority
@@ -246,7 +246,7 @@ export const getInsights = async (req: AuthRequest, res: Response) => {
           WHEN 'low' THEN 3
         END,
         i.created_at DESC
-      LIMIT $2
+      LIMIT ?
     `;
 
     const result = await pool.query(query, params);
@@ -286,10 +286,9 @@ export const getInsights = async (req: AuthRequest, res: Response) => {
 export const getBudgetStatus = async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user?.id;
-    const { groupBy = 'platform' } = req.query; // platform, campaign
+    const { groupBy = 'platform' } = req.query;
 
     if (groupBy === 'platform') {
-      // 플랫폼별 예산 현황
       const query = `
         SELECT 
           c.platform,
@@ -301,7 +300,7 @@ export const getBudgetStatus = async (req: AuthRequest, res: Response) => {
         FROM campaigns c
         LEFT JOIN marketing_accounts ma ON c.marketing_account_id = ma.id
         LEFT JOIN campaign_metrics cm ON c.id = cm.campaign_id
-        WHERE ma.user_id = $1
+        WHERE ma.user_id = ?
           AND c.status = 'active'
         GROUP BY c.platform
         ORDER BY total_budget DESC
@@ -328,7 +327,6 @@ export const getBudgetStatus = async (req: AuthRequest, res: Response) => {
         budgets: budgetByPlatform
       });
     } else {
-      // 캠페인별 예산 현황
       const query = `
         SELECT 
           c.id,
@@ -342,7 +340,7 @@ export const getBudgetStatus = async (req: AuthRequest, res: Response) => {
         FROM campaigns c
         LEFT JOIN marketing_accounts ma ON c.marketing_account_id = ma.id
         LEFT JOIN campaign_metrics cm ON c.id = cm.campaign_id
-        WHERE ma.user_id = $1
+        WHERE ma.user_id = ?
           AND c.status = 'active'
         GROUP BY c.id, c.campaign_name, c.platform, c.daily_budget, c.total_budget, c.start_date, c.end_date
         ORDER BY c.total_budget DESC

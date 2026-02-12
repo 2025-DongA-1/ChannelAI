@@ -1,45 +1,46 @@
--- 멀티채널 마케팅 최적화 서비스 데이터베이스 스키마
--- PostgreSQL 15+
+-- ============================================
+-- 멀티채널 마케팅 최적화 서비스 - MySQL 스키마
+-- DB: cgi_25K_DA1_p3_1 @ project-db-cgi.smhrd.com:3307
+-- ============================================
 
--- 1. 사용자 테이블
-CREATE TABLE users (
-    id SERIAL PRIMARY KEY,
+-- 1. users (사용자)
+CREATE TABLE IF NOT EXISTS users (
+    id INT AUTO_INCREMENT PRIMARY KEY,
     email VARCHAR(255) UNIQUE NOT NULL,
     password_hash VARCHAR(255) NOT NULL,
     name VARCHAR(100) NOT NULL,
     company_name VARCHAR(200),
     role VARCHAR(50) DEFAULT 'user',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    last_login TIMESTAMP,
-    is_active BOOLEAN DEFAULT true
-);
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    last_login TIMESTAMP NULL,
+    is_active TINYINT(1) DEFAULT 1,
+    INDEX idx_users_email (email)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE INDEX idx_users_email ON users(email);
-
--- 2. 마케팅 계정 테이블
-CREATE TABLE marketing_accounts (
-    id SERIAL PRIMARY KEY,
-    user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+-- 2. marketing_accounts (마케팅 계정)
+CREATE TABLE IF NOT EXISTS marketing_accounts (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL,
     platform VARCHAR(50) NOT NULL,
     account_id VARCHAR(255) NOT NULL,
     account_name VARCHAR(255),
     access_token TEXT,
     refresh_token TEXT,
-    token_expires_at TIMESTAMP,
-    is_connected BOOLEAN DEFAULT true,
+    token_expires_at TIMESTAMP NULL,
+    is_connected TINYINT(1) DEFAULT 1,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(user_id, platform, account_id)
-);
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uk_user_platform_account (user_id, platform, account_id),
+    INDEX idx_marketing_accounts_user (user_id),
+    INDEX idx_marketing_accounts_platform (platform),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE INDEX idx_marketing_accounts_user ON marketing_accounts(user_id);
-CREATE INDEX idx_marketing_accounts_platform ON marketing_accounts(platform);
-
--- 3. 캠페인 테이블
-CREATE TABLE campaigns (
-    id SERIAL PRIMARY KEY,
-    marketing_account_id INTEGER REFERENCES marketing_accounts(id) ON DELETE CASCADE,
+-- 3. campaigns (캠페인)
+CREATE TABLE IF NOT EXISTS campaigns (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    marketing_account_id INT NOT NULL,
     campaign_id VARCHAR(255) NOT NULL,
     campaign_name VARCHAR(255) NOT NULL,
     platform VARCHAR(50) NOT NULL,
@@ -50,20 +51,20 @@ CREATE TABLE campaigns (
     start_date DATE,
     end_date DATE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(marketing_account_id, campaign_id)
-);
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uk_account_campaign (marketing_account_id, campaign_id),
+    INDEX idx_campaigns_account (marketing_account_id),
+    INDEX idx_campaigns_platform (platform),
+    INDEX idx_campaigns_status (status),
+    FOREIGN KEY (marketing_account_id) REFERENCES marketing_accounts(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE INDEX idx_campaigns_account ON campaigns(marketing_account_id);
-CREATE INDEX idx_campaigns_platform ON campaigns(platform);
-CREATE INDEX idx_campaigns_status ON campaigns(status);
-
--- 4. 캠페인 성과 지표 테이블
-CREATE TABLE campaign_metrics (
-    id SERIAL PRIMARY KEY,
-    campaign_id INTEGER REFERENCES campaigns(id) ON DELETE CASCADE,
+-- 4. campaign_metrics (캠페인 성과 지표)
+CREATE TABLE IF NOT EXISTS campaign_metrics (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    campaign_id INT NOT NULL,
     date DATE NOT NULL,
-    hour INTEGER,
+    hour INT NULL,
     
     impressions BIGINT DEFAULT 0,
     clicks BIGINT DEFAULT 0,
@@ -73,7 +74,7 @@ CREATE TABLE campaign_metrics (
     cpc DECIMAL(10, 2),
     cpm DECIMAL(10, 2),
     
-    conversions INTEGER DEFAULT 0,
+    conversions INT DEFAULT 0,
     conversion_rate DECIMAL(5, 2),
     cpa DECIMAL(10, 2),
     
@@ -81,53 +82,42 @@ CREATE TABLE campaign_metrics (
     roas DECIMAL(10, 2),
     roi DECIMAL(10, 2),
     
-    likes INTEGER DEFAULT 0,
-    shares INTEGER DEFAULT 0,
-    comments INTEGER DEFAULT 0,
-    saves INTEGER DEFAULT 0,
+    likes INT DEFAULT 0,
+    shares INT DEFAULT 0,
+    comments INT DEFAULT 0,
+    saves INT DEFAULT 0,
     
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     
-    UNIQUE(campaign_id, date, hour)
-);
+    UNIQUE KEY uk_campaign_date_hour (campaign_id, date, hour),
+    INDEX idx_campaign_metrics_campaign (campaign_id),
+    INDEX idx_campaign_metrics_date (date),
+    INDEX idx_campaign_metrics_campaign_date (campaign_id, date),
+    FOREIGN KEY (campaign_id) REFERENCES campaigns(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE INDEX idx_campaign_metrics_campaign ON campaign_metrics(campaign_id);
-CREATE INDEX idx_campaign_metrics_date ON campaign_metrics(date);
-CREATE INDEX idx_campaign_metrics_campaign_date ON campaign_metrics(campaign_id, date);
-
--- 5. 채널 정보 테이블
-CREATE TABLE channels (
-    id SERIAL PRIMARY KEY,
+-- 5. channels (채널 정보)
+CREATE TABLE IF NOT EXISTS channels (
+    id INT AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(100) UNIQUE NOT NULL,
     platform VARCHAR(50) NOT NULL,
     display_name VARCHAR(100) NOT NULL,
     icon_url VARCHAR(500),
-    is_active BOOLEAN DEFAULT true
-);
+    is_active TINYINT(1) DEFAULT 1
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- 채널 기본 데이터
-INSERT INTO channels (name, platform, display_name) VALUES
-('google_search', 'google', 'Google 검색광고'),
-('google_display', 'google', 'Google 디스플레이'),
-('youtube', 'google', 'YouTube 광고'),
-('facebook', 'meta', 'Facebook 광고'),
-('instagram', 'meta', 'Instagram 광고'),
-('naver_search', 'naver', '네이버 검색광고'),
-('naver_display', 'naver', '네이버 디스플레이'),
-('kakao', 'kakao', '카카오 광고');
-
--- 6. 채널별 성과 테이블
-CREATE TABLE channel_performance (
-    id SERIAL PRIMARY KEY,
-    user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-    channel_id INTEGER REFERENCES channels(id),
+-- 6. channel_performance (채널별 성과)
+CREATE TABLE IF NOT EXISTS channel_performance (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL,
+    channel_id INT,
     date DATE NOT NULL,
     
     total_spend DECIMAL(12, 2) DEFAULT 0,
     total_impressions BIGINT DEFAULT 0,
     total_clicks BIGINT DEFAULT 0,
-    total_conversions INTEGER DEFAULT 0,
+    total_conversions INT DEFAULT 0,
     total_revenue DECIMAL(12, 2) DEFAULT 0,
     
     avg_cpc DECIMAL(10, 2),
@@ -135,19 +125,20 @@ CREATE TABLE channel_performance (
     avg_roas DECIMAL(10, 2),
     
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     
-    UNIQUE(user_id, channel_id, date)
-);
+    UNIQUE KEY uk_user_channel_date (user_id, channel_id, date),
+    INDEX idx_channel_performance_user (user_id),
+    INDEX idx_channel_performance_date (date),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (channel_id) REFERENCES channels(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE INDEX idx_channel_performance_user ON channel_performance(user_id);
-CREATE INDEX idx_channel_performance_date ON channel_performance(date);
-
--- 7. 인사이트 테이블
-CREATE TABLE insights (
-    id SERIAL PRIMARY KEY,
-    user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-    campaign_id INTEGER REFERENCES campaigns(id) ON DELETE SET NULL,
+-- 7. insights (인사이트/추천)
+CREATE TABLE IF NOT EXISTS insights (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL,
+    campaign_id INT,
     
     type VARCHAR(50) NOT NULL,
     category VARCHAR(50),
@@ -158,21 +149,23 @@ CREATE TABLE insights (
     potential_impact DECIMAL(10, 2),
     suggested_action TEXT,
     
-    is_read BOOLEAN DEFAULT false,
-    is_applied BOOLEAN DEFAULT false,
+    is_read TINYINT(1) DEFAULT 0,
+    is_applied TINYINT(1) DEFAULT 0,
     
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    expires_at TIMESTAMP
-);
+    expires_at TIMESTAMP NULL,
+    
+    INDEX idx_insights_user (user_id),
+    INDEX idx_insights_campaign (campaign_id),
+    INDEX idx_insights_priority (priority),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (campaign_id) REFERENCES campaigns(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE INDEX idx_insights_user ON insights(user_id);
-CREATE INDEX idx_insights_campaign ON insights(campaign_id);
-CREATE INDEX idx_insights_priority ON insights(priority);
-
--- 8. 리포트 테이블
-CREATE TABLE reports (
-    id SERIAL PRIMARY KEY,
-    user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+-- 8. reports (리포트)
+CREATE TABLE IF NOT EXISTS reports (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL,
     title VARCHAR(255) NOT NULL,
     report_type VARCHAR(50) NOT NULL,
     date_from DATE NOT NULL,
@@ -181,38 +174,40 @@ CREATE TABLE reports (
     file_url VARCHAR(500),
     status VARCHAR(50) DEFAULT 'pending',
     
-    config JSONB,
+    config JSON,
     
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    completed_at TIMESTAMP
-);
+    completed_at TIMESTAMP NULL,
+    
+    INDEX idx_reports_user (user_id),
+    INDEX idx_reports_created (created_at),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE INDEX idx_reports_user ON reports(user_id);
-CREATE INDEX idx_reports_created ON reports(created_at);
-
--- 9. 데이터 동기화 로그 테이블
-CREATE TABLE data_sync_logs (
-    id SERIAL PRIMARY KEY,
-    marketing_account_id INTEGER REFERENCES marketing_accounts(id) ON DELETE CASCADE,
+-- 9. data_sync_logs (데이터 동기화 로그)
+CREATE TABLE IF NOT EXISTS data_sync_logs (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    marketing_account_id INT NOT NULL,
     sync_type VARCHAR(50) NOT NULL,
     status VARCHAR(50) NOT NULL,
     
-    records_synced INTEGER DEFAULT 0,
+    records_synced INT DEFAULT 0,
     error_message TEXT,
     
     started_at TIMESTAMP NOT NULL,
-    completed_at TIMESTAMP,
+    completed_at TIMESTAMP NULL,
     
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    
+    INDEX idx_sync_logs_account (marketing_account_id),
+    INDEX idx_sync_logs_started (started_at),
+    FOREIGN KEY (marketing_account_id) REFERENCES marketing_accounts(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE INDEX idx_sync_logs_account ON data_sync_logs(marketing_account_id);
-CREATE INDEX idx_sync_logs_started ON data_sync_logs(started_at);
-
--- 10. 예산 관리 테이블
-CREATE TABLE budgets (
-    id SERIAL PRIMARY KEY,
-    user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+-- 10. budgets (예산 관리)
+CREATE TABLE IF NOT EXISTS budgets (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL,
     name VARCHAR(255) NOT NULL,
     
     total_amount DECIMAL(12, 2) NOT NULL,
@@ -226,80 +221,58 @@ CREATE TABLE budgets (
     alert_threshold DECIMAL(5, 2) DEFAULT 80,
     
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    
+    INDEX idx_budgets_user (user_id),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE INDEX idx_budgets_user ON budgets(user_id);
+-- ============================================
+-- KPI 자동 계산 트리거
+-- ============================================
 
--- 트리거: updated_at 자동 업데이트
-CREATE OR REPLACE FUNCTION update_updated_at_column()
-RETURNS TRIGGER AS $$
-BEGIN
-    NEW.updated_at = CURRENT_TIMESTAMP;
-    RETURN NEW;
-END;
-$$ language 'plpgsql';
+DELIMITER //
 
-CREATE TRIGGER update_users_updated_at BEFORE UPDATE ON users
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-
-CREATE TRIGGER update_marketing_accounts_updated_at BEFORE UPDATE ON marketing_accounts
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-
-CREATE TRIGGER update_campaigns_updated_at BEFORE UPDATE ON campaigns
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-
--- 트리거: 캠페인 메트릭 KPI 자동 계산
-CREATE OR REPLACE FUNCTION calculate_campaign_kpis()
-RETURNS TRIGGER AS $$
+CREATE TRIGGER trg_campaign_metrics_before_insert
+BEFORE INSERT ON campaign_metrics
+FOR EACH ROW
 BEGIN
     IF NEW.impressions > 0 THEN
-        NEW.ctr := (NEW.clicks::DECIMAL / NEW.impressions) * 100;
+        SET NEW.ctr = (NEW.clicks / NEW.impressions) * 100;
+        SET NEW.cpm = (NEW.cost / NEW.impressions) * 1000;
     END IF;
-    
     IF NEW.clicks > 0 THEN
-        NEW.cpc := NEW.cost / NEW.clicks;
-        NEW.conversion_rate := (NEW.conversions::DECIMAL / NEW.clicks) * 100;
+        SET NEW.cpc = NEW.cost / NEW.clicks;
+        SET NEW.conversion_rate = (NEW.conversions / NEW.clicks) * 100;
     END IF;
-    
-    IF NEW.impressions > 0 THEN
-        NEW.cpm := (NEW.cost / NEW.impressions) * 1000;
-    END IF;
-    
     IF NEW.conversions > 0 THEN
-        NEW.cpa := NEW.cost / NEW.conversions;
+        SET NEW.cpa = NEW.cost / NEW.conversions;
     END IF;
-    
     IF NEW.cost > 0 THEN
-        NEW.roas := NEW.revenue / NEW.cost;
-        NEW.roi := ((NEW.revenue - NEW.cost) / NEW.cost) * 100;
+        SET NEW.roas = NEW.revenue / NEW.cost;
+        SET NEW.roi = ((NEW.revenue - NEW.cost) / NEW.cost) * 100;
     END IF;
-    
-    RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
+END//
 
-CREATE TRIGGER trigger_calculate_kpis
-    BEFORE INSERT OR UPDATE ON campaign_metrics
-    FOR EACH ROW
-    EXECUTE FUNCTION calculate_campaign_kpis();
+CREATE TRIGGER trg_campaign_metrics_before_update
+BEFORE UPDATE ON campaign_metrics
+FOR EACH ROW
+BEGIN
+    IF NEW.impressions > 0 THEN
+        SET NEW.ctr = (NEW.clicks / NEW.impressions) * 100;
+        SET NEW.cpm = (NEW.cost / NEW.impressions) * 1000;
+    END IF;
+    IF NEW.clicks > 0 THEN
+        SET NEW.cpc = NEW.cost / NEW.clicks;
+        SET NEW.conversion_rate = (NEW.conversions / NEW.clicks) * 100;
+    END IF;
+    IF NEW.conversions > 0 THEN
+        SET NEW.cpa = NEW.cost / NEW.conversions;
+    END IF;
+    IF NEW.cost > 0 THEN
+        SET NEW.roas = NEW.revenue / NEW.cost;
+        SET NEW.roi = ((NEW.revenue - NEW.cost) / NEW.cost) * 100;
+    END IF;
+END//
 
--- 뷰: 캠페인 요약 정보
-CREATE VIEW campaign_summary AS
-SELECT 
-    c.id,
-    c.campaign_id,
-    c.campaign_name,
-    c.platform,
-    c.status,
-    SUM(cm.impressions) as total_impressions,
-    SUM(cm.clicks) as total_clicks,
-    SUM(cm.cost) as total_cost,
-    SUM(cm.conversions) as total_conversions,
-    SUM(cm.revenue) as total_revenue,
-    AVG(cm.ctr) as avg_ctr,
-    AVG(cm.cpc) as avg_cpc,
-    AVG(cm.roas) as avg_roas
-FROM campaigns c
-LEFT JOIN campaign_metrics cm ON c.id = cm.campaign_id
-GROUP BY c.id, c.campaign_id, c.campaign_name, c.platform, c.status;
+DELIMITER ;

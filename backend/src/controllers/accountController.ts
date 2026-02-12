@@ -15,13 +15,13 @@ export const getAccounts = async (req: Request, res: Response) => {
         ma.*,
         (SELECT COUNT(*) FROM campaigns WHERE marketing_account_id = ma.id) as campaign_count
       FROM marketing_accounts ma
-      WHERE ma.user_id = $1
+      WHERE ma.user_id = ?
     `;
     
     const params: any[] = [userId];
     
     if (platform) {
-      query += ` AND ma.platform = $2`;
+      query += ` AND ma.platform = ?`;
       params.push(platform);
     }
     
@@ -54,7 +54,7 @@ export const getAccountById = async (req: Request, res: Response) => {
     const result = await client.query(
       `SELECT ma.*
       FROM marketing_accounts ma
-      WHERE ma.id = $1 AND ma.user_id = $2`,
+      WHERE ma.id = ? AND ma.user_id = ?`,
       [id, userId]
     );
     
@@ -104,7 +104,7 @@ export const createAccount = async (req: Request, res: Response) => {
     
     // 중복 확인
     const existingAccount = await client.query(
-      'SELECT id FROM marketing_accounts WHERE user_id = $1 AND platform = $2 AND account_id = $3',
+      'SELECT id FROM marketing_accounts WHERE user_id = ? AND platform = ? AND account_id = ?',
       [userId, platform, account_id]
     );
     
@@ -115,22 +115,18 @@ export const createAccount = async (req: Request, res: Response) => {
       });
     }
     
-    const result = await client.query(
+    const insertResult = await client.query(
       `INSERT INTO marketing_accounts (
         user_id, platform, account_name, account_id,
         access_token, refresh_token, token_expires_at, is_connected
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, true)
-      RETURNING id, user_id, platform, account_name, account_id, is_connected, created_at`,
-      [
-        userId,
-        platform,
-        account_name,
-        account_id,
-        access_token,
-        refresh_token,
-        token_expires_at,
-      ]
+      VALUES (?, ?, ?, ?, ?, ?, ?, true)`,
+      [userId, platform, account_name, account_id, access_token, refresh_token, token_expires_at]
+    );
+    
+    const result = await client.query(
+      'SELECT id, user_id, platform, account_name, account_id, is_connected, created_at FROM marketing_accounts WHERE id = ?',
+      [insertResult.insertId]
     );
     
     res.status(201).json({
@@ -164,7 +160,7 @@ export const updateAccount = async (req: Request, res: Response) => {
     
     // 권한 확인
     const authCheck = await client.query(
-      'SELECT id FROM marketing_accounts WHERE id = $1 AND user_id = $2',
+      'SELECT id FROM marketing_accounts WHERE id = ? AND user_id = ?',
       [id, userId]
     );
     
@@ -175,17 +171,21 @@ export const updateAccount = async (req: Request, res: Response) => {
       });
     }
     
-    const result = await client.query(
+    await client.query(
       `UPDATE marketing_accounts SET
-        account_name = COALESCE($1, account_name),
-        access_token = COALESCE($2, access_token),
-        refresh_token = COALESCE($3, refresh_token),
-        token_expires_at = COALESCE($4, token_expires_at),
-        is_connected = COALESCE($5, is_connected),
+        account_name = COALESCE(?, account_name),
+        access_token = COALESCE(?, access_token),
+        refresh_token = COALESCE(?, refresh_token),
+        token_expires_at = COALESCE(?, token_expires_at),
+        is_connected = COALESCE(?, is_connected),
         updated_at = CURRENT_TIMESTAMP
-      WHERE id = $6
-      RETURNING id, user_id, platform, account_name, account_id, is_connected, created_at, updated_at`,
+      WHERE id = ?`,
       [account_name, access_token, refresh_token, token_expires_at, is_connected, id]
+    );
+    
+    const result = await client.query(
+      'SELECT id, user_id, platform, account_name, account_id, is_connected, created_at, updated_at FROM marketing_accounts WHERE id = ?',
+      [id]
     );
     
     res.json({
@@ -212,7 +212,7 @@ export const deleteAccount = async (req: Request, res: Response) => {
     
     // 권한 확인
     const authCheck = await client.query(
-      'SELECT id FROM marketing_accounts WHERE id = $1 AND user_id = $2',
+      'SELECT id FROM marketing_accounts WHERE id = ? AND user_id = ?',
       [id, userId]
     );
     
@@ -225,7 +225,7 @@ export const deleteAccount = async (req: Request, res: Response) => {
     
     // 연결된 캠페인이 있는지 확인
     const campaignCheck = await client.query(
-      'SELECT COUNT(*) FROM campaigns WHERE marketing_account_id = $1',
+      'SELECT COUNT(*) as count FROM campaigns WHERE marketing_account_id = ?',
       [id]
     );
     
@@ -236,7 +236,7 @@ export const deleteAccount = async (req: Request, res: Response) => {
       });
     }
     
-    await client.query('DELETE FROM marketing_accounts WHERE id = $1', [id]);
+    await client.query('DELETE FROM marketing_accounts WHERE id = ?', [id]);
     
     res.json({
       message: '계정이 삭제되었습니다.',
