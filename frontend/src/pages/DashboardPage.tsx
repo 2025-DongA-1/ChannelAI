@@ -35,7 +35,7 @@ export default function DashboardPage() {
   const budget = summary?.data?.budget;
 
   // AI 마케팅 에이전트
-  const { data: agentStatus } = useQuery({
+  const _agentStatus = useQuery({
     queryKey: ['agent-status'],
     queryFn: () => aiAgentAPI.getStatus(),
   });
