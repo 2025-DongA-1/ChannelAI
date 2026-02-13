@@ -327,7 +327,7 @@ export default function DashboardPage() {
                     </div>
                     <div>
                       <p className="text-xs text-gray-500 mb-1">ROAS</p>
-                      <p className="text-lg font-semibold text-green-600">{channel.metrics.roas.toFixed(2)}x</p>
+                      <p className="text-lg font-semibold text-green-600">{(channel.metrics?.roas ?? 0).toFixed(2)}x</p>
                     </div>
                   </div>
                 </div>

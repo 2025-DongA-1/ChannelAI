@@ -16,7 +16,7 @@ export const getSummary = async (req: AuthRequest, res: Response) => {
     const queryParams: any[] = [userId];
     
     if (startDate && endDate) {
-      dateFilter = `AND cm.date >= ? AND cm.date <= ?`;
+      dateFilter = `AND cm.metric_date >= ? AND cm.metric_date <= ?`;
       queryParams.push(startDate, endDate);
     }
 
@@ -136,13 +136,13 @@ export const getChannelPerformance = async (req: AuthRequest, res: Response) => 
     const params: any[] = [userId];
 
     if (startDate && endDate) {
-      dateFilter = `AND cm.date BETWEEN ? AND ?`;
+      dateFilter = `AND cm.metric_date BETWEEN ? AND ?`;
       params.push(startDate, endDate);
     }
 
     const query = `
       SELECT 
-        c.platform,
+        ma.channel_code AS platform,
         COUNT(DISTINCT c.id) as campaign_count,
         COALESCE(SUM(cm.impressions), 0) as total_impressions,
         COALESCE(SUM(cm.clicks), 0) as total_clicks,
@@ -169,7 +169,7 @@ export const getChannelPerformance = async (req: AuthRequest, res: Response) => 
       LEFT JOIN campaign_metrics cm ON c.id = cm.campaign_id
       WHERE ma.user_id = ?
         ${dateFilter}
-      GROUP BY c.platform
+      GROUP BY ma.channel_code
       ORDER BY total_cost DESC
     `;
 
@@ -228,23 +228,16 @@ export const getInsights = async (req: AuthRequest, res: Response) => {
         i.id,
         i.type,
         i.title,
-        i.description,
+        i.content AS description,
         i.priority,
         i.is_read,
         i.is_applied,
-        i.created_at,
-        c.campaign_name,
-        c.platform
+        i.created_at
       FROM insights i
-      LEFT JOIN campaigns c ON i.campaign_id = c.id
       WHERE i.user_id = ?
         ${filters}
       ORDER BY 
-        CASE i.priority
-          WHEN 'high' THEN 1
-          WHEN 'medium' THEN 2
-          WHEN 'low' THEN 3
-        END,
+        i.priority ASC,
         i.created_at DESC
       LIMIT ?
     `;
@@ -259,10 +252,7 @@ export const getInsights = async (req: AuthRequest, res: Response) => {
       priority: row.priority,
       isRead: row.is_read,
       isApplied: row.is_applied,
-      campaign: row.campaign_name ? {
-        name: row.campaign_name,
-        platform: row.platform
-      } : null,
+      campaign: null,
       createdAt: row.created_at
     }));
 
@@ -291,7 +281,7 @@ export const getBudgetStatus = async (req: AuthRequest, res: Response) => {
     if (groupBy === 'platform') {
       const query = `
         SELECT 
-          c.platform,
+          ma.channel_code AS platform,
           COUNT(DISTINCT c.id) as campaign_count,
           COALESCE(SUM(c.daily_budget), 0) as total_daily_budget,
           COALESCE(SUM(c.total_budget), 0) as total_budget,
@@ -302,7 +292,7 @@ export const getBudgetStatus = async (req: AuthRequest, res: Response) => {
         LEFT JOIN campaign_metrics cm ON c.id = cm.campaign_id
         WHERE ma.user_id = ?
           AND c.status = 'active'
-        GROUP BY c.platform
+        GROUP BY ma.channel_code
         ORDER BY total_budget DESC
       `;
 
@@ -331,18 +321,16 @@ export const getBudgetStatus = async (req: AuthRequest, res: Response) => {
         SELECT 
           c.id,
           c.campaign_name,
-          c.platform,
+          ma.channel_code AS platform,
           c.daily_budget,
           c.total_budget,
-          c.start_date,
-          c.end_date,
           COALESCE(SUM(cm.cost), 0) as total_spent
         FROM campaigns c
         LEFT JOIN marketing_accounts ma ON c.marketing_account_id = ma.id
         LEFT JOIN campaign_metrics cm ON c.id = cm.campaign_id
         WHERE ma.user_id = ?
           AND c.status = 'active'
-        GROUP BY c.id, c.campaign_name, c.platform, c.daily_budget, c.total_budget, c.start_date, c.end_date
+        GROUP BY c.id, c.campaign_name, ma.channel_code, c.daily_budget, c.total_budget
         ORDER BY c.total_budget DESC
         LIMIT 20
       `;
@@ -360,10 +348,6 @@ export const getBudgetStatus = async (req: AuthRequest, res: Response) => {
         utilizationRate: row.total_budget > 0 
           ? parseFloat((parseFloat(row.total_spent) / parseFloat(row.total_budget) * 100).toFixed(2))
           : 0,
-        period: {
-          start: row.start_date,
-          end: row.end_date
-        },
         status: parseFloat(row.total_spent) / parseFloat(row.total_budget) > 0.9 ? 'warning' :
                 parseFloat(row.total_spent) / parseFloat(row.total_budget) > 0.7 ? 'caution' : 'normal'
       }));

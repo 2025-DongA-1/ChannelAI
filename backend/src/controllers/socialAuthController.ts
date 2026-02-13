@@ -72,12 +72,6 @@ export const handleKakaoCallback = async (req: Request, res: Response) => {
 
     if (existingUser.rows.length > 0) {
       user = existingUser.rows[0];
-      
-      // 마지막 로그인 시간 업데이트
-      await client.query(
-        'UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = ?',
-        [user.id]
-      );
     } else {
       // 새 사용자 생성
       const insertResult = await client.query(
@@ -86,7 +80,7 @@ export const handleKakaoCallback = async (req: Request, res: Response) => {
         [email, 'KAKAO_OAUTH', name]
       );
       const newUser = await client.query(
-        'SELECT id, email, name, company_name, role, created_at FROM users WHERE id = ?',
+        'SELECT id, email, name, role, created_at FROM users WHERE id = ?',
         [insertResult.insertId]
       );
       user = newUser.rows[0];
@@ -178,11 +172,6 @@ export const handleNaverCallback = async (req: Request, res: Response) => {
 
     if (existingUser.rows.length > 0) {
       user = existingUser.rows[0];
-      
-      await client.query(
-        'UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = ?',
-        [user.id]
-      );
     } else {
       const insertResult = await client.query(
         `INSERT INTO users (email, password_hash, name, role)
@@ -190,7 +179,7 @@ export const handleNaverCallback = async (req: Request, res: Response) => {
         [email, 'NAVER_OAUTH', name]
       );
       const newUser = await client.query(
-        'SELECT id, email, name, company_name, role, created_at FROM users WHERE id = ?',
+        'SELECT id, email, name, role, created_at FROM users WHERE id = ?',
         [insertResult.insertId]
       );
       user = newUser.rows[0];
@@ -281,11 +270,6 @@ export const handleGoogleCallback = async (req: Request, res: Response) => {
 
     if (existingUser.rows.length > 0) {
       user = existingUser.rows[0];
-      
-      await client.query(
-        'UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = ?',
-        [user.id]
-      );
     } else {
       const insertResult = await client.query(
         `INSERT INTO users (email, password_hash, name, role)
@@ -293,7 +277,7 @@ export const handleGoogleCallback = async (req: Request, res: Response) => {
         [email, 'GOOGLE_OAUTH', name]
       );
       const newUser = await client.query(
-        'SELECT id, email, name, company_name, role, created_at FROM users WHERE id = ?',
+        'SELECT id, email, name, role, created_at FROM users WHERE id = ?',
         [insertResult.insertId]
       );
       user = newUser.rows[0];

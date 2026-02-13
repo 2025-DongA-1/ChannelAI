@@ -9,7 +9,6 @@ export default function RegisterPage() {
     email: '',
     password: '',
     confirmPassword: '',
-    company: '',
   });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -81,7 +80,7 @@ export default function RegisterPage() {
         name: formData.name,
         email: formData.email,
         password: formData.password,
-        company: formData.company || '',
+        company: '',
       });
       
       // 회원가입 성공 후 로그인 페이지로 이동
@@ -167,21 +166,6 @@ export default function RegisterPage() {
                   <span>{emailCheck.message}</span>
                 </div>
               )}
-            </div>
-
-            <div>
-              <label htmlFor="company" className="block text-sm font-medium text-gray-700 mb-2">
-                회사명
-              </label>
-              <input
-                id="company"
-                name="company"
-                type="text"
-                value={formData.company}
-                onChange={handleChange}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
-                placeholder="(주)마케팅컴퍼니"
-              />
             </div>
 
             <div>

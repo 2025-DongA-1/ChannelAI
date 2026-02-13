@@ -8,7 +8,7 @@ export const register = async (req: Request, res: Response) => {
   const client = await pool.connect();
   
   try {
-    const { email, password, name, company_name } = req.body;
+    const { email, password, name } = req.body;
     
     // 입력 검증
     if (!email || !password || !name) {
@@ -36,13 +36,13 @@ export const register = async (req: Request, res: Response) => {
     
     // 사용자 생성
     const insertResult = await client.query(
-      `INSERT INTO users (email, password_hash, name, company_name, role)
-       VALUES (?, ?, ?, ?, 'user')`,
-      [email, hashedPassword, name, company_name || null]
+      `INSERT INTO users (email, password_hash, name, role)
+       VALUES (?, ?, ?, 'user')`,
+      [email, hashedPassword, name]
     );
     
     const result = await client.query(
-      'SELECT id, email, name, company_name, role, created_at FROM users WHERE id = ?',
+      'SELECT id, email, name, role, created_at FROM users WHERE id = ?',
       [insertResult.insertId]
     );
     
@@ -61,7 +61,6 @@ export const register = async (req: Request, res: Response) => {
         id: user.id,
         email: user.email,
         name: user.name,
-        company_name: user.company_name,
         role: user.role,
         created_at: user.created_at,
       },
@@ -95,7 +94,7 @@ export const login = async (req: Request, res: Response) => {
     
     // 사용자 조회
     const result = await client.query(
-      'SELECT id, email, password_hash, name, company_name, role FROM users WHERE email = ? AND is_active = true',
+      'SELECT id, email, password_hash, name, role FROM users WHERE email = ? AND is_active = true',
       [email]
     );
     
@@ -118,12 +117,6 @@ export const login = async (req: Request, res: Response) => {
       });
     }
     
-    // 마지막 로그인 시간 업데이트
-    await client.query(
-      'UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = ?',
-      [user.id]
-    );
-    
     // JWT 토큰 생성
     const secret: Secret = process.env.JWT_SECRET || 'default-secret-key';
     const token = jwt.sign(
@@ -137,7 +130,6 @@ export const login = async (req: Request, res: Response) => {
         id: user.id,
         email: user.email,
         name: user.name,
-        company_name: user.company_name,
         role: user.role,
       },
       token,
@@ -197,7 +189,7 @@ export const getMe = async (req: Request, res: Response) => {
     const userId = (req as any).user.id;
     
     const result = await client.query(
-      'SELECT id, email, name, company_name, role, created_at, last_login FROM users WHERE id = ?',
+      'SELECT id, email, name, role, created_at FROM users WHERE id = ?',
       [userId]
     );
     

@@ -53,7 +53,7 @@ export const analyzeAndRecommend = async (req: AuthRequest, res: Response) => {
 
     const platformDataQuery = `
       SELECT 
-        ma.platform,
+        ma.channel_code AS platform,
         COUNT(DISTINCT c.id) as campaign_count,
         COALESCE(SUM(c.daily_budget), 0) as total_daily_budget,
         COALESCE(SUM(c.total_budget), 0) as total_budget,
@@ -73,9 +73,9 @@ export const analyzeAndRecommend = async (req: AuthRequest, res: Response) => {
       FROM marketing_accounts ma
       LEFT JOIN campaigns c ON c.marketing_account_id = ma.id AND c.status = 'active'
       LEFT JOIN campaign_metrics cm ON cm.campaign_id = c.id 
-        AND cm.date >= ? AND cm.date <= ?
+        AND cm.metric_date >= ? AND cm.metric_date <= ?
       WHERE ma.user_id = ?
-      GROUP BY ma.platform
+      GROUP BY ma.channel_code
       ORDER BY COALESCE(SUM(cm.cost), 0) DESC
     `;
 
@@ -98,8 +98,8 @@ export const analyzeAndRecommend = async (req: AuthRequest, res: Response) => {
     // 2. 일별 트렌드 데이터 조회 (최근 변화 감지용)
     const trendQuery = `
       SELECT 
-        cm.date,
-        ma.platform,
+        cm.metric_date AS date,
+        ma.channel_code AS platform,
         COALESCE(SUM(cm.impressions), 0) as impressions,
         COALESCE(SUM(cm.clicks), 0) as clicks,
         COALESCE(SUM(cm.conversions), 0) as conversions,
@@ -108,9 +108,9 @@ export const analyzeAndRecommend = async (req: AuthRequest, res: Response) => {
       FROM campaign_metrics cm
       JOIN campaigns c ON cm.campaign_id = c.id
       JOIN marketing_accounts ma ON c.marketing_account_id = ma.id
-      WHERE ma.user_id = ? AND cm.date >= ? AND cm.date <= ?
-      GROUP BY cm.date, ma.platform
-      ORDER BY cm.date DESC
+      WHERE ma.user_id = ? AND cm.metric_date >= ? AND cm.metric_date <= ?
+      GROUP BY cm.metric_date, ma.channel_code
+      ORDER BY cm.metric_date DESC
     `;
 
     const trendResult = await pool.query(trendQuery, [userId, startDate, endDate]);

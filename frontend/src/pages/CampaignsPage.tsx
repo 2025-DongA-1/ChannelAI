@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { campaignAPI, budgetAPI } from '@/lib/api';
-import { formatCurrency, formatDate, formatPercent, getStatusColor, getPlatformColor } from '@/lib/utils';
+import { formatCurrency, formatPercent, getStatusColor, getPlatformColor } from '@/lib/utils';
 import { Plus, Search, Filter, RefreshCw, DollarSign, TrendingUp, AlertTriangle, Edit, Check, X } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recharts';
 
@@ -330,9 +330,6 @@ export default function CampaignsPage() {
                   <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                     ROAS
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    기간
-                  </th>
                   <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                     액션
                   </th>
@@ -397,10 +394,6 @@ export default function CampaignsPage() {
                       </td>
                       <td className="px-6 py-4 text-sm text-right text-gray-900">
                         {budgetInfo.roas ? `${budgetInfo.roas.toFixed(2)}x` : '-'}
-                      </td>
-                      <td className="px-6 py-4 text-sm text-gray-600">
-                        {formatDate(campaign.start_date)}
-                        {campaign.end_date && ` ~ ${formatDate(campaign.end_date)}`}
                       </td>
                       <td className="px-6 py-4 text-center">
                         {editingCampaign === campaign.id ? (

@@ -92,9 +92,9 @@ export default function CampaignDetailPage() {
 
   // 차트 데이터 준비 (PostgreSQL Decimal 타입을 Number로 변환)
   const chartData = metrics
-    .sort((a: any, b: any) => new Date(a.date).getTime() - new Date(b.date).getTime())
+    .sort((a: any, b: any) => new Date(a.metric_date).getTime() - new Date(b.metric_date).getTime())
     .map((m: any) => ({
-      date: new Date(m.date).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' }),
+      date: new Date(m.metric_date).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' }),
       노출수: Number(m.impressions) || 0,
       클릭수: Number(m.clicks) || 0,
       전환수: Number(m.conversions) || 0,
@@ -218,11 +218,7 @@ export default function CampaignDetailPage() {
       {/* Campaign Info */}
       <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
         <h2 className="text-lg font-semibold text-gray-900 mb-4">캠페인 정보</h2>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div>
-            <p className="text-sm text-gray-500">캠페인 목표</p>
-            <p className="font-medium text-gray-900">{campaign.objective || '-'}</p>
-          </div>
+        <div className="grid grid-cols-2 md:grid-cols-2 gap-4">
           <div>
             <p className="text-sm text-gray-500">일일 예산</p>
             <p className="font-medium text-gray-900">{formatCurrency(campaign.daily_budget || 0)}</p>
@@ -230,18 +226,6 @@ export default function CampaignDetailPage() {
           <div>
             <p className="text-sm text-gray-500">총 예산</p>
             <p className="font-medium text-gray-900">{formatCurrency(campaign.total_budget || 0)}</p>
-          </div>
-          <div>
-            <p className="text-sm text-gray-500">기간</p>
-            <p className="font-medium text-gray-900">
-              {campaign.start_date
-                ? new Date(campaign.start_date).toLocaleDateString('ko-KR')
-                : '-'}
-              {' ~ '}
-              {campaign.end_date
-                ? new Date(campaign.end_date).toLocaleDateString('ko-KR')
-                : '종료일 미정'}
-            </p>
           </div>
         </div>
       </div>
@@ -352,7 +336,7 @@ export default function CampaignDetailPage() {
                 metrics.map((metric: any) => (
                   <tr key={metric.id} className="hover:bg-gray-50">
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {new Date(metric.date).toLocaleDateString('ko-KR')}
+                      {new Date(metric.metric_date).toLocaleDateString('ko-KR')}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right">
                       {formatCompactNumber(Number(metric.impressions) || 0)}
@@ -361,7 +345,7 @@ export default function CampaignDetailPage() {
                       {formatCompactNumber(Number(metric.clicks) || 0)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right">
-                      {formatPercent(Number(metric.ctr) || 0)}
+                      {formatPercent(Number(metric.impressions) > 0 ? (Number(metric.clicks) / Number(metric.impressions)) * 100 : 0)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right">
                       {formatCompactNumber(metric.conversions || 0)}
@@ -370,10 +354,10 @@ export default function CampaignDetailPage() {
                       {formatCurrency(Number(metric.cost) || 0)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right">
-                      {formatCurrency(Number(metric.cpc) || 0)}
+                      {formatCurrency(Number(metric.clicks) > 0 ? Number(metric.cost) / Number(metric.clicks) : 0)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right">
-                      {metric.roas ? `${Number(metric.roas).toFixed(2)}x` : '-'}
+                      {Number(metric.cost) > 0 ? `${(Number(metric.revenue) / Number(metric.cost)).toFixed(2)}x` : '-'}
                     </td>
                   </tr>
                 ))

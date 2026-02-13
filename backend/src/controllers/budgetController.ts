@@ -15,7 +15,7 @@ export const getBudgetSummary = async (req: AuthRequest, res: Response) => {
     const queryParams: any[] = [userId];
 
     if (startDate && endDate) {
-      dateFilter = `AND cm.date >= ? AND cm.date <= ?`;
+      dateFilter = `AND cm.metric_date >= ? AND cm.metric_date <= ?`;
       queryParams.push(startDate, endDate);
     }
 
@@ -73,13 +73,13 @@ export const getBudgetByPlatform = async (req: AuthRequest, res: Response) => {
     const queryParams: any[] = [userId];
 
     if (startDate && endDate) {
-      dateFilter = `AND cm.date >= ? AND cm.date <= ?`;
+      dateFilter = `AND cm.metric_date >= ? AND cm.metric_date <= ?`;
       queryParams.push(startDate, endDate);
     }
 
     const query = `
       SELECT 
-        c.platform,
+        ma.channel_code AS platform,
         COUNT(DISTINCT c.id) as campaign_count,
         COALESCE(SUM(c.daily_budget), 0) as daily_budget,
         COALESCE(SUM(c.total_budget), 0) as total_budget,
@@ -91,7 +91,7 @@ export const getBudgetByPlatform = async (req: AuthRequest, res: Response) => {
       WHERE ma.user_id = ?
         AND c.status = 'active'
         ${dateFilter}
-      GROUP BY c.platform
+      GROUP BY ma.channel_code
       ORDER BY spent DESC
     `;
 
@@ -132,12 +132,12 @@ export const getBudgetByCampaign = async (req: AuthRequest, res: Response) => {
     const queryParams: any[] = [userId];
 
     if (platform) {
-      platformFilter = `AND c.platform = ?`;
+      platformFilter = `AND ma.channel_code = ?`;
       queryParams.push(platform);
     }
 
     if (startDate && endDate) {
-      dateFilter = `AND cm.date >= ? AND cm.date <= ?`;
+      dateFilter = `AND cm.metric_date >= ? AND cm.metric_date <= ?`;
       queryParams.push(startDate, endDate);
     }
 
@@ -145,7 +145,7 @@ export const getBudgetByCampaign = async (req: AuthRequest, res: Response) => {
       SELECT 
         c.id,
         c.campaign_name,
-        c.platform,
+        ma.channel_code AS platform,
         c.status,
         c.daily_budget,
         c.total_budget,
@@ -159,7 +159,7 @@ export const getBudgetByCampaign = async (req: AuthRequest, res: Response) => {
       WHERE ma.user_id = ?
         ${platformFilter}
         ${dateFilter}
-      GROUP BY c.id, c.campaign_name, c.platform, c.status, c.daily_budget, c.total_budget
+      GROUP BY c.id, c.campaign_name, ma.channel_code, c.status, c.daily_budget, c.total_budget
       ORDER BY spent DESC
     `;
 
@@ -223,8 +223,7 @@ export const updateCampaignBudget = async (req: AuthRequest, res: Response) => {
       `UPDATE campaigns
        SET 
         daily_budget = COALESCE(?, daily_budget),
-        total_budget = COALESCE(?, total_budget),
-        updated_at = CURRENT_TIMESTAMP
+        total_budget = COALESCE(?, total_budget)
        WHERE id = ?`,
       [dailyBudget, totalBudget, id]
     );

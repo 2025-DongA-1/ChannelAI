@@ -14,9 +14,10 @@ export const getCampaigns = async (req: Request, res: Response) => {
     
     let query = `
       SELECT 
-        c.*,
+        c.id, c.marketing_account_id, c.external_campaign_id AS campaign_id,
+        c.campaign_name, c.status, c.daily_budget, c.total_budget,
         ma.account_name,
-        ma.platform,
+        ma.channel_code AS platform,
         (SELECT COUNT(*) FROM campaign_metrics WHERE campaign_id = c.id) as metrics_count
       FROM campaigns c
       JOIN marketing_accounts ma ON c.marketing_account_id = ma.id
@@ -26,7 +27,7 @@ export const getCampaigns = async (req: Request, res: Response) => {
     const params: any[] = [userId];
     
     if (platform) {
-      query += ` AND c.platform = ?`;
+      query += ` AND ma.channel_code = ?`;
       params.push(String(platform));
     }
     
@@ -35,7 +36,7 @@ export const getCampaigns = async (req: Request, res: Response) => {
       params.push(String(status));
     }
     
-    query += ` ORDER BY c.created_at DESC LIMIT ? OFFSET ?`;
+    query += ` ORDER BY c.id DESC LIMIT ? OFFSET ?`;
     params.push(Number(limit), offset);
     
     const result = await client.query(query, params);
@@ -50,7 +51,7 @@ export const getCampaigns = async (req: Request, res: Response) => {
     
     const countParams: any[] = [userId];
     if (platform) {
-      countQuery += ` AND c.platform = ?`;
+      countQuery += ` AND ma.channel_code = ?`;
       countParams.push(String(platform));
     }
     if (status) {
@@ -93,8 +94,8 @@ export const getCampaignById = async (req: Request, res: Response) => {
       `SELECT 
         c.*,
         ma.account_name,
-        ma.platform,
-        ma.account_id as external_account_id
+        ma.channel_code AS platform,
+        ma.external_account_id
       FROM campaigns c
       JOIN marketing_accounts ma ON c.marketing_account_id = ma.id
       WHERE c.id = ? AND ma.user_id = ?`,
@@ -112,7 +113,7 @@ export const getCampaignById = async (req: Request, res: Response) => {
     const metricsResult = await client.query(
       `SELECT * FROM campaign_metrics 
        WHERE campaign_id = ? 
-       ORDER BY date DESC 
+       ORDER BY metric_date DESC 
        LIMIT 1`,
       [id]
     );
@@ -140,19 +141,15 @@ export const createCampaign = async (req: Request, res: Response) => {
     const userId = (req as AuthRequest).user?.id;
     const {
       marketing_account_id,
-      platform,
       campaign_name,
       campaign_id: external_campaign_id,
-      objective,
       daily_budget,
       total_budget,
-      start_date,
-      end_date,
       status,
     } = req.body;
     
     // 입력 검증
-    if (!marketing_account_id || !platform || !campaign_name || !external_campaign_id) {
+    if (!marketing_account_id || !campaign_name || !external_campaign_id) {
       return res.status(400).json({
         error: 'INVALID_INPUT',
         message: '필수 항목을 입력해주세요.',
@@ -174,20 +171,16 @@ export const createCampaign = async (req: Request, res: Response) => {
     
     const insertResult = await client.query(
       `INSERT INTO campaigns (
-        marketing_account_id, platform, campaign_name, campaign_id, 
-        objective, daily_budget, total_budget, start_date, end_date, status
+        marketing_account_id, campaign_name, external_campaign_id, 
+        daily_budget, total_budget, status
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      VALUES (?, ?, ?, ?, ?, ?)`,
       [
         marketing_account_id,
-        platform,
         campaign_name,
         external_campaign_id,
-        objective,
         daily_budget || null,
         total_budget || null,
-        start_date || null,
-        end_date || null,
         status || 'active',
       ]
     );
@@ -220,11 +213,8 @@ export const updateCampaign = async (req: Request, res: Response) => {
     const { id } = req.params;
     const {
       campaign_name,
-      objective,
       daily_budget,
       total_budget,
-      start_date,
-      end_date,
       status,
     } = req.body;
     
@@ -246,15 +236,11 @@ export const updateCampaign = async (req: Request, res: Response) => {
     await client.query(
       `UPDATE campaigns SET
         campaign_name = COALESCE(?, campaign_name),
-        objective = COALESCE(?, objective),
         daily_budget = COALESCE(?, daily_budget),
         total_budget = COALESCE(?, total_budget),
-        start_date = COALESCE(?, start_date),
-        end_date = COALESCE(?, end_date),
-        status = COALESCE(?, status),
-        updated_at = CURRENT_TIMESTAMP
+        status = COALESCE(?, status)
       WHERE id = ?`,
-      [campaign_name, objective, daily_budget, total_budget, start_date, end_date, status, id]
+      [campaign_name, daily_budget, total_budget, status, id]
     );
     
     const result = await client.query('SELECT * FROM campaigns WHERE id = ?', [id]);
@@ -343,16 +329,16 @@ export const getCampaignMetrics = async (req: Request, res: Response) => {
     const params: any[] = [id];
     
     if (start_date) {
-      query += ` AND date >= ?`;
+      query += ` AND metric_date >= ?`;
       params.push(start_date);
     }
     
     if (end_date) {
-      query += ` AND date <= ?`;
+      query += ` AND metric_date <= ?`;
       params.push(end_date);
     }
     
-    query += ` ORDER BY date DESC LIMIT ?`;
+    query += ` ORDER BY metric_date DESC LIMIT ?`;
     params.push(Number(limit));
     
     const result = await client.query(query, params);

@@ -12,7 +12,10 @@ export const getAccounts = async (req: Request, res: Response) => {
     
     let query = `
       SELECT 
-        ma.*,
+        ma.id, ma.user_id, ma.channel_code AS platform,
+        ma.external_account_id AS account_id, ma.account_name,
+        ma.auth_token AS access_token, ma.refresh_token,
+        ma.connection_status AS is_connected,
         (SELECT COUNT(*) FROM campaigns WHERE marketing_account_id = ma.id) as campaign_count
       FROM marketing_accounts ma
       WHERE ma.user_id = ?
@@ -21,11 +24,11 @@ export const getAccounts = async (req: Request, res: Response) => {
     const params: any[] = [userId];
     
     if (platform) {
-      query += ` AND ma.platform = ?`;
+      query += ` AND ma.channel_code = ?`;
       params.push(platform);
     }
     
-    query += ` ORDER BY ma.created_at DESC`;
+    query += ` ORDER BY ma.id DESC`;
     
     const result = await client.query(query, params);
     
@@ -52,7 +55,10 @@ export const getAccountById = async (req: Request, res: Response) => {
     const { id } = req.params;
     
     const result = await client.query(
-      `SELECT ma.*
+      `SELECT ma.id, ma.user_id, ma.channel_code AS platform,
+        ma.external_account_id AS account_id, ma.account_name,
+        ma.auth_token AS access_token, ma.refresh_token,
+        ma.connection_status AS is_connected
       FROM marketing_accounts ma
       WHERE ma.id = ? AND ma.user_id = ?`,
       [id, userId]
@@ -91,7 +97,6 @@ export const createAccount = async (req: Request, res: Response) => {
       account_id,
       access_token,
       refresh_token,
-      token_expires_at,
     } = req.body;
     
     // 입력 검증
@@ -104,7 +109,7 @@ export const createAccount = async (req: Request, res: Response) => {
     
     // 중복 확인
     const existingAccount = await client.query(
-      'SELECT id FROM marketing_accounts WHERE user_id = ? AND platform = ? AND account_id = ?',
+      'SELECT id FROM marketing_accounts WHERE user_id = ? AND channel_code = ? AND external_account_id = ?',
       [userId, platform, account_id]
     );
     
@@ -117,15 +122,17 @@ export const createAccount = async (req: Request, res: Response) => {
     
     const insertResult = await client.query(
       `INSERT INTO marketing_accounts (
-        user_id, platform, account_name, account_id,
-        access_token, refresh_token, token_expires_at, is_connected
+        user_id, channel_code, account_name, external_account_id,
+        auth_token, refresh_token, connection_status
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, true)`,
-      [userId, platform, account_name, account_id, access_token, refresh_token, token_expires_at]
+      VALUES (?, ?, ?, ?, ?, ?, 1)`,
+      [userId, platform, account_name, account_id, access_token, refresh_token]
     );
     
     const result = await client.query(
-      'SELECT id, user_id, platform, account_name, account_id, is_connected, created_at FROM marketing_accounts WHERE id = ?',
+      `SELECT id, user_id, channel_code AS platform, account_name,
+        external_account_id AS account_id, connection_status AS is_connected
+      FROM marketing_accounts WHERE id = ?`,
       [insertResult.insertId]
     );
     
@@ -154,7 +161,6 @@ export const updateAccount = async (req: Request, res: Response) => {
       account_name,
       access_token,
       refresh_token,
-      token_expires_at,
       is_connected,
     } = req.body;
     
@@ -174,17 +180,17 @@ export const updateAccount = async (req: Request, res: Response) => {
     await client.query(
       `UPDATE marketing_accounts SET
         account_name = COALESCE(?, account_name),
-        access_token = COALESCE(?, access_token),
+        auth_token = COALESCE(?, auth_token),
         refresh_token = COALESCE(?, refresh_token),
-        token_expires_at = COALESCE(?, token_expires_at),
-        is_connected = COALESCE(?, is_connected),
-        updated_at = CURRENT_TIMESTAMP
+        connection_status = COALESCE(?, connection_status)
       WHERE id = ?`,
-      [account_name, access_token, refresh_token, token_expires_at, is_connected, id]
+      [account_name, access_token, refresh_token, is_connected, id]
     );
     
     const result = await client.query(
-      'SELECT id, user_id, platform, account_name, account_id, is_connected, created_at, updated_at FROM marketing_accounts WHERE id = ?',
+      `SELECT id, user_id, channel_code AS platform, account_name,
+        external_account_id AS account_id, connection_status AS is_connected
+      FROM marketing_accounts WHERE id = ?`,
       [id]
     );
     

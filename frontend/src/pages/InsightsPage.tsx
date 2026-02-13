@@ -84,11 +84,12 @@ export default function InsightsPage() {
     return 'text-gray-600';
   };
 
-  const getPriorityColor = (priority: string) => {
-    switch (priority) {
-      case 'high': return 'bg-red-100 text-red-800 border-red-200';
-      case 'medium': return 'bg-yellow-100 text-yellow-800 border-yellow-200';
-      case 'low': return 'bg-blue-100 text-blue-800 border-blue-200';
+  const getPriorityColor = (priority: string | number) => {
+    const p = typeof priority === 'number' ? priority : priority;
+    switch (p) {
+      case 'high': case 1: return 'bg-red-100 text-red-800 border-red-200';
+      case 'medium': case 2: return 'bg-yellow-100 text-yellow-800 border-yellow-200';
+      case 'low': case 3: return 'bg-blue-100 text-blue-800 border-blue-200';
       default: return 'bg-gray-100 text-gray-800 border-gray-200';
     }
   };
@@ -326,7 +327,7 @@ export default function InsightsPage() {
                       {formatCompactNumber(platform.clicks)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right">
-                      {platform.ctr.toFixed(2)}%
+                      {(platform.ctr ?? 0).toFixed(2)}%
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right">
                       {formatCompactNumber(platform.conversions)}
@@ -335,8 +336,8 @@ export default function InsightsPage() {
                       {formatCurrency(platform.cost)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-right">
-                      <span className={platform.roas >= 2 ? 'text-green-600' : platform.roas >= 1 ? 'text-yellow-600' : 'text-red-600'}>
-                        {platform.roas.toFixed(2)}x
+                      <span className={(platform.roas ?? 0) >= 2 ? 'text-green-600' : (platform.roas ?? 0) >= 1 ? 'text-yellow-600' : 'text-red-600'}>
+                        {(platform.roas ?? 0).toFixed(2)}x
                       </span>
                     </td>
                   </tr>

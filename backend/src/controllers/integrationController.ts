@@ -89,23 +89,20 @@ export const handleOAuthCallback = async (req: AuthRequest, res: Response) => {
       
       await pool.query(`
         INSERT INTO marketing_accounts (
-          user_id, platform, account_id, account_name,
-          access_token, refresh_token, token_expires_at, is_connected
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, true)
+          user_id, channel_code, external_account_id, account_name,
+          auth_token, refresh_token, connection_status
+        ) VALUES (?, ?, ?, ?, ?, ?, 1)
         ON DUPLICATE KEY UPDATE
-          access_token = VALUES(access_token),
+          auth_token = VALUES(auth_token),
           refresh_token = VALUES(refresh_token),
-          token_expires_at = VALUES(token_expires_at),
-          is_connected = true,
-          updated_at = CURRENT_TIMESTAMP
+          connection_status = 1
       `, [
         userId,
         platform,
         account.id,
         account.name,
         credentials.accessToken,
-        credentials.refreshToken,
-        credentials.expiresAt
+        credentials.refreshToken
       ]);
     }
 
@@ -139,14 +136,14 @@ export const syncCampaigns = async (req: AuthRequest, res: Response) => {
     }
 
     const account = accountResult.rows[0];
-    const service = serviceMap[account.platform];
+    const service = serviceMap[account.channel_code];
 
     if (!service) {
       return res.status(400).json({ error: '지원하지 않는 플랫폼입니다.' });
     }
 
     // 캠페인 목록 가져오기
-    const campaigns = await service.getCampaigns(account.access_token, account.account_id);
+    const campaigns = await service.getCampaigns(account.auth_token, account.external_account_id);
 
     let syncedCount = 0;
     let newCount = 0;
@@ -155,7 +152,7 @@ export const syncCampaigns = async (req: AuthRequest, res: Response) => {
     for (const campaign of campaigns) {
       // 기존 캠페인 확인
       const existing = await pool.query(
-        'SELECT id FROM campaigns WHERE marketing_account_id = ? AND campaign_id = ?',
+        'SELECT id FROM campaigns WHERE marketing_account_id = ? AND external_campaign_id = ?',
         [accountId, campaign.id]
       );
 
@@ -163,29 +160,25 @@ export const syncCampaigns = async (req: AuthRequest, res: Response) => {
         // 기존 캠페인 업데이트
         await pool.query(`
           UPDATE campaigns SET
-            campaign_name = ?, status = ?, objective = ?,
-            daily_budget = ?, total_budget = ?,
-            start_date = ?, end_date = ?,
-            updated_at = CURRENT_TIMESTAMP
-          WHERE marketing_account_id = ? AND campaign_id = ?
+            campaign_name = ?, status = ?,
+            daily_budget = ?, total_budget = ?
+          WHERE marketing_account_id = ? AND external_campaign_id = ?
         `, [
-          campaign.name, campaign.status, campaign.objective,
+          campaign.name, campaign.status,
           campaign.budget?.daily || 0, campaign.budget?.total || 0,
-          campaign.startDate || null, campaign.endDate || null,
           accountId, campaign.id
         ]);
       } else {
         // 새 캠페인 삽입
         await pool.query(`
           INSERT INTO campaigns (
-            marketing_account_id, platform, campaign_id, campaign_name,
-            status, objective, daily_budget, total_budget, start_date, end_date
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            marketing_account_id, external_campaign_id, campaign_name,
+            status, daily_budget, total_budget
+          ) VALUES (?, ?, ?, ?, ?, ?)
         `, [
-          accountId, account.platform, campaign.id, campaign.name,
-          campaign.status, campaign.objective,
-          campaign.budget?.daily || 0, campaign.budget?.total || 0,
-          campaign.startDate || null, campaign.endDate || null
+          accountId, campaign.id, campaign.name,
+          campaign.status,
+          campaign.budget?.daily || 0, campaign.budget?.total || 0
         ]);
         newCount++;
       }
@@ -195,14 +188,14 @@ export const syncCampaigns = async (req: AuthRequest, res: Response) => {
     // 동기화 로그 저장
     await pool.query(`
       INSERT INTO data_sync_logs (
-        marketing_account_id, sync_type, status, records_synced,
-        started_at, completed_at
-      ) VALUES (?, 'campaigns', 'success', ?, NOW(), NOW())
+        marketing_account_id, success, collected_count,
+        started_at
+      ) VALUES (?, 1, ?, NOW())
     `, [accountId, syncedCount]);
 
     res.json({
       success: true,
-      platform: account.platform,
+      platform: account.channel_code,
       totalCampaigns: campaigns.length,
       synced: syncedCount,
       new: newCount,
@@ -233,7 +226,7 @@ export const syncMetrics = async (req: AuthRequest, res: Response) => {
 
     // 캠페인 및 계정 정보 조회
     const campaignResult = await pool.query(`
-      SELECT c.*, ma.access_token, ma.account_id, ma.platform
+      SELECT c.*, ma.auth_token AS access_token, ma.external_account_id AS account_id, ma.channel_code AS platform
       FROM campaigns c
       JOIN marketing_accounts ma ON c.marketing_account_id = ma.id
       WHERE c.id = ? AND ma.user_id = ?
@@ -254,7 +247,7 @@ export const syncMetrics = async (req: AuthRequest, res: Response) => {
     const metrics = await service.getMetrics(
       campaign.access_token,
       campaign.account_id,
-      campaign.campaign_id,
+      campaign.external_campaign_id,
       startDate,
       endDate
     );
@@ -264,7 +257,7 @@ export const syncMetrics = async (req: AuthRequest, res: Response) => {
     // 메트릭 DB 저장
     for (const metric of metrics) {
       const existing = await pool.query(
-        'SELECT id FROM campaign_metrics WHERE campaign_id = ? AND date = ?',
+        'SELECT id FROM campaign_metrics WHERE campaign_id = ? AND metric_date = ?',
         [campaignId, metric.date]
       );
 
@@ -272,26 +265,23 @@ export const syncMetrics = async (req: AuthRequest, res: Response) => {
         await pool.query(`
           UPDATE campaign_metrics
           SET impressions = ?, clicks = ?, conversions = ?,
-              cost = ?, revenue = ?, ctr = ?, cpc = ?, roas = ?,
-              updated_at = CURRENT_TIMESTAMP
-          WHERE campaign_id = ? AND date = ?
+              cost = ?, revenue = ?
+          WHERE campaign_id = ? AND metric_date = ?
         `, [
           metric.impressions, metric.clicks, metric.conversions,
-          metric.cost, metric.revenue || 0, metric.ctr || 0,
-          metric.cpc || 0, metric.roas || 0,
+          metric.cost, metric.revenue || 0,
           campaignId, metric.date
         ]);
       } else {
         await pool.query(`
           INSERT INTO campaign_metrics (
-            campaign_id, date, impressions, clicks, conversions,
-            cost, revenue, ctr, cpc, roas
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            campaign_id, metric_date, impressions, clicks, conversions,
+            cost, revenue
+          ) VALUES (?, ?, ?, ?, ?, ?, ?)
         `, [
           campaignId, metric.date,
           metric.impressions, metric.clicks, metric.conversions,
-          metric.cost, metric.revenue || 0, metric.ctr || 0,
-          metric.cpc || 0, metric.roas || 0
+          metric.cost, metric.revenue || 0
         ]);
       }
       syncedCount++;
@@ -300,9 +290,9 @@ export const syncMetrics = async (req: AuthRequest, res: Response) => {
     // 동기화 로그 저장
     await pool.query(`
       INSERT INTO data_sync_logs (
-        marketing_account_id, sync_type, status, records_synced,
-        started_at, completed_at
-      ) VALUES (?, 'metrics', 'success', ?, NOW(), NOW())
+        marketing_account_id, success, collected_count,
+        started_at
+      ) VALUES (?, 1, ?, NOW())
     `, [campaign.marketing_account_id, syncedCount]);
 
     res.json({
@@ -344,7 +334,7 @@ export const syncAllMetrics = async (req: AuthRequest, res: Response) => {
     const accountParams: any[] = [userId];
     
     if (platform) {
-      accountQuery += ' AND platform = ?';
+      accountQuery += ' AND channel_code = ?';
       accountParams.push(platform);
     }
 
@@ -363,13 +353,13 @@ export const syncAllMetrics = async (req: AuthRequest, res: Response) => {
 
     // 2. 각 계정별로 캠페인 먼저 동기화
     for (const account of accounts) {
-      const service = serviceMap[account.platform];
+      const service = serviceMap[account.channel_code];
       if (!service) continue;
 
       try {
         // 캠페인 가져오기
-        console.log(`[Sync All] ${account.platform} 캠페인 가져오는 중...`);
-        const campaigns = await service.getCampaigns(account.access_token, account.account_id);
+        console.log(`[Sync All] ${account.channel_code} 캠페인 가져오는 중...`);
+        const campaigns = await service.getCampaigns(account.auth_token, account.external_account_id);
         console.log(`[Sync All] ${campaigns.length}개 캠페인 발견`);
         
         let syncedCampaigns = 0;
@@ -378,7 +368,7 @@ export const syncAllMetrics = async (req: AuthRequest, res: Response) => {
         for (const campaign of campaigns) {
           // 캠페인 저장
           const existingCampaign = await pool.query(
-            'SELECT id FROM campaigns WHERE marketing_account_id = ? AND campaign_id = ?',
+            'SELECT id FROM campaigns WHERE marketing_account_id = ? AND external_campaign_id = ?',
             [account.id, campaign.id]
           );
 
@@ -388,26 +378,24 @@ export const syncAllMetrics = async (req: AuthRequest, res: Response) => {
             await pool.query(`
               UPDATE campaigns
               SET campaign_name = ?, status = ?, daily_budget = ?, 
-                  total_budget = ?, start_date = ?, end_date = ?,
-                  updated_at = CURRENT_TIMESTAMP
+                  total_budget = ?
               WHERE id = ?
             `, [
               campaign.name, campaign.status, campaign.budget?.daily,
-              campaign.budget?.total, campaign.startDate, campaign.endDate,
+              campaign.budget?.total,
               existingCampaign.rows[0].id
             ]);
             dbCampaignId = existingCampaign.rows[0].id;
           } else {
             const insertResult = await pool.query(`
               INSERT INTO campaigns (
-                marketing_account_id, platform, campaign_id,
-                campaign_name, status, daily_budget, total_budget,
-                start_date, end_date
-              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                marketing_account_id, external_campaign_id,
+                campaign_name, status, daily_budget, total_budget
+              ) VALUES (?, ?, ?, ?, ?, ?)
             `, [
-              account.id, account.platform, campaign.id,
+              account.id, campaign.id,
               campaign.name, campaign.status, campaign.budget?.daily,
-              campaign.budget?.total, campaign.startDate, campaign.endDate
+              campaign.budget?.total
             ]);
             dbCampaignId = insertResult.insertId!;
             syncedCampaigns++;
@@ -415,8 +403,8 @@ export const syncAllMetrics = async (req: AuthRequest, res: Response) => {
 
           // 메트릭 가져오기 및 저장
           const metrics = await service.getMetrics(
-            account.access_token,
-            account.account_id,
+            account.auth_token,
+            account.external_account_id,
             campaign.id,
             startDate,
             endDate
@@ -426,7 +414,7 @@ export const syncAllMetrics = async (req: AuthRequest, res: Response) => {
 
           for (const metric of metrics) {
             const existing = await pool.query(
-              'SELECT id FROM campaign_metrics WHERE campaign_id = ? AND date = ?',
+              'SELECT id FROM campaign_metrics WHERE campaign_id = ? AND metric_date = ?',
               [dbCampaignId, metric.date]
             );
 
@@ -434,26 +422,23 @@ export const syncAllMetrics = async (req: AuthRequest, res: Response) => {
               await pool.query(`
                 UPDATE campaign_metrics
                 SET impressions = ?, clicks = ?, conversions = ?,
-                    cost = ?, revenue = ?, ctr = ?, cpc = ?, roas = ?,
-                    updated_at = CURRENT_TIMESTAMP
-                WHERE campaign_id = ? AND date = ?
+                    cost = ?, revenue = ?
+                WHERE campaign_id = ? AND metric_date = ?
               `, [
                 metric.impressions, metric.clicks, metric.conversions,
-                metric.cost, metric.revenue || 0, metric.ctr || 0,
-                metric.cpc || 0, metric.roas || 0,
+                metric.cost, metric.revenue || 0,
                 dbCampaignId, metric.date
               ]);
             } else {
               await pool.query(`
                 INSERT INTO campaign_metrics (
-                  campaign_id, date, impressions, clicks, conversions,
-                  cost, revenue, ctr, cpc, roas
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                  campaign_id, metric_date, impressions, clicks, conversions,
+                  cost, revenue
+                ) VALUES (?, ?, ?, ?, ?, ?, ?)
               `, [
                 dbCampaignId, metric.date,
                 metric.impressions, metric.clicks, metric.conversions,
-                metric.cost, metric.revenue || 0, metric.ctr || 0,
-                metric.cpc || 0, metric.roas || 0
+                metric.cost, metric.revenue || 0
               ]);
             }
             syncedMetrics++;
@@ -463,19 +448,19 @@ export const syncAllMetrics = async (req: AuthRequest, res: Response) => {
         totalCampaigns += campaigns.length;
         totalMetrics += syncedMetrics;
 
-        console.log(`[Sync All] ${account.platform} 완료: 캠페인 ${campaigns.length}, 메트릭 ${syncedMetrics}`);
+        console.log(`[Sync All] ${account.channel_code} 완료: 캠페인 ${campaigns.length}, 메트릭 ${syncedMetrics}`);
 
         results.push({
-          platform: account.platform,
+          platform: account.channel_code,
           account: account.account_name,
           campaigns: campaigns.length,
           newCampaigns: syncedCampaigns,
           metrics: syncedMetrics
         });
       } catch (error) {
-        console.error(`[Sync All] ${account.platform} 오류:`, error);
+        console.error(`[Sync All] ${account.channel_code} 오류:`, error);
         results.push({
-          platform: account.platform,
+          platform: account.channel_code,
           account: account.account_name,
           error: error instanceof Error ? error.message : '동기화 실패'
         });
@@ -511,7 +496,7 @@ export const disconnectAccount = async (req: AuthRequest, res: Response) => {
 
     // 계정 정보 조회
     const accountResult = await pool.query(
-      'SELECT id FROM marketing_accounts WHERE user_id = ? AND platform = ?',
+      'SELECT id FROM marketing_accounts WHERE user_id = ? AND channel_code = ?',
       [userId, platform]
     );
 

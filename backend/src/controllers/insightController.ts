@@ -25,7 +25,7 @@ export const getTrends = async (req: Request, res: Response) => {
     // 현재 기간 데이터
     const currentPeriodQuery = `
       SELECT 
-        DATE(cm.date) as date,
+        DATE(cm.metric_date) as date,
         SUM(cm.impressions) as impressions,
         SUM(cm.clicks) as clicks,
         SUM(cm.conversions) as conversions,
@@ -35,9 +35,9 @@ export const getTrends = async (req: Request, res: Response) => {
       JOIN campaigns c ON cm.campaign_id = c.id
       JOIN marketing_accounts ma ON c.marketing_account_id = ma.id
       WHERE ma.user_id = ?
-        AND cm.date BETWEEN ? AND ?
-      GROUP BY DATE(cm.date)
-      ORDER BY DATE(cm.date)
+        AND cm.metric_date BETWEEN ? AND ?
+      GROUP BY DATE(cm.metric_date)
+      ORDER BY DATE(cm.metric_date)
     `;
     
     const currentData = await client.query(currentPeriodQuery, [
@@ -62,7 +62,7 @@ export const getTrends = async (req: Request, res: Response) => {
       JOIN campaigns c ON cm.campaign_id = c.id
       JOIN marketing_accounts ma ON c.marketing_account_id = ma.id
       WHERE ma.user_id = ?
-        AND cm.date BETWEEN ? AND ?
+        AND cm.metric_date BETWEEN ? AND ?
     `;
     
     const previousData = await client.query(previousPeriodQuery, [
@@ -156,7 +156,7 @@ export const getComparison = async (req: Request, res: Response) => {
     
     const query = `
       SELECT 
-        ma.platform,
+        ma.channel_code AS platform,
         COUNT(DISTINCT c.id) as campaign_count,
         SUM(cm.impressions) as impressions,
         SUM(cm.clicks) as clicks,
@@ -169,9 +169,9 @@ export const getComparison = async (req: Request, res: Response) => {
       FROM marketing_accounts ma
       JOIN campaigns c ON c.marketing_account_id = ma.id
       LEFT JOIN campaign_metrics cm ON cm.campaign_id = c.id
-        AND cm.date BETWEEN ? AND ?
+        AND cm.metric_date BETWEEN ? AND ?
       WHERE ma.user_id = ?
-      GROUP BY ma.platform
+      GROUP BY ma.channel_code
       ORDER BY SUM(cm.cost) DESC
     `;
     
@@ -246,7 +246,7 @@ export const getRecommendations = async (req: Request, res: Response) => {
       SELECT 
         c.id,
         c.campaign_name,
-        c.platform,
+        ma.channel_code AS platform,
         c.status,
         c.daily_budget,
         SUM(cm.impressions) as impressions,
@@ -259,9 +259,9 @@ export const getRecommendations = async (req: Request, res: Response) => {
       FROM campaigns c
       JOIN marketing_accounts ma ON c.marketing_account_id = ma.id
       LEFT JOIN campaign_metrics cm ON cm.campaign_id = c.id
-        AND cm.date BETWEEN ? AND ?
+        AND cm.metric_date BETWEEN ? AND ?
       WHERE ma.user_id = ?
-      GROUP BY c.id, c.campaign_name, c.platform, c.status, c.daily_budget
+      GROUP BY c.id, c.campaign_name, ma.channel_code, c.status, c.daily_budget
       HAVING SUM(cm.cost) > 0
       ORDER BY roas DESC
     `;
@@ -329,7 +329,7 @@ export const getRecommendations = async (req: Request, res: Response) => {
     
     // 4. 플랫폼 다각화 추천
     const platformQuery = `
-      SELECT DISTINCT platform
+      SELECT DISTINCT channel_code AS platform
       FROM marketing_accounts
       WHERE user_id = ?
     `;
