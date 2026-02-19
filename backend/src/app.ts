@@ -24,7 +24,9 @@ app.use(cors({
     // 허용할 origin 목록
     const allowedOrigins = [
       'http://localhost:3001',
+      'http://localhost:5173',
       'http://127.0.0.1:3001',
+      'http://127.0.0.1:5173',
       'http://49.50.135.249',                                    // 프로덕션 (public IP)
       process.env.FRONTEND_URL,                                  // 환경변수 기반
       /^http:\/\/192\.168\.\d{1,3}\.\d{1,3}:3001$/,            // 로컬 네트워크 (192.168.x.x)
@@ -134,8 +136,8 @@ const startServer = async () => {
     await pool.query('SELECT NOW()');
     console.log('✅ MySQL 데이터베이스 연결 성공');
     
-    // Redis 연결
-    console.log('🔴 Redis 연결 중...');
+    // Redis 연결 (선택적 - 실패해도 서버 시작)
+    console.log('🔴 Redis 연결 시도...');
     await connectRedis();
     
     // 서버 시작 (0.0.0.0으로 모든 네트워크 인터페이스에서 접속 허용)

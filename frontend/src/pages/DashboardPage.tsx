@@ -8,27 +8,29 @@ import {
 } from 'lucide-react';
 
 export default function DashboardPage() {
-  // 기본 기간: 최근 30일
+  // 기본 기간: 전체 (날짜 필터 없음으로 모든 데이터 표시)
   const [dateRange, setDateRange] = useState({
-    startDate: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-    endDate: new Date().toISOString().split('T')[0],
+    startDate: '',
+    endDate: '',
   });
-  const [selectedPreset, setSelectedPreset] = useState('30days');
+  const [selectedPreset, setSelectedPreset] = useState('all');
 
   const { data: summary, isLoading } = useQuery({
     queryKey: ['dashboard-summary', dateRange.startDate, dateRange.endDate],
-    queryFn: () => dashboardAPI.getSummary({ 
-      startDate: dateRange.startDate, 
-      endDate: dateRange.endDate 
-    }),
+    queryFn: () => dashboardAPI.getSummary(
+      dateRange.startDate && dateRange.endDate 
+        ? { startDate: dateRange.startDate, endDate: dateRange.endDate }
+        : undefined
+    ),
   });
 
   const { data: performance } = useQuery({
     queryKey: ['channel-performance', dateRange.startDate, dateRange.endDate],
-    queryFn: () => dashboardAPI.getChannelPerformance({ 
-      startDate: dateRange.startDate, 
-      endDate: dateRange.endDate 
-    }),
+    queryFn: () => dashboardAPI.getChannelPerformance(
+      dateRange.startDate && dateRange.endDate 
+        ? { startDate: dateRange.startDate, endDate: dateRange.endDate }
+        : undefined
+    ),
   });
 
   const metrics = summary?.data?.metrics;
@@ -52,6 +54,12 @@ export default function DashboardPage() {
   // 날짜 프리셋 선택
   const handlePresetChange = (preset: string) => {
     setSelectedPreset(preset);
+    
+    if (preset === 'all') {
+      setDateRange({ startDate: '', endDate: '' });
+      return;
+    }
+    
     const endDate = new Date().toISOString().split('T')[0];
     let startDate = endDate;
 
@@ -89,6 +97,10 @@ export default function DashboardPage() {
 
   // 날짜 범위 텍스트
   const getDateRangeText = () => {
+    if (!dateRange.startDate || !dateRange.endDate) {
+      return '전체 기간';
+    }
+    
     const start = new Date(dateRange.startDate);
     const end = new Date(dateRange.endDate);
     
@@ -130,6 +142,16 @@ export default function DashboardPage() {
           
           <div className="flex-1 flex flex-wrap items-center gap-2">
             {/* Preset Buttons */}
+            <button
+              onClick={() => handlePresetChange('all')}
+              className={`px-3 py-1.5 text-sm rounded-lg transition ${
+                selectedPreset === 'all'
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              전체
+            </button>
             <button
               onClick={() => handlePresetChange('today')}
               className={`px-3 py-1.5 text-sm rounded-lg transition ${
