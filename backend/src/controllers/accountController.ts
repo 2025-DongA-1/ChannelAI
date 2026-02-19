@@ -2,19 +2,22 @@ import { Request, Response } from 'express';
 import pool from '../config/database';
 import { AuthRequest } from '../middlewares/auth';
 
-// 마케팅 계정 목록 조회
+/**
+ * 마케팅 계정 목록 조회
+ * GET /api/v1/accounts
+ */
 export const getAccounts = async (req: Request, res: Response) => {
-  const client = await pool.connect();
-  
   try {
     const userId = (req as AuthRequest).user?.id;
     const { platform } = req.query;
     
+    // DB 스키마 동기화에 따라 auth_token -> access_token으로 변경됨
     let query = `
       SELECT 
         ma.id, ma.user_id, ma.channel_code AS platform,
         ma.external_account_id AS account_id, ma.account_name,
-        ma.auth_token AS access_token, ma.refresh_token,
+        ma.external_account_id AS account_id, ma.account_name,
+        ma.access_token, ma.refresh_token,
         ma.connection_status AS is_connected,
         (SELECT COUNT(*) FROM campaigns WHERE marketing_account_id = ma.id) as campaign_count
       FROM marketing_accounts ma
@@ -30,41 +33,42 @@ export const getAccounts = async (req: Request, res: Response) => {
     
     query += ` ORDER BY ma.id DESC`;
     
-    const result = await client.query(query, params);
+    const { rows } = await pool.query(query, params);
     
     res.json({
-      accounts: result.rows,
+      accounts: rows,
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Get accounts error:', error);
     res.status(500).json({
       error: 'SERVER_ERROR',
       message: '계정 목록 조회 중 오류가 발생했습니다.',
+      details: error.message
     });
-  } finally {
-    client.release();
   }
 };
 
-// 마케팅 계정 상세 조회
+/**
+ * 마케팅 계정 상세 조회
+ * GET /api/v1/accounts/:id
+ */
 export const getAccountById = async (req: Request, res: Response) => {
-  const client = await pool.connect();
-  
   try {
     const userId = (req as AuthRequest).user?.id;
     const { id } = req.params;
     
-    const result = await client.query(
+    const { rows } = await pool.query(
       `SELECT ma.id, ma.user_id, ma.channel_code AS platform,
         ma.external_account_id AS account_id, ma.account_name,
-        ma.auth_token AS access_token, ma.refresh_token,
+        ma.external_account_id AS account_id, ma.account_name,
+        ma.access_token, ma.refresh_token,
         ma.connection_status AS is_connected
       FROM marketing_accounts ma
       WHERE ma.id = ? AND ma.user_id = ?`,
       [id, userId]
     );
     
-    if (result.rows.length === 0) {
+    if (rows.length === 0) {
       return res.status(404).json({
         error: 'ACCOUNT_NOT_FOUND',
         message: '계정을 찾을 수 없습니다.',
@@ -72,23 +76,23 @@ export const getAccountById = async (req: Request, res: Response) => {
     }
     
     res.json({
-      account: result.rows[0],
+      account: rows[0],
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Get account error:', error);
     res.status(500).json({
       error: 'SERVER_ERROR',
       message: '계정 조회 중 오류가 발생했습니다.',
+      details: error.message
     });
-  } finally {
-    client.release();
   }
 };
 
-// 마케팅 계정 연결
+/**
+ * 마케팅 계정 연결 (수동)
+ * POST /api/v1/accounts
+ */
 export const createAccount = async (req: Request, res: Response) => {
-  const client = await pool.connect();
-  
   try {
     const userId = (req as AuthRequest).user?.id;
     const {
@@ -99,7 +103,6 @@ export const createAccount = async (req: Request, res: Response) => {
       refresh_token,
     } = req.body;
     
-    // 입력 검증
     if (!platform || !account_name || !account_id) {
       return res.status(400).json({
         error: 'INVALID_INPUT',
@@ -108,52 +111,52 @@ export const createAccount = async (req: Request, res: Response) => {
     }
     
     // 중복 확인
-    const existingAccount = await client.query(
+    const { rows: existingAccount } = await pool.query(
       'SELECT id FROM marketing_accounts WHERE user_id = ? AND channel_code = ? AND external_account_id = ?',
       [userId, platform, account_id]
     );
     
-    if (existingAccount.rows.length > 0) {
+    if (existingAccount.length > 0) {
       return res.status(409).json({
         error: 'ACCOUNT_EXISTS',
         message: '이미 연결된 계정입니다.',
       });
     }
     
-    const insertResult = await client.query(
+    const result = await pool.query(
       `INSERT INTO marketing_accounts (
         user_id, channel_code, account_name, external_account_id,
-        auth_token, refresh_token, connection_status
+        access_token, refresh_token, connection_status
       )
       VALUES (?, ?, ?, ?, ?, ?, 1)`,
       [userId, platform, account_name, account_id, access_token, refresh_token]
     );
     
-    const result = await client.query(
+    const { rows } = await pool.query(
       `SELECT id, user_id, channel_code AS platform, account_name,
         external_account_id AS account_id, connection_status AS is_connected
       FROM marketing_accounts WHERE id = ?`,
-      [insertResult.insertId]
+      [result.insertId]
     );
     
     res.status(201).json({
-      account: result.rows[0],
+      account: rows[0],
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Create account error:', error);
     res.status(500).json({
       error: 'SERVER_ERROR',
       message: '계정 연결 중 오류가 발생했습니다.',
+      details: error.message
     });
-  } finally {
-    client.release();
   }
 };
 
-// 마케팅 계정 수정
+/**
+ * 마케팅 계정 정보 수정
+ * PATCH /api/v1/accounts/:id
+ */
 export const updateAccount = async (req: Request, res: Response) => {
-  const client = await pool.connect();
-  
   try {
     const userId = (req as AuthRequest).user?.id;
     const { id } = req.params;
@@ -164,30 +167,29 @@ export const updateAccount = async (req: Request, res: Response) => {
       is_connected,
     } = req.body;
     
-    // 권한 확인
-    const authCheck = await client.query(
+    const { rows: authCheck } = await pool.query(
       'SELECT id FROM marketing_accounts WHERE id = ? AND user_id = ?',
       [id, userId]
     );
     
-    if (authCheck.rows.length === 0) {
+    if (authCheck.length === 0) {
       return res.status(404).json({
         error: 'ACCOUNT_NOT_FOUND',
         message: '계정을 찾을 수 없습니다.',
       });
     }
     
-    await client.query(
+    await pool.query(
       `UPDATE marketing_accounts SET
         account_name = COALESCE(?, account_name),
-        auth_token = COALESCE(?, auth_token),
+        access_token = COALESCE(?, access_token),
         refresh_token = COALESCE(?, refresh_token),
         connection_status = COALESCE(?, connection_status)
       WHERE id = ?`,
       [account_name, access_token, refresh_token, is_connected, id]
     );
     
-    const result = await client.query(
+    const { rows } = await pool.query(
       `SELECT id, user_id, channel_code AS platform, account_name,
         external_account_id AS account_id, connection_status AS is_connected
       FROM marketing_accounts WHERE id = ?`,
@@ -195,65 +197,62 @@ export const updateAccount = async (req: Request, res: Response) => {
     );
     
     res.json({
-      account: result.rows[0],
+      account: rows[0],
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Update account error:', error);
     res.status(500).json({
       error: 'SERVER_ERROR',
       message: '계정 수정 중 오류가 발생했습니다.',
+      details: error.message
     });
-  } finally {
-    client.release();
   }
 };
 
-// 마케팅 계정 삭제
+/**
+ * 마케팅 계정 삭제
+ * DELETE /api/v1/accounts/:id
+ */
 export const deleteAccount = async (req: Request, res: Response) => {
-  const client = await pool.connect();
-  
   try {
     const userId = (req as AuthRequest).user?.id;
     const { id } = req.params;
     
-    // 권한 확인
-    const authCheck = await client.query(
+    const { rows: authCheck } = await pool.query(
       'SELECT id FROM marketing_accounts WHERE id = ? AND user_id = ?',
       [id, userId]
     );
     
-    if (authCheck.rows.length === 0) {
+    if (authCheck.length === 0) {
       return res.status(404).json({
         error: 'ACCOUNT_NOT_FOUND',
         message: '계정을 찾을 수 없습니다.',
       });
     }
     
-    // 연결된 캠페인이 있는지 확인
-    const campaignCheck = await client.query(
+    const { rows: campaignCheck } = await pool.query(
       'SELECT COUNT(*) as count FROM campaigns WHERE marketing_account_id = ?',
       [id]
     );
     
-    if (parseInt(campaignCheck.rows[0].count) > 0) {
+    if (parseInt(campaignCheck[0].count) > 0) {
       return res.status(400).json({
         error: 'ACCOUNT_HAS_CAMPAIGNS',
-        message: '연결된 캠페인이 있는 계정은 삭제할 수 없습니다. 먼저 캠페인을 삭제해주세요.',
+        message: '연결된 캠페인이 있는 계정은 삭제할 수 없습니다.',
       });
     }
     
-    await client.query('DELETE FROM marketing_accounts WHERE id = ?', [id]);
+    await pool.query('DELETE FROM marketing_accounts WHERE id = ?', [id]);
     
     res.json({
       message: '계정이 삭제되었습니다.',
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Delete account error:', error);
     res.status(500).json({
       error: 'SERVER_ERROR',
       message: '계정 삭제 중 오류가 발생했습니다.',
+      details: error.message
     });
-  } finally {
-    client.release();
   }
 };

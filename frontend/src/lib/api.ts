@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api/v1';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api/v1';
 
 export const api = axios.create({
   baseURL: API_BASE_URL,
@@ -114,6 +114,16 @@ export const integrationAPI = {
 
   disconnect: (platform: string) =>
     api.delete(`/integration/disconnect/${platform}`),
+
+  uploadCSV: (file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    return api.post('/integration/upload/csv', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+  },
 };
 
 // Budget API

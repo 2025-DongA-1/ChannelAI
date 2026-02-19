@@ -74,3 +74,18 @@ id_rsa.pub
 *.key
 *.cert
 *.crt
+
+# Documents & Reports
+*.pdf
+*.xlsx
+*.xls
+*.docx
+*.doc
+*.csv
+*.ppt
+*.pptx
+
+# Markdown files (Except README.md)
+*.md
+!README.md
+!QUICKSTART.md

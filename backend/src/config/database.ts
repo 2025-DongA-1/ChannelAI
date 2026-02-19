@@ -6,11 +6,11 @@ dotenv.config();
 
 // MySQL 연결 풀 생성
 const mysqlPool = mysql.createPool({
-  host: process.env.DB_HOST || 'project-db-cgi.smhrd.com',
-  port: parseInt(process.env.DB_PORT || '3307'),
-  database: process.env.DB_NAME || 'cgi_25K_DA1_p3_1',
-  user: process.env.DB_USER || 'cgi_25K_DA1_p3_1',
-  password: process.env.DB_PASSWORD || '',
+  host: process.env.DB_HOST || 'localhost',
+  port: parseInt(process.env.DB_PORT || '3306'),
+  database: process.env.DB_NAME || 'ad_mate_db',
+  user: process.env.DB_USER || 'root',
+  password: process.env.DB_PASSWORD || '1234',
   waitForConnections: true,
   connectionLimit: 10,
   queueLimit: 0,

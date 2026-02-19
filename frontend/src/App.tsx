@@ -11,6 +11,7 @@ import AuthCallbackPage from './pages/AuthCallbackPage';
 import InsightsPage from './pages/InsightsPage';
 import PrivacyPolicyPage from './pages/PrivacyPolicyPage';
 import TermsOfServicePage from './pages/TermsOfServicePage';
+import DummyDataPage from './pages/DummyDataPage';
 
 // Placeholder components (to be created)
 const AccountsPage = () => <div className="p-8">계정 관리 (구현 필요)</div>;
@@ -145,6 +146,17 @@ function App() {
               <PrivateRoute>
                 <Layout>
                   <InsightsPage />
+                </Layout>
+              </PrivateRoute>
+            }
+          />
+
+          <Route
+            path="/dummy-data"
+            element={
+              <PrivateRoute>
+                <Layout>
+                  <DummyDataPage />
                 </Layout>
               </PrivateRoute>
             }

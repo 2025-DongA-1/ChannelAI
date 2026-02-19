@@ -1,11 +1,14 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api, accountAPI, integrationAPI } from '@/lib/api';
-import { Link2, CheckCircle, XCircle, RefreshCw, AlertCircle } from 'lucide-react';
+import { Link2, CheckCircle, XCircle, RefreshCw, AlertCircle, UploadCloud, FileSpreadsheet } from 'lucide-react';
+import { Link } from 'react-router-dom';
 
 export default function IntegrationPage() {
   const queryClient = useQueryClient();
   const [syncing, setSyncing] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isUploading, setIsUploading] = useState(false);
 
   const { data: accountsData, isLoading } = useQuery({
     queryKey: ['accounts'],
@@ -14,11 +17,42 @@ export default function IntegrationPage() {
 
   const accounts = accountsData?.data?.accounts || [];
 
+  // CSV 업로드 Mutation
+  const uploadMutation = useMutation({
+    mutationFn: (file: File) => integrationAPI.uploadCSV(file),
+    onSuccess: (response) => {
+        alert(`✅ 업로드 성공: ${response.data.message}`);
+        queryClient.invalidateQueries({ queryKey: ['accounts'] });
+        queryClient.invalidateQueries({ queryKey: ['campaigns'] });
+        queryClient.invalidateQueries({ queryKey: ['dashboard-summary'] });
+    },
+    onError: (error: any) => {
+        console.error('업로드 실패:', error);
+        alert(error.response?.data?.error || 'CSV 업로드에 실패했습니다.');
+    },
+    onSettled: () => {
+        setIsUploading(null as any);
+    }
+  });
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (confirm(`'${file.name}' 파일을 업로드하시겠습니까?`)) {
+        setIsUploading(true);
+        uploadMutation.mutate(file);
+      }
+    }
+  };
+
+  const triggerFileInput = () => {
+    fileInputRef.current?.click();
+  };
+
   // 동기화 mutation
-  const syncMutation = useMutation({
+  const syncAllMutation = useMutation({
     mutationFn: async (platform: string) => {
       setSyncing(platform);
-      // 최근 30일 데이터 동기화
       const endDate = new Date().toISOString().split('T')[0];
       const startDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
       await integrationAPI.syncAll({ startDate, endDate, platform });
@@ -41,8 +75,6 @@ export default function IntegrationPage() {
   const handleConnect = async (platform: string) => {
     try {
       let authUrl: string;
-      
-      // 당근마켓은 별도 auth 라우트 사용
       if (platform === 'karrot') {
         const response = await api.get(`/auth/karrot`);
         authUrl = response.data.authUrl;
@@ -50,8 +82,6 @@ export default function IntegrationPage() {
         const response = await integrationAPI.getAuthUrl(platform);
         authUrl = response.data.data.authUrl;
       }
-      
-      // OAuth 인증 페이지로 이동
       window.location.href = authUrl;
     } catch (error: any) {
       console.error('연동 오류:', error);
@@ -60,7 +90,7 @@ export default function IntegrationPage() {
   };
 
   const handleSync = (platform: string) => {
-    syncMutation.mutate(platform);
+    syncAllMutation.mutate(platform);
   };
 
   const handleDisconnect = async (platform: string) => {
@@ -135,20 +165,46 @@ export default function IntegrationPage() {
 
   return (
     <div className="space-y-6 p-6">
-      {/* Header */}
-      <div>
-        <h1 className="text-3xl font-bold text-gray-900">광고 플랫폼 연동</h1>
-        <p className="text-gray-600 mt-1">
-          Google, Meta, Naver 광고 계정을 연동하여 통합 관리하세요
-        </p>
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900">광고 플랫폼 연동</h1>
+          <p className="text-gray-600 mt-1">
+            Google, Meta, Naver 광고 계정을 연동하여 통합 관리하세요
+          </p>
+        </div>
+        
+        <div className="flex flex-wrap gap-2 w-full md:w-auto">
+          <input 
+            type="file" 
+            ref={fileInputRef} 
+            onChange={handleFileChange} 
+            accept=".csv" 
+            className="hidden" 
+          />
+          <button
+            onClick={triggerFileInput}
+            disabled={isUploading}
+            className="flex items-center justify-center px-4 py-3 bg-blue-600 text-white rounded-xl font-medium hover:bg-blue-700 transition shadow-md w-full sm:w-auto disabled:opacity-50"
+          >
+            {isUploading ? <RefreshCw className="w-4 h-4 mr-2 animate-spin" /> : <UploadCloud className="w-4 h-4 mr-2" />}
+            {isUploading ? '업로드 중...' : 'CSV 파일 직접 업로드'}
+          </button>
+          
+          <Link 
+            to="/dummy-data" 
+            className="flex items-center justify-center px-4 py-3 bg-indigo-50 text-indigo-600 rounded-xl border border-indigo-200 font-medium hover:bg-indigo-100 transition w-full sm:w-auto"
+          >
+            <FileSpreadsheet className="w-4 h-4 mr-2" />
+            테스트 데이터 생성하기
+          </Link>
+        </div>
       </div>
 
-      {/* Info Banner */}
       <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 flex items-start">
         <AlertCircle className="w-5 h-5 text-blue-600 mt-0.5 mr-3 flex-shrink-0" />
         <div className="text-sm text-blue-800">
-          <p className="font-medium mb-1">안전한 OAuth 2.0 인증</p>
-          <p>각 플랫폼의 공식 OAuth 인증을 사용하여 안전하게 계정을 연동합니다. 비밀번호는 저장되지 않습니다.</p>
+          <p className="font-medium mb-1">안전한 OAuth 2.0 인증 및 데이터 업로드</p>
+          <p>공식 OAuth 연동 혹은 정해진 양식의 CSV 파일을 통해 데이터를 안전하게 통합할 수 있습니다.</p>
         </div>
       </div>
 

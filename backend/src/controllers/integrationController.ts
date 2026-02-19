@@ -6,6 +6,10 @@ import { metaAdsService } from '../services/external/metaAdsService';
 import { naverAdsService } from '../services/external/naverAdsService';
 import KarrotAdsService from '../services/external/karrotAdsService';
 import { IAdService } from '../services/external/baseAdService';
+import fs from 'fs';
+import path from 'path';
+import csvParser from 'csv-parser';
+import * as iconv from 'iconv-lite';
 
 /**
  * 플랫폼별 서비스 매핑
@@ -90,10 +94,10 @@ export const handleOAuthCallback = async (req: AuthRequest, res: Response) => {
       await pool.query(`
         INSERT INTO marketing_accounts (
           user_id, channel_code, external_account_id, account_name,
-          auth_token, refresh_token, connection_status
+          access_token, refresh_token, connection_status
         ) VALUES (?, ?, ?, ?, ?, ?, 1)
         ON DUPLICATE KEY UPDATE
-          auth_token = VALUES(auth_token),
+          access_token = VALUES(access_token),
           refresh_token = VALUES(refresh_token),
           connection_status = 1
       `, [
@@ -143,7 +147,7 @@ export const syncCampaigns = async (req: AuthRequest, res: Response) => {
     }
 
     // 캠페인 목록 가져오기
-    const campaigns = await service.getCampaigns(account.auth_token, account.external_account_id);
+    const campaigns = await service.getCampaigns(account.access_token, account.external_account_id);
 
     let syncedCount = 0;
     let newCount = 0;
@@ -188,9 +192,8 @@ export const syncCampaigns = async (req: AuthRequest, res: Response) => {
     // 동기화 로그 저장
     await pool.query(`
       INSERT INTO data_sync_logs (
-        marketing_account_id, success, collected_count,
-        started_at
-      ) VALUES (?, 1, ?, NOW())
+        marketing_account_id, sync_type, status, records_synced, started_at, completed_at
+      ) VALUES (?, 'campaign_sync', 'success', ?, NOW(), NOW())
     `, [accountId, syncedCount]);
 
     res.json({
@@ -226,7 +229,7 @@ export const syncMetrics = async (req: AuthRequest, res: Response) => {
 
     // 캠페인 및 계정 정보 조회
     const campaignResult = await pool.query(`
-      SELECT c.*, ma.auth_token AS access_token, ma.external_account_id AS account_id, ma.channel_code AS platform
+      SELECT c.*, ma.access_token, ma.external_account_id AS account_id, ma.channel_code AS platform
       FROM campaigns c
       JOIN marketing_accounts ma ON c.marketing_account_id = ma.id
       WHERE c.id = ? AND ma.user_id = ?
@@ -290,9 +293,8 @@ export const syncMetrics = async (req: AuthRequest, res: Response) => {
     // 동기화 로그 저장
     await pool.query(`
       INSERT INTO data_sync_logs (
-        marketing_account_id, success, collected_count,
-        started_at
-      ) VALUES (?, 1, ?, NOW())
+        marketing_account_id, sync_type, status, records_synced, started_at, completed_at
+      ) VALUES (?, 'metric_sync', 'success', ?, NOW(), NOW())
     `, [campaign.marketing_account_id, syncedCount]);
 
     res.json({
@@ -359,7 +361,7 @@ export const syncAllMetrics = async (req: AuthRequest, res: Response) => {
       try {
         // 캠페인 가져오기
         console.log(`[Sync All] ${account.channel_code} 캠페인 가져오는 중...`);
-        const campaigns = await service.getCampaigns(account.auth_token, account.external_account_id);
+        const campaigns = await service.getCampaigns(account.access_token, account.external_account_id);
         console.log(`[Sync All] ${campaigns.length}개 캠페인 발견`);
         
         let syncedCampaigns = 0;
@@ -403,7 +405,7 @@ export const syncAllMetrics = async (req: AuthRequest, res: Response) => {
 
           // 메트릭 가져오기 및 저장
           const metrics = await service.getMetrics(
-            account.auth_token,
+            account.access_token,
             account.external_account_id,
             campaign.id,
             startDate,
@@ -521,6 +523,212 @@ export const disconnectAccount = async (req: AuthRequest, res: Response) => {
     res.status(500).json({ 
       error: '계정 연동 해제 중 오류가 발생했습니다.',
       details: error instanceof Error ? error.message : '알 수 없는 오류'
+    });
+  }
+};
+
+/**
+ * CSV 파일 업로드 및 데이터 저장 (Ported from Ad-Mate)
+ * POST /api/v1/integration/upload/csv
+ */
+export const uploadCSV = async (req: AuthRequest, res: Response) => {
+  const file = (req as any).file;
+  if (!file) {
+    return res.status(400).json({ error: '파일이 없습니다.' });
+  }
+
+  const userId = req.user?.id;
+  const filePath = file.path;
+  const startTime = new Date();
+  let firstAccountId: number | null = null;
+
+  try {
+    const buffer = fs.readFileSync(filePath);
+    let content = iconv.decode(buffer, 'utf-8').replace(/^\uFEFF/, '');
+    
+    const hasHeader = (txt: string) => (txt.includes('날짜') || txt.includes('date')) && (txt.includes('매체') || txt.includes('platform'));
+
+    if (!hasHeader(content)) {
+      content = iconv.decode(buffer, 'cp949');
+    }
+
+    const lines = content.split(/\r?\n/);
+    let headerRowIndex = 0;
+    for (let i = 0; i < Math.min(20, lines.length); i++) {
+        if (hasHeader(lines[i])) {
+            headerRowIndex = i;
+            break;
+        }
+    }
+
+    const cleanContent = lines.slice(headerRowIndex).join('\n');
+    const tempPath = filePath + '_clean.csv';
+    fs.writeFileSync(tempPath, cleanContent, 'utf-8');
+
+    const results: any[] = [];
+    
+    // CSV 파싱 스트림
+    await new Promise((resolve, reject) => {
+      fs.createReadStream(tempPath)
+        .pipe(csvParser({ mapHeaders: ({ header }) => header.trim() }))
+        .on('data', (row) => results.push(row))
+        .on('end', resolve)
+        .on('error', reject);
+    });
+
+    const mapPlatformName = (rawPlatform: string) => {
+        if (!rawPlatform) return 'other';
+        const p = rawPlatform.toLowerCase().trim();
+        if (p.includes('facebook') || p.includes('페이스북') || p.includes('insta')) return 'meta';
+        if (p.includes('google') || p.includes('구글') || p.includes('youtube')) return 'google';
+        if (p.includes('kakao') || p.includes('카카오')) return 'kakao';
+        if (p.includes('naver') || p.includes('네이버')) return 'naver';
+        if (p.includes('tiktok') || p.includes('틱톡')) return 'tiktok';
+        if (p.includes('karrot') || p.includes('당근')) return 'karrot';
+        return 'other';
+    };
+
+    const parseNumber = (val: any) => {
+        if (!val) return 0;
+        let cleanStr = val.toString().replace(/["\s,]/g, '').trim();
+        if (cleanStr === '-' || cleanStr === '') return 0;
+        const num = parseFloat(cleanStr);
+        return isNaN(num) ? 0 : num;
+    };
+
+    let processedCount = 0;
+
+    for (const row of results) {
+        const getVal = (keywords: string[]) => {
+            const key = Object.keys(row).find(k => 
+                keywords.some(kw => k === kw || k.toLowerCase().includes(kw.toLowerCase()))
+            );
+            return key ? row[key]?.trim() : null;
+        };
+
+        const rawDate = getVal(['날짜', 'date']);
+        if (!rawDate) continue;
+
+        const rawPlatform = getVal(['매체', 'platform', 'source']) || '기타';
+        const platform = rawPlatform.trim();
+        const campaignName = getVal(['캠페인', 'campaign']) || 'Imported Campaign';
+        
+        const impressions = parseNumber(getVal(['노출', 'impressions']));
+        const clicks = parseNumber(getVal(['클릭', 'clicks']));
+        const spend = parseNumber(getVal(['비용', 'spend', 'cost', '집행금액']));
+        const conversions = parseNumber(getVal(['설치', 'conversions', '전환', 'installs']));
+        const sales = parseNumber(getVal(['매출', 'sales', 'revenue']));
+
+        // 0. 채널 정보 보장 (규격화 제거로 인해 새로운 매체명이 들어올 수 있음)
+        // DB 스키마: name(UNI, NN), channel_code(YES), display_name(NN)
+        try {
+            await pool.query(
+                'INSERT IGNORE INTO channels (name, channel_code, display_name) VALUES (?, ?, ?)',
+                [platform, platform, platform]
+            );
+        } catch (e) {
+            // 채널 삽입 실패시 무시 (이미 존재하거나 다른 에러)
+            console.warn('Channel insertion warning:', e);
+        }
+
+        // 1. 마케팅 계정 처리
+        const externalAccountId = `imported_${platform}_${userId}`; // 유저별 고유 계정 아이디 생성
+        const { rows: accounts } = await pool.query(
+            'SELECT id FROM marketing_accounts WHERE user_id = ? AND channel_code = ? AND external_account_id = ?',
+            [userId, platform, externalAccountId]
+        );
+
+        let accountId: number;
+        if (accounts.length === 0) {
+            const result = await pool.query(
+                'INSERT INTO marketing_accounts (user_id, channel_code, external_account_id, account_name, connection_status) VALUES (?, ?, ?, ?, 1)',
+                [userId, platform, externalAccountId, `${platform}_계정_${userId}`]
+            );
+            // database.ts wrapper에서 insertId는 결과 객체 바로 아래에 있습니다.
+            accountId = result.insertId!;
+        } else {
+            accountId = accounts[0].id;
+        }
+
+        if (!firstAccountId) firstAccountId = accountId;
+
+        // 2. 캠페인 처리
+        // external_campaign_id는 CSV 내 캠페인명 + userid 조합 등을 사용해 유니크하게 생성
+        const externalCampaignId = `csv_${campaignName}_${userId}`;
+        
+        let campaignId: number;
+        // platform 컬럼 명시적 추가
+        const campResult = await pool.query(
+            `
+            INSERT INTO campaigns (marketing_account_id, external_campaign_id, campaign_name, status, platform)
+            VALUES (?, ?, ?, 'active', ?)
+            ON DUPLICATE KEY UPDATE campaign_name = VALUES(campaign_name)
+            `,
+            [accountId, externalCampaignId, campaignName, platform]
+        );
+        const { rows: campaigns } = await pool.query(
+            'SELECT id FROM campaigns WHERE marketing_account_id = ? AND external_campaign_id = ?',
+            [accountId, externalCampaignId]
+        );
+        
+        if (campaigns.length === 0) continue;
+        campaignId = campaigns[0].id;
+
+        // 3. 지표 처리
+        // 날짜 형식이 2024.01.01, 2024/01/01 형태일 경우 DB 입력을 위해 2024-01-01로 보정
+        const formattedDate = rawDate.replace(/[\.\/]/g, '-');
+
+        await pool.query(`
+            INSERT INTO campaign_metrics (campaign_id, metric_date, impressions, clicks, cost, conversions, revenue)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            ON DUPLICATE KEY UPDATE 
+                impressions = VALUES(impressions),
+                clicks = VALUES(clicks),
+                cost = VALUES(cost),
+                conversions = VALUES(conversions),
+                revenue = VALUES(revenue)
+        `, [campaignId, formattedDate, impressions, clicks, spend, conversions, sales]);
+
+        processedCount++;
+    }
+
+    // 4. 로그 기록
+    if (firstAccountId) {
+        await pool.query(`
+            INSERT INTO data_sync_logs (
+                marketing_account_id, sync_type, status, records_synced, started_at, completed_at
+            )
+            VALUES (?, 'csv_upload', 'success', ?, ?, NOW())
+        `, [firstAccountId, processedCount, startTime]);
+    }
+
+    if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath);
+    if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+
+    return res.json({
+        success: true,
+        message: `${processedCount}개의 데이터가 성공적으로 업로드되었습니다.`,
+        count: processedCount
+    });
+
+  } catch (error: any) {
+    console.error('CSV 업로드 오류:', error);
+    
+    // [디버깅] 상세 에러 로그 파일 기록 (백엔드 콘솔을 볼 수 없는 환경 대비)
+    try {
+        const logPath = path.join(__dirname, '../../error.log');
+        const logContent = `\n[${new Date().toISOString()}] CSV Upload Error:\nMessage: ${error.message}\nSQL: ${error.sql || 'N/A'}\nStack: ${error.stack}\n-------------------\n`;
+        fs.appendFileSync(logPath, logContent);
+    } catch (logErr) {
+        console.error('로그 파일 쓰기 실패:', logErr);
+    }
+
+    res.status(500).json({ 
+        error: 'CSV_UPLOAD_ERROR', 
+        message: 'CSV 처리 중 오류가 발생했습니다. (서버 관리자에게 문의하세요)',
+        details: error.message,
+        sql: error.sql,
+        stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
     });
   }
 };
