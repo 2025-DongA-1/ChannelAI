@@ -20,37 +20,7 @@ const PORT = parseInt(process.env.PORT || '3000', 10);
 
 // 미들웨어
 app.use(cors({
-  origin: function (origin, callback) {
-    // 허용할 origin 목록
-    const allowedOrigins = [
-      'http://localhost:3001',
-      'http://localhost:5173',
-      'http://127.0.0.1:3001',
-      'http://127.0.0.1:5173',
-      'http://49.50.135.249',                                    // 프로덕션 (public IP)
-      process.env.FRONTEND_URL,                                  // 환경변수 기반
-      /^http:\/\/192\.168\.\d{1,3}\.\d{1,3}:3001$/,            // 로컬 네트워크 (192.168.x.x)
-      /^http:\/\/172\.\d{1,3}\.\d{1,3}\.\d{1,3}:3001$/,       // 로컬 네트워크 (172.x.x.x)
-      /^http:\/\/10\.\d{1,3}\.\d{1,3}\.\d{1,3}:3001$/         // 로컬 네트워크 (10.x.x.x)
-    ].filter(Boolean);
-    
-    // origin이 undefined인 경우 (같은 origin에서의 요청) 허용
-    if (!origin) return callback(null, true);
-    
-    // 허용된 origin 확인
-    const isAllowed = allowedOrigins.some(pattern => {
-      if (!pattern) return false;
-      if (typeof pattern === 'string') return pattern === origin;
-      if (pattern instanceof RegExp) return pattern.test(origin);
-      return false;
-    });
-    
-    if (isAllowed) {
-      callback(null, true);
-    } else {
-      callback(new Error('CORS policy: origin not allowed'));
-    }
-  },
+  origin: true, // 모든 출처 허용
   credentials: true,
 }));
 app.use(express.json());
