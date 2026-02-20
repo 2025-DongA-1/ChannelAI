@@ -103,6 +103,14 @@ export const accountAPI = {
 export const integrationAPI = {
   getAuthUrl: (platform: string) => api.get(`/integration/auth/${platform}`),
   
+  // API 키 기반 연동 (네이버 등)
+  connectPlatform: (platform: string, data: {
+    apiKey: string;
+    secretKey: string;
+    customerId: string;
+    accountName?: string;
+  }) => api.post(`/integration/connect/${platform}`, data),
+
   syncCampaigns: (accountId: number) =>
     api.post(`/integration/sync/campaigns/${accountId}`),
   

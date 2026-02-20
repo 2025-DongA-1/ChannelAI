@@ -3,7 +3,7 @@ import { AuthRequest } from '../middlewares/auth';
 import pool from '../config/database';
 import { googleAdsService } from '../services/external/googleAdsService';
 import { metaAdsService } from '../services/external/metaAdsService';
-import { naverAdsService } from '../services/external/naverAdsService';
+import { naverAdsService, NaverAdsService } from '../services/external/naverAdsService';
 import KarrotAdsService from '../services/external/karrotAdsService';
 import { IAdService } from '../services/external/baseAdService';
 import fs from 'fs';
@@ -482,6 +482,112 @@ export const syncAllMetrics = async (req: AuthRequest, res: Response) => {
     console.error('전체 메트릭 동기화 오류:', error);
     res.status(500).json({ 
       error: '메트릭 동기화 중 오류가 발생했습니다.',
+      details: error instanceof Error ? error.message : '알 수 없는 오류'
+    });
+  }
+};
+
+/**
+ * API 키 기반 플랫폼 연동 (네이버 등 OAuth 미지원 플랫폼)
+ * POST /api/v1/integration/connect/:platform
+ * 
+ * 플랫폼별 인증 방식:
+ * - naver: API Key + Secret Key + Customer ID (수동 입력)
+ * - google/meta: OAuth (기존 /auth/:platform 사용)
+ * - kakao: 추후 결정
+ * 
+ * 기존 marketing_accounts 컬럼 활용:
+ * - access_token: JSON 형태의 API 인증 정보 {"type":"api_key","apiKey":"...","secretKey":"..."}
+ * - external_account_id: 플랫폼 고객 ID (네이버 Customer ID 등)
+ * - channel_code: 플랫폼 코드 ('naver')
+ * - account_name: 사용자 지정 계정명
+ */
+export const connectPlatform = async (req: AuthRequest, res: Response) => {
+  try {
+    const { platform } = req.params;
+    const userId = req.user?.id;
+
+    if (platform === 'naver') {
+      const { apiKey, secretKey, customerId, accountName } = req.body;
+
+      if (!apiKey || !secretKey || !customerId) {
+        return res.status(400).json({
+          error: 'MISSING_CREDENTIALS',
+          message: 'API Key, Secret Key, Customer ID를 모두 입력해주세요.'
+        });
+      }
+
+      // 1. API 자격증명 유효성 검증 (실제 네이버 API 호출)
+      try {
+        const validation = await naverAdsService.validateCredentials(apiKey, secretKey, customerId);
+        console.log('[Connect Naver] 인증 성공, 캠페인 수:', validation.campaignCount);
+      } catch (error: any) {
+        const errDetail = error?.response?.data || error.message;
+        console.error('[Connect Naver] 인증 실패:', errDetail);
+        return res.status(401).json({
+          error: 'INVALID_CREDENTIALS',
+          message: 'API 인증에 실패했습니다. 입력한 키를 확인해주세요.',
+          details: typeof errDetail === 'object' ? JSON.stringify(errDetail) : errDetail
+        });
+      }
+
+      // 2. access_token에 JSON 형태로 인증 정보 저장
+      const authData = JSON.stringify({
+        type: 'api_key',
+        apiKey,
+        secretKey
+      });
+
+      // 3. 기존 계정 확인 (같은 user + naver + customerId)
+      const existing = await pool.query(
+        'SELECT id FROM marketing_accounts WHERE user_id = ? AND channel_code = ? AND external_account_id = ?',
+        [userId, platform, customerId]
+      );
+
+      let accountId: number;
+      const displayName = accountName || '네이버 검색광고';
+
+      if (existing.rows.length > 0) {
+        // 기존 계정 업데이트
+        await pool.query(
+          'UPDATE marketing_accounts SET access_token = ?, account_name = ?, connection_status = 1 WHERE id = ?',
+          [authData, displayName, existing.rows[0].id]
+        );
+        accountId = existing.rows[0].id;
+        console.log('[Connect Naver] 기존 계정 업데이트:', accountId);
+      } else {
+        // 새 계정 생성
+        const result = await pool.query(
+          `INSERT INTO marketing_accounts (user_id, channel_code, external_account_id, account_name, access_token, connection_status)
+           VALUES (?, ?, ?, ?, ?, 1)`,
+          [userId, platform, customerId, displayName, authData]
+        );
+        accountId = result.insertId!;
+        console.log('[Connect Naver] 새 계정 생성:', accountId);
+      }
+
+      return res.json({
+        success: true,
+        message: '네이버 검색광고 계정이 연동되었습니다.',
+        data: {
+          accountId,
+          platform,
+          customerId,
+          accountName: displayName
+        }
+      });
+    }
+
+    // 다른 플랫폼 (kakao 등)은 추후 추가
+    return res.status(400).json({
+      error: 'UNSUPPORTED_PLATFORM',
+      message: `${platform}은(는) API 키 연동을 지원하지 않습니다. OAuth를 사용해주세요.`
+    });
+  } catch (error) {
+    console.error('플랫폼 연동 오류:', error);
+    res.status(500).json({
+      error: 'SERVER_ERROR',
+      message: '플랫폼 연동 중 오류가 발생했습니다.',
       details: error instanceof Error ? error.message : '알 수 없는 오류'
     });
   }

@@ -16,10 +16,10 @@ export const getAccounts = async (req: Request, res: Response) => {
       SELECT 
         ma.id, ma.user_id, ma.channel_code AS platform,
         ma.external_account_id AS account_id, ma.account_name,
-        ma.external_account_id AS account_id, ma.account_name,
         ma.access_token, ma.refresh_token,
         ma.connection_status AS is_connected,
-        (SELECT COUNT(*) FROM campaigns WHERE marketing_account_id = ma.id) as campaign_count
+        (SELECT COUNT(*) FROM campaigns WHERE marketing_account_id = ma.id) as campaign_count,
+        (SELECT MAX(completed_at) FROM data_sync_logs WHERE marketing_account_id = ma.id) as last_sync_at
       FROM marketing_accounts ma
       WHERE ma.user_id = ?
     `;
