@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api, accountAPI, integrationAPI } from '@/lib/api';
-import { Link2, CheckCircle, XCircle, RefreshCw, AlertCircle, UploadCloud, FileSpreadsheet } from 'lucide-react';
+import { Link2, CheckCircle, XCircle, RefreshCw, AlertCircle, UploadCloud, FileSpreadsheet, Key, X, Eye, EyeOff } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 export default function IntegrationPage() {
@@ -9,6 +9,17 @@ export default function IntegrationPage() {
   const [syncing, setSyncing] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isUploading, setIsUploading] = useState(false);
+
+  // 네이버 API 키 모달 상태
+  const [showNaverModal, setShowNaverModal] = useState(false);
+  const [naverForm, setNaverForm] = useState({
+    apiKey: '',
+    secretKey: '',
+    customerId: '',
+    accountName: ''
+  });
+  const [showSecretKey, setShowSecretKey] = useState(false);
+  const [connectError, setConnectError] = useState<string | null>(null);
 
   const { data: accountsData, isLoading } = useQuery({
     queryKey: ['accounts'],
@@ -72,7 +83,32 @@ export default function IntegrationPage() {
     },
   });
 
+  // 네이버 API 키 연동 mutation
+  const naverConnectMutation = useMutation({
+    mutationFn: (data: { apiKey: string; secretKey: string; customerId: string; accountName?: string }) =>
+      integrationAPI.connectPlatform('naver', data),
+    onSuccess: (response) => {
+      alert(`✅ ${response.data.message}`);
+      setShowNaverModal(false);
+      setNaverForm({ apiKey: '', secretKey: '', customerId: '', accountName: '' });
+      setConnectError(null);
+      queryClient.invalidateQueries({ queryKey: ['accounts'] });
+    },
+    onError: (error: any) => {
+      console.error('네이버 연동 오류:', error);
+      setConnectError(error.response?.data?.message || '연동에 실패했습니다. API 키를 확인해주세요.');
+    }
+  });
+
   const handleConnect = async (platform: string) => {
+    // 네이버는 API 키 모달을 띄움 (OAuth가 아닌 API Key 방식)
+    if (platform === 'naver') {
+      setShowNaverModal(true);
+      setConnectError(null);
+      return;
+    }
+
+    // 기타 플랫폼은 기존 OAuth 방식
     try {
       let authUrl: string;
       if (platform === 'karrot') {
@@ -87,6 +123,15 @@ export default function IntegrationPage() {
       console.error('연동 오류:', error);
       alert(error.response?.data?.error || '연동에 실패했습니다.');
     }
+  };
+
+  const handleNaverSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!naverForm.apiKey || !naverForm.secretKey || !naverForm.customerId) {
+      setConnectError('모든 필수 항목을 입력해주세요.');
+      return;
+    }
+    naverConnectMutation.mutate(naverForm);
   };
 
   const handleSync = (platform: string) => {
@@ -132,7 +177,7 @@ export default function IntegrationPage() {
     {
       id: 'naver',
       name: 'Naver Ads',
-      description: '네이버 검색광고, 쇼핑검색 광고',
+      description: '네이버 검색광고 (API Key 연동)',
       icon: '🟢',
       color: 'from-green-600 to-green-800',
       bgColor: 'bg-green-50',
@@ -203,8 +248,8 @@ export default function IntegrationPage() {
       <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 flex items-start">
         <AlertCircle className="w-5 h-5 text-blue-600 mt-0.5 mr-3 flex-shrink-0" />
         <div className="text-sm text-blue-800">
-          <p className="font-medium mb-1">안전한 OAuth 2.0 인증 및 데이터 업로드</p>
-          <p>공식 OAuth 연동 혹은 정해진 양식의 CSV 파일을 통해 데이터를 안전하게 통합할 수 있습니다.</p>
+          <p className="font-medium mb-1">다양한 인증 방식 지원</p>
+          <p>네이버는 API Key 입력으로, Google/Meta는 OAuth 2.0 으로 연동합니다. CSV 파일 업로드도 지원합니다.</p>
         </div>
       </div>
 
@@ -251,10 +296,8 @@ export default function IntegrationPage() {
                         <span className="font-medium text-gray-900">{account.account_name}</span>
                       </div>
                       <div className="flex justify-between text-sm">
-                        <span className="text-gray-600">연동일</span>
-                        <span className="font-medium text-gray-900">
-                          {new Date(account.created_at).toLocaleDateString('ko-KR')}
-                        </span>
+                        <span className="text-gray-600">캠페인 수</span>
+                        <span className="font-medium text-gray-900">{account.campaign_count || 0}개</span>
                       </div>
                       <div className="flex justify-between text-sm">
                         <span className="text-gray-600">마지막 동기화</span>
@@ -344,6 +387,154 @@ export default function IntegrationPage() {
                 </div>
               </div>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* 네이버 API 키 입력 모달 */}
+      {showNaverModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden">
+            {/* 모달 헤더 */}
+            <div className="bg-gradient-to-r from-green-600 to-green-800 p-6">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-white/20 rounded-lg flex items-center justify-center">
+                    <Key className="w-5 h-5 text-white" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-bold text-white">네이버 검색광고 연동</h3>
+                    <p className="text-green-100 text-sm">API 키를 입력하여 계정을 연동합니다</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => { setShowNaverModal(false); setConnectError(null); }}
+                  className="text-white/80 hover:text-white transition"
+                >
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+            </div>
+
+            {/* 모달 본문 */}
+            <form onSubmit={handleNaverSubmit} className="p-6 space-y-4">
+              {/* 안내 */}
+              <div className="bg-green-50 border border-green-200 rounded-lg p-3 text-sm text-green-800">
+                <p className="font-medium mb-1">📌 API 키 발급 방법</p>
+                <p>
+                  <a 
+                    href="https://searchad.naver.com" 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="text-green-700 underline font-medium"
+                  >
+                    네이버 검색광고 센터
+                  </a>
+                  {' → 도구 → API 센터에서 API Key와 Secret Key를 발급받으세요.'}
+                </p>
+              </div>
+
+              {/* Customer ID */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  고객 ID (Customer ID) <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={naverForm.customerId}
+                  onChange={(e) => setNaverForm({ ...naverForm, customerId: e.target.value })}
+                  placeholder="예: 1234567"
+                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none transition"
+                />
+              </div>
+
+              {/* API Key */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  API Key <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={naverForm.apiKey}
+                  onChange={(e) => setNaverForm({ ...naverForm, apiKey: e.target.value })}
+                  placeholder="0100000000..."
+                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none transition font-mono text-sm"
+                />
+              </div>
+
+              {/* Secret Key */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Secret Key <span className="text-red-500">*</span>
+                </label>
+                <div className="relative">
+                  <input
+                    type={showSecretKey ? 'text' : 'password'}
+                    value={naverForm.secretKey}
+                    onChange={(e) => setNaverForm({ ...naverForm, secretKey: e.target.value })}
+                    placeholder="AQAAAAD..."
+                    className="w-full px-4 py-2.5 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none transition font-mono text-sm"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowSecretKey(!showSecretKey)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  >
+                    {showSecretKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+
+              {/* 계정명 (선택) */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  계정명 <span className="text-gray-400">(선택)</span>
+                </label>
+                <input
+                  type="text"
+                  value={naverForm.accountName}
+                  onChange={(e) => setNaverForm({ ...naverForm, accountName: e.target.value })}
+                  placeholder="네이버 검색광고"
+                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none transition"
+                />
+              </div>
+
+              {/* 에러 메시지 */}
+              {connectError && (
+                <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-700 flex items-start gap-2">
+                  <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                  <p>{connectError}</p>
+                </div>
+              )}
+
+              {/* 버튼 */}
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => { setShowNaverModal(false); setConnectError(null); }}
+                  className="flex-1 px-4 py-2.5 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition font-medium"
+                >
+                  취소
+                </button>
+                <button
+                  type="submit"
+                  disabled={naverConnectMutation.isPending}
+                  className="flex-1 px-4 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                >
+                  {naverConnectMutation.isPending ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                      연동 중...
+                    </>
+                  ) : (
+                    <>
+                      <Link2 className="w-4 h-4" />
+                      연동하기
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

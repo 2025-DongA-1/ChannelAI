@@ -8,7 +8,8 @@ import {
   syncMetrics,
   syncAllMetrics,
   disconnectAccount,
-  uploadCSV
+  uploadCSV,
+  connectPlatform
 } from '../controllers/integrationController';
 import { authenticate } from '../middlewares/auth';
 
@@ -32,6 +33,9 @@ router.get('/auth/:platform', authenticate, getAuthUrl);
 
 // OAuth 콜백 (인증 불필요 - 외부에서 리다이렉트)
 router.get('/callback/:platform', handleOAuthCallback);
+
+// API 키 기반 연동 (네이버 등)
+router.post('/connect/:platform', authenticate, connectPlatform);
 
 // 데이터 동기화 (인증 필요)
 router.post('/sync/campaigns/:accountId', authenticate, syncCampaigns);
