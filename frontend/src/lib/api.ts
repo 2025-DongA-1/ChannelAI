@@ -137,6 +137,9 @@ export const integrationAPI = {
       },
     });
   },
+
+  exportCSV: () =>
+    api.get('/integration/export/csv', { responseType: 'blob' }),
 };
 
 // Budget API

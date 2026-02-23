@@ -858,3 +858,86 @@ export const uploadCSV = async (req: AuthRequest, res: Response) => {
     });
   }
 };
+
+/**
+ * DB 데이터를 지정된 CSV 양식으로 생성 후 다운로드
+ * GET /api/v1/integration/export/csv
+ */
+export const exportCSV = async (req: any, res: any) => {
+  const client = await pool.connect();
+  
+  try {
+    const query = `
+      SELECT 
+        DATE_FORMAT(m.metric_date, '%Y-%m-%d') as metric_date,
+        c.platform,
+        c.campaign_name,
+        m.cost,
+        m.impressions,
+        m.clicks,
+        m.conversions
+      FROM campaign_metrics m
+      JOIN campaigns c ON m.campaign_id = c.id
+      ORDER BY m.metric_date DESC, c.campaign_name ASC
+    `;
+
+    const { rows } = await client.query(query);
+    const metricsData = rows as any[];
+
+    // CSV 이스케이프 함수
+    const escapeCSV = (val: any) => {
+      if (val === null || val === undefined) return '';
+      const str = String(val);
+      if (str.includes(',') || str.includes('\n') || str.includes('\r') || str.includes('"')) {
+        return `"${str.replace(/"/g, '""')}"`;
+      }
+      return str;
+    };
+
+    const getDayOfWeek = (dateString: string) => {
+      const days = ['일', '월', '화', '수', '목', '금', '토'];
+      return days[new Date(dateString).getDay()];
+    };
+
+    const getMonth = (dateString: string) => {
+      return (new Date(dateString).getMonth() + 1).toString();
+    };
+
+    // 요구하신 정확한 업로드 헤더 양식
+    const headers = [
+      '날짜', '월', '요일', '매체', '캠페인', '그룹', '소재', 
+      '비용', '노출', '클릭', '조회', '설치', '잠재고객'
+    ];
+
+    const csvRows = metricsData.map(row => {
+      const dateStr = row.metric_date;
+      return [
+        escapeCSV(dateStr),
+        escapeCSV(getMonth(dateStr)),
+        escapeCSV(getDayOfWeek(dateStr)),
+        escapeCSV(row.platform),
+        escapeCSV(row.campaign_name),
+        escapeCSV(''),
+        escapeCSV(''),
+        escapeCSV(row.cost || 0),
+        escapeCSV(row.impressions || 0),
+        escapeCSV(row.clicks || 0),
+        escapeCSV(0),
+        escapeCSV(row.conversions || 0),
+        escapeCSV(0)
+      ].join(',');
+    });
+
+    const finalCsvContent = '\uFEFF' + [headers.join(','), ...csvRows].join('\n');
+
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', 'attachment; filename="channel_ai_upload_template.csv"');
+    return res.send(finalCsvContent);
+
+  } catch (error) {
+    console.error('CSV export error:', error);
+    res.status(500).json({ error: 'CSV 파일 생성 중 서버 오류가 발생했습니다.' });
+  } finally {
+    client.release();
+  }
+};

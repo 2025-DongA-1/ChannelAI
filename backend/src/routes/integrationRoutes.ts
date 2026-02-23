@@ -9,6 +9,7 @@ import {
   syncAllMetrics,
   disconnectAccount,
   uploadCSV,
+  exportCSV,
   connectPlatform
 } from '../controllers/integrationController';
 import { authenticate } from '../middlewares/auth';
@@ -44,6 +45,9 @@ router.post('/sync/all', authenticate, syncAllMetrics);
 
 // CSV 업로드 ( Ad-Mate 기능 이식 )
 router.post('/upload/csv', authenticate, upload.single('file'), uploadCSV);
+
+// DB CSV 추출 다운로드
+router.get('/export/csv', authenticate, exportCSV);
 
 // 계정 연동 해제 (인증 필요)
 router.delete('/disconnect/:platform', authenticate, disconnectAccount);

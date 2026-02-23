@@ -1,5 +1,0 @@
-구글 Ads 관리자 계정 클라이언트 ID
-528126055752-h948es1o2plh2q1termjn0datou174am.apps.googleusercontent.com
-
-클라이언트 보안 비밀번호
-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

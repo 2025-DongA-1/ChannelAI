@@ -29,6 +29,7 @@ const DummyDataPage: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingRow, setEditingRow] = useState<AdData | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [isExportingDB, setIsExportingDB] = useState(false);
   
   const token = useAuthStore((state) => state.token);
   
@@ -126,6 +127,29 @@ const DummyDataPage: React.FC = () => {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+  };
+
+  const handleExportDB = async () => {
+    if (!token) return alert('로그인이 필요합니다.');
+    
+    setIsExportingDB(true);
+    try {
+        const response = await integrationAPI.exportCSV();
+        // blob response processing
+        const blob = new Blob([response.data], { type: 'text/csv;charset=utf-8;' });
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.setAttribute('download', `channel_ai_db_export_${new Date().getTime()}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+    } catch (err: any) {
+        console.error(err);
+        alert('DB 데이터 추출에 실패했습니다.');
+    } finally {
+        setIsExportingDB(false);
+    }
   };
 
   const handleSaveToDB = async () => {
@@ -228,7 +252,17 @@ const DummyDataPage: React.FC = () => {
               className="px-4 py-2 bg-white text-gray-700 border border-gray-200 rounded-xl font-medium hover:bg-gray-50 transition flex items-center gap-2"
             >
               <Download size={18} />
-              CSV 내보내기
+              작성데이터 다운로드
+            </button>
+            <button 
+              onClick={handleExportDB}
+              disabled={isExportingDB}
+              className={`px-4 py-2 border border-blue-200 rounded-xl font-medium transition flex items-center gap-2 ${
+                isExportingDB ? 'bg-blue-50 text-blue-400 cursor-not-allowed' : 'bg-blue-50 text-blue-700 hover:bg-blue-100 shadow-sm'
+              }`}
+            >
+              <Database size={18} />
+              {isExportingDB ? '추출 중...' : 'DB 성과 다운로드'}
             </button>
             <button 
               onClick={handleSaveToDB}
