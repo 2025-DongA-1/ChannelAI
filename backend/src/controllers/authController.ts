@@ -5,8 +5,6 @@ import pool from '../config/database';
 
 // 회원가입
 export const register = async (req: Request, res: Response) => {
-  const client = await pool.connect();
-  
   try {
     const { email, password, name } = req.body;
     
@@ -19,7 +17,7 @@ export const register = async (req: Request, res: Response) => {
     }
     
     // 이메일 중복 확인
-    const existingUser = await client.query(
+    const existingUser = await pool.query(
       'SELECT id FROM users WHERE email = ?',
       [email]
     );
@@ -35,13 +33,13 @@ export const register = async (req: Request, res: Response) => {
     const hashedPassword = await bcrypt.hash(password, 10);
     
     // 사용자 생성
-    const insertResult = await client.query(
+    const insertResult = await pool.query(
       `INSERT INTO users (email, password_hash, name, role)
        VALUES (?, ?, ?, 'user')`,
       [email, hashedPassword, name]
     );
     
-    const result = await client.query(
+    const result = await pool.query(
       'SELECT id, email, name, role, created_at FROM users WHERE id = ?',
       [insertResult.insertId]
     );
@@ -72,15 +70,11 @@ export const register = async (req: Request, res: Response) => {
       error: 'SERVER_ERROR',
       message: '회원가입 중 오류가 발생했습니다.',
     });
-  } finally {
-    client.release();
   }
 };
 
 // 로그인
 export const login = async (req: Request, res: Response) => {
-  const client = await pool.connect();
-  
   try {
     const { email, password } = req.body;
     
@@ -93,7 +87,7 @@ export const login = async (req: Request, res: Response) => {
     }
     
     // 사용자 확인
-    const result = await client.query(
+    const result = await pool.query(
       'SELECT * FROM users WHERE email = ?',
       [email]
     );
@@ -158,15 +152,11 @@ export const login = async (req: Request, res: Response) => {
       error: 'SERVER_ERROR',
       message: '로그인 중 오류가 발생했습니다.',
     });
-  } finally {
-    client.release();
   }
 };
 
 // 이메일 중복 체크
 export const checkEmail = async (req: Request, res: Response) => {
-  const client = await pool.connect();
-  
   try {
     const { email } = req.query;
     
@@ -177,7 +167,7 @@ export const checkEmail = async (req: Request, res: Response) => {
       });
     }
     
-    const result = await client.query(
+    const result = await pool.query(
       'SELECT id FROM users WHERE email = ?',
       [email]
     );
@@ -194,20 +184,16 @@ export const checkEmail = async (req: Request, res: Response) => {
       error: 'SERVER_ERROR',
       message: '이메일 확인 중 오류가 발생했습니다.',
     });
-  } finally {
-    client.release();
   }
 };
 
 // 내 정보 조회
 export const getMe = async (req: Request, res: Response) => {
-  const client = await pool.connect();
-  
   try {
     const userId = (req as any).user.id;
     
     // provider, provider_id 컬럼 추가 조회
-    const result = await client.query(
+    const result = await pool.query(
       'SELECT id, email, name, role, created_at, password_hash, provider, provider_id FROM users WHERE id = ?',
       [userId]
     );
@@ -249,7 +235,5 @@ export const getMe = async (req: Request, res: Response) => {
       error: 'SERVER_ERROR',
       message: '사용자 정보 조회 중 오류가 발생했습니다.',
     });
-  } finally {
-    client.release();
   }
 };

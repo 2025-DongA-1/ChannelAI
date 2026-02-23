@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useAuthStore } from '../store/authStore';
 import { integrationAPI } from '../lib/api';
-import { FileSpreadsheet, Plus, Download, Database, Trash2, Edit2, AlertCircle, RefreshCw } from 'lucide-react';
+import { FileSpreadsheet, Plus, Download, Database, Trash2, Edit2, AlertCircle, RefreshCw, Brain } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 interface AdData {
@@ -237,7 +237,11 @@ const DummyDataPage: React.FC = () => {
         <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div>
             <h1 className="text-2xl font-bold text-gray-900">테스트 데이터 생성 센터</h1>
-            <p className="text-gray-500 text-sm mt-1">분석 및 테스트를 위한 더미 데이터를 생성하거나 직접 입력하여 DB에 업로드하세요.</p>
+            <p className="text-gray-500 text-sm mt-1 mb-3">분석 및 테스트를 위한 더미 데이터를 생성하거나 직접 입력하여 DB에 업로드하세요.</p>
+            <Link to="/advanced-model-test" className="inline-flex items-center gap-2 px-4 py-2 bg-purple-50 text-purple-700 border border-purple-200 hover:bg-purple-100 rounded-xl font-bold transition">
+              <Brain size={18} />
+              AI 고급 모델 평가 지표 보기
+            </Link>
           </div>
           <div className="flex flex-wrap gap-2">
             <button 
