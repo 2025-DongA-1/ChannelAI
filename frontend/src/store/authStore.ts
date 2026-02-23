@@ -6,6 +6,8 @@ interface User {
   email: string;
   name: string;
   company?: string;
+  role?: string;
+  provider?: string;
 }
 
 interface AuthState {

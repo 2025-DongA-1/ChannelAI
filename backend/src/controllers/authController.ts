@@ -92,45 +92,63 @@ export const login = async (req: Request, res: Response) => {
       });
     }
     
-    // 사용자 조회
+    // 사용자 확인
     const result = await client.query(
-      'SELECT id, email, password_hash, name, role FROM users WHERE email = ? AND is_active = true',
+      'SELECT * FROM users WHERE email = ?',
       [email]
     );
     
+    // 디버깅 로그: 사용자 조회 결과
+    console.log(`🔍 로그인 시도: ${email}`);
+    
     if (result.rows.length === 0) {
+      console.log('❌ 로그인 실패: 사용자를 찾을 수 없음');
       return res.status(401).json({
-        error: 'INVALID_CREDENTIALS',
-        message: '이메일 또는 비밀번호가 올바르지 않습니다.',
+        error: 'USER_NOT_FOUND',
+        message: '가입되지 않은 이메일입니다.',
       });
     }
     
     const user = result.rows[0];
     
+    // 소셜 로그인으로만 가입한 경우 비밀번호가 없을 수 있음
+    if (!user.password_hash) {
+      console.log('❌ 로그인 실패: 비밀번호가 없는 계정 (소셜 가입 추정)');
+      return res.status(400).json({
+        error: 'SOCIAL_ACCOUNT',
+        message: '소셜 로그인으로 가입된 계정입니다. 소셜 로그인을 이용해주세요.',
+      });
+    }
+
     // 비밀번호 확인
-    const isValidPassword = await bcrypt.compare(password, user.password_hash);
+    const isMatch = await bcrypt.compare(password, user.password_hash);
+    console.log(`🔐 비밀번호 검증 결과: ${isMatch ? '일치' : '불일치'}`);
     
-    if (!isValidPassword) {
+    if (!isMatch) {
       return res.status(401).json({
-        error: 'INVALID_CREDENTIALS',
-        message: '이메일 또는 비밀번호가 올바르지 않습니다.',
+        error: 'INVALID_PASSWORD',
+        message: '비밀번호가 일치하지 않습니다.',
       });
     }
     
+    // DB의 provider 정보 확인, 없으면 email로 기본값
+    const actualProvider = user.provider || 'email';
+
     // JWT 토큰 생성
     const secret: Secret = process.env.JWT_SECRET || 'default-secret-key';
     const token = jwt.sign(
-      { id: user.id, email: user.email, role: user.role },
+      { id: user.id, email: user.email, role: user.role, provider: actualProvider },
       secret,
       { expiresIn: process.env.JWT_EXPIRES_IN || '7d' } as any
     );
     
     res.json({
       user: {
-        id: user.id,
+        id: user.id, // 사용자 ID 필드 추가
         email: user.email,
         name: user.name,
         role: user.role,
+        provider: actualProvider,
       },
       token,
     });
@@ -188,8 +206,9 @@ export const getMe = async (req: Request, res: Response) => {
   try {
     const userId = (req as any).user.id;
     
+    // provider, provider_id 컬럼 추가 조회
     const result = await client.query(
-      'SELECT id, email, name, role, created_at FROM users WHERE id = ?',
+      'SELECT id, email, name, role, created_at, password_hash, provider, provider_id FROM users WHERE id = ?',
       [userId]
     );
     
@@ -200,7 +219,30 @@ export const getMe = async (req: Request, res: Response) => {
       });
     }
     
-    res.json({ user: result.rows[0] });
+    const user = result.rows[0];
+    
+    // provider 결정 로직 개선
+    // 1. DB의 provider 컬럼 우선 사용
+    let provider = user.provider || 'email';
+    
+    // 2. 만약 provider가 email/local인데 password_hash가 소셜 형식이면 (구 데이터 호환)
+    if ((provider === 'email' || provider === 'local') && user.password_hash) {
+      if (user.password_hash.startsWith('NAVER:')) provider = 'naver';
+      else if (user.password_hash.startsWith('KAKAO:')) provider = 'kakao';
+      else if (user.password_hash.startsWith('GOOGLE:')) provider = 'google';
+    }
+
+    // 3. provider_id가 존재하면 해당 소셜로 덮어씀 (신규 연동 로직 반영)
+    if (user.provider_id) {
+       if (user.provider_id.startsWith('NAVER:')) provider = 'naver';
+       else if (user.provider_id.startsWith('KAKAO:')) provider = 'kakao';
+       else if (user.provider_id.startsWith('GOOGLE:')) provider = 'google';
+    }
+
+    const { password_hash, provider_id, ...userWithoutSensitive } = user;
+    
+    // 프론트엔드에 provider 정보 전달
+    res.json({ user: { ...userWithoutSensitive, provider } });
   } catch (error) {
     console.error('GetMe error:', error);
     res.status(500).json({
