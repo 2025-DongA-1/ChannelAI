@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api/v1';
+const API_BASE_URL = import.meta.env.VITE_API_URL || '/api/v1';
 
 export const api = axios.create({
   baseURL: API_BASE_URL,
@@ -29,7 +29,12 @@ api.interceptors.response.use(
       // 인증 실패 시 로그인 페이지로 리다이렉트
       localStorage.removeItem('token');
       localStorage.removeItem('user');
-      window.location.href = '/login';
+      // Zustand persist store도 초기화
+      localStorage.removeItem('auth-storage');
+      // 이미 로그인 페이지면 리디렉트하지 않음 (무한 루프 방지)
+      if (!window.location.pathname.includes('/login')) {
+        window.location.href = '/login';
+      }
     }
     return Promise.reject(error);
   }
