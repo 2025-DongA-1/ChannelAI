@@ -512,8 +512,9 @@ export const getMLRealtime = async (req: AuthRequest, res: Response) => {
     // Python 스크립트 절대 경로 (backend/python/ml_predict.py)
     const scriptPath = path.join(__dirname, '../../python/ml_predict.py');
 
-    // Anaconda Python 실행 파일 경로
-    const pythonPath = 'C:\\Users\\smhrd\\anaconda3\\python.exe';
+    // Anaconda Python 실행 경로 → 환경변수로 관리 (.env의 PYTHON_PATH)
+    // 설정 안 됐을 경우 'python3' 폴백 (Linux 서버 배포 시 자동 동작)
+    const pythonPath = process.env.PYTHON_PATH || 'python3';
 
     // DB 접속 정보를 커맨드라인 인수로 전달 (환경변수 직접 노출 최소화)
     const args = [
