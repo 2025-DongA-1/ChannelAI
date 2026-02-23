@@ -509,8 +509,8 @@ export const getMLRealtime = async (req: AuthRequest, res: Response) => {
 
     const { startDate, endDate } = req.query as { startDate?: string; endDate?: string };
 
-    // Python 스크립트 절대 경로 (backend/ml/ml_predict.py)
-    const scriptPath = path.join(__dirname, '../../ml/ml_predict.py');
+    // Python 스크립트 절대 경로 (backend/python/ml_predict.py)
+    const scriptPath = path.join(__dirname, '../../python/ml_predict.py');
 
     // Anaconda Python 실행 파일 경로
     const pythonPath = 'C:\\Users\\smhrd\\anaconda3\\python.exe';
