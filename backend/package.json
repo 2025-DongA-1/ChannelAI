@@ -17,6 +17,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@types/nodemailer": "^7.0.11",
     "axios": "^1.6.2",
     "bcrypt": "^5.1.1",
     "cookie-parser": "^1.4.7",
@@ -30,6 +31,7 @@
     "multer": "^2.0.2",
     "mysql2": "^3.9.0",
     "node-cron": "^3.0.3",
+    "nodemailer": "^8.0.1",
     "redis": "^4.6.10"
   },
   "devDependencies": {

@@ -2,8 +2,11 @@ import express, { Request, Response } from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import cookieParser from 'cookie-parser';
+import cron from 'node-cron';
 import pool from './config/database';
 import { connectRedis } from './config/redis';
+import { verifyEmailConnection } from './services/emailService';
+import { sendWeeklyReports, sendDailyReports } from './services/reportService';
 import authRoutes from './routes/authRoutes';
 import campaignRoutes from './routes/campaignRoutes';
 import accountRoutes from './routes/accountRoutes';
@@ -12,6 +15,7 @@ import integrationRoutes from './routes/integrationRoutes';
 import budgetRoutes from './routes/budgetRoutes';
 import insightRoutes from './routes/insightRoutes';
 import aiRoutes from './routes/aiRoutes';
+import reportRoutes from './routes/reportRoutes';
 
 // 환경 변수 로드
 dotenv.config();
@@ -68,6 +72,7 @@ app.use('/api/v1/integration', integrationRoutes);
 app.use('/api/v1/budget', budgetRoutes);
 app.use('/api/v1/insights', insightRoutes);
 app.use('/api/v1/ai', aiRoutes);
+app.use('/api/v1/report', reportRoutes);   // 리포트 이메일 발송 API
 
 app.get('/api/v1', (req: Request, res: Response) => {
   res.json({ 
@@ -113,6 +118,28 @@ const startServer = async () => {
     // Redis 연결 (선택적 - 실패해도 서버 시작)
     console.log('🔴 Redis 연결 시도...');
     await connectRedis();
+
+    // 이메일 서버 연결 확인
+    const emailEnabled = await verifyEmailConnection();
+
+    // ── cron 스케줄 등록 ───────────────────────────────────────────────
+    if (emailEnabled) {
+      // 주간 리포트: 매주 월요일 오전 9시 (기본)
+      cron.schedule('0 9 * * 1', async () => {
+        console.log('⏰ [CRON] 주간 리포트 발송 시작');
+        await sendWeeklyReports();
+      }, { timezone: 'Asia/Seoul' });
+      console.log('📅 주간 리포트 스케줄 등록: 매주 월요일 오전 9시');
+
+      // 일간 리포트: 매일 오전 9시 (ENABLE_DAILY_REPORT=true 일 때만 활성화)
+      if (process.env.ENABLE_DAILY_REPORT === 'true') {
+        cron.schedule('0 9 * * *', async () => {
+          console.log('⏰ [CRON] 일간 리포트 발송 시작');
+          await sendDailyReports();
+        }, { timezone: 'Asia/Seoul' });
+        console.log('📅 일간 리포트 스케줄 등록: 매일 오전 9시');
+      }
+    }
     
     // 서버 시작 (0.0.0.0으로 모든 네트워크 인터페이스에서 접속 허용)
     const server = app.listen(PORT, '0.0.0.0', () => {

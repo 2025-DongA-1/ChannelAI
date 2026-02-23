@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useAuthStore } from '../store/authStore';
 import { integrationAPI } from '../lib/api';
-import { FileSpreadsheet, Plus, Download, Database, Trash2, Edit2, AlertCircle, RefreshCw, Brain } from 'lucide-react';
+import { FileSpreadsheet, Plus, Download, Database, Trash2, Edit2, AlertCircle, RefreshCw, Brain, Mail } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 interface AdData {
@@ -238,10 +238,16 @@ const DummyDataPage: React.FC = () => {
           <div>
             <h1 className="text-2xl font-bold text-gray-900">테스트 데이터 생성 센터</h1>
             <p className="text-gray-500 text-sm mt-1 mb-3">분석 및 테스트를 위한 더미 데이터를 생성하거나 직접 입력하여 DB에 업로드하세요.</p>
-            <Link to="/advanced-model-test" className="inline-flex items-center gap-2 px-4 py-2 bg-purple-50 text-purple-700 border border-purple-200 hover:bg-purple-100 rounded-xl font-bold transition">
-              <Brain size={18} />
-              AI 고급 모델 평가 지표 보기
-            </Link>
+            <div className="flex flex-wrap gap-2 mt-3">
+              <Link to="/advanced-model-test" className="inline-flex items-center gap-2 px-4 py-2 bg-purple-50 text-purple-700 border border-purple-200 hover:bg-purple-100 rounded-xl font-bold transition">
+                <Brain size={18} />
+                AI 고급 모델 평가 지표 보기
+              </Link>
+              <Link to="/email-report" className="inline-flex items-center gap-2 px-4 py-2 bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 rounded-xl font-bold transition">
+                <Mail size={18} />
+                이메일 리포트 설정
+              </Link>
+            </div>
           </div>
           <div className="flex flex-wrap gap-2">
             <button 

@@ -14,6 +14,7 @@ import TermsOfServicePage from './pages/TermsOfServicePage';
 import DummyDataPage from './pages/DummyDataPage';
 import MyPage from './pages/MyPage';
 import AdvancedModelTestPage from './pages/AdvancedModelTestPage';
+import EmailReportPage from './pages/EmailReportPage';
 
 // Placeholder components (to be created)
 const AccountsPage = () => <div className="p-8">계정 관리 (구현 필요)</div>;
@@ -183,6 +184,17 @@ function App() {
               <PrivateRoute>
                 <Layout>
                   <MyPage />
+                </Layout>
+              </PrivateRoute>
+            }
+          />
+
+          <Route
+            path="/email-report"
+            element={
+              <PrivateRoute>
+                <Layout>
+                  <EmailReportPage />
                 </Layout>
               </PrivateRoute>
             }
