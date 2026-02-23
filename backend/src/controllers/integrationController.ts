@@ -87,7 +87,7 @@ export const handleOAuthCallback = async (req: AuthRequest, res: Response) => {
     // 계정 정보 조회
     const accounts = await service.getAccounts(credentials.accessToken);
 
-    // 첫 번째 계정을 DB에 저장
+    // 계정 정보를 DB에 저장 (계정이 없어도 OAuth 연결은 저장)
     if (accounts.length > 0) {
       const account = accounts[0];
       
@@ -105,6 +105,26 @@ export const handleOAuthCallback = async (req: AuthRequest, res: Response) => {
         platform,
         account.id,
         account.name,
+        credentials.accessToken,
+        credentials.refreshToken
+      ]);
+    } else {
+      // 계정 목록은 못 가져왔지만 OAuth 인증은 성공 → 연결 저장
+      console.log(`[${platform}] 계정 목록 0개, OAuth 연결만 저장`);
+      await pool.query(`
+        INSERT INTO marketing_accounts (
+          user_id, channel_code, external_account_id, account_name,
+          access_token, refresh_token, connection_status
+        ) VALUES (?, ?, ?, ?, ?, ?, 1)
+        ON DUPLICATE KEY UPDATE
+          access_token = VALUES(access_token),
+          refresh_token = VALUES(refresh_token),
+          connection_status = 1
+      `, [
+        userId,
+        platform,
+        'oauth_connected',
+        `${platform.charAt(0).toUpperCase() + platform.slice(1)} Ads (OAuth)`,
         credentials.accessToken,
         credentials.refreshToken
       ]);
