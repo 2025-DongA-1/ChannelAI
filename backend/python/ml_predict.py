@@ -64,9 +64,12 @@ try:
     )
 
     # 날짜 필터 조건 동적 구성 (없으면 전체 기간)
+    # 보안: f-string 직접 삽입 대신 pymysql 파라미터 바인딩 사용 → SQL Injection 방지
+    date_params = []
     date_filter = ""
     if args.start and args.end:
-        date_filter = f"AND cm.metric_date >= '{args.start}' AND cm.metric_date <= '{args.end}'"
+        date_filter = "AND cm.metric_date >= %s AND cm.metric_date <= %s"
+        date_params = [args.start, args.end]
 
     query = f"""
         SELECT
@@ -81,7 +84,7 @@ try:
         JOIN marketing_accounts ma ON c.marketing_account_id = ma.id
         WHERE 1=1 {date_filter}
     """
-    df = pd.read_sql(query, conn)
+    df = pd.read_sql(query, conn, params=date_params if date_params else None)
     conn.close()
 except Exception as e:
     print(json.dumps({"error": f"DB 연결 실패: {str(e)}"}))

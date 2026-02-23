@@ -527,7 +527,23 @@ export const getMLRealtime = async (req: AuthRequest, res: Response) => {
     ];
 
     // 날짜 필터가 있을 때만 인수 추가
+    // YYYY-MM-DD 형식만 허용 (SQL Injection / 잘못된 값 방지)
     if (startDate && endDate) {
+      const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+      if (!dateRegex.test(startDate) || !dateRegex.test(endDate)) {
+        return res.status(400).json({
+          success: false,
+          error: 'INVALID_DATE_FORMAT',
+          message: '날짜 형식이 올바르지 않습니다. YYYY-MM-DD 형식으로 입력해주세요.',
+        });
+      }
+      if (new Date(startDate) > new Date(endDate)) {
+        return res.status(400).json({
+          success: false,
+          error: 'INVALID_DATE_RANGE',
+          message: '시작일이 종료일보다 늦을 수 없습니다.',
+        });
+      }
       args.push(`--start=${startDate}`);
       args.push(`--end=${endDate}`);
     }
