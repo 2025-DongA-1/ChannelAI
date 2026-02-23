@@ -1,6 +1,7 @@
 import express, { Request, Response } from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import cookieParser from 'cookie-parser';
 import pool from './config/database';
 import { connectRedis } from './config/redis';
 import authRoutes from './routes/authRoutes';
@@ -25,6 +26,7 @@ app.use(cors({
 }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.use(cookieParser());
 
 // 기본 라우트
 app.get('/', (req: Request, res: Response) => {

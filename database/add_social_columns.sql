@@ -1,0 +1,10 @@
+-- 소셜 로그인 연동을 위한 컬럼 추가
+ALTER TABLE users
+ADD COLUMN naver_id VARCHAR(255) DEFAULT NULL
+AFTER provider_id;
+ALTER TABLE users
+ADD COLUMN kakao_id VARCHAR(255) DEFAULT NULL
+AFTER naver_id;
+ALTER TABLE users
+ADD COLUMN google_id VARCHAR(255) DEFAULT NULL
+AFTER kakao_id;

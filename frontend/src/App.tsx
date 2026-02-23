@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useNavigate, Link } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useAuthStore } from './store/authStore';
 import LoginPage from './pages/LoginPage';
@@ -12,6 +12,7 @@ import InsightsPage from './pages/InsightsPage';
 import PrivacyPolicyPage from './pages/PrivacyPolicyPage';
 import TermsOfServicePage from './pages/TermsOfServicePage';
 import DummyDataPage from './pages/DummyDataPage';
+import MyPage from './pages/MyPage';
 
 // Placeholder components (to be created)
 const AccountsPage = () => <div className="p-8">계정 관리 (구현 필요)</div>;
@@ -43,7 +44,9 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
               <a href="/integration" className="text-gray-700 hover:text-gray-900">연동</a>
               <a href="/insights" className="text-gray-700 hover:text-gray-900">인사이트</a>
               <div className="flex items-center space-x-2 ml-4 pl-4 border-l">
-                <span className="text-sm text-gray-600">{user?.name}</span>
+                <Link to="/me" className="text-sm text-gray-600 hover:text-gray-900 cursor-pointer font-medium">
+                  {user?.name}
+                </Link>
                 <button
                   onClick={handleLogout}
                   className="px-3 py-1 text-sm text-red-600 hover:bg-red-50 rounded transition"
@@ -157,6 +160,17 @@ function App() {
               <PrivateRoute>
                 <Layout>
                   <DummyDataPage />
+                </Layout>
+              </PrivateRoute>
+            }
+          />
+
+          <Route
+            path="/me"
+            element={
+              <PrivateRoute>
+                <Layout>
+                  <MyPage />
                 </Layout>
               </PrivateRoute>
             }

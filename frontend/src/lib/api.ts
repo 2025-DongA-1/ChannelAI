@@ -48,10 +48,15 @@ export const authAPI = {
   
   getMe: () => api.get('/auth/me'),
   
-  // 소셜 로그인
+  // 소셜 로그인 (URL 가져오기)
   getKakaoAuthUrl: () => api.get('/auth/kakao'),
   getNaverAuthUrl: () => api.get('/auth/naver'),
   getGoogleAuthUrl: () => api.get('/auth/google'),
+
+  // 소셜 연동 (MyPage에서 사용하는 이름) - 토큰 없이 요청 (401 방지)
+  connectKakao: () => api.get('/auth/kakao', { headers: { Authorization: '' } }),
+  connectNaver: () => api.get('/auth/naver', { headers: { Authorization: '' } }),
+  connectGoogle: () => api.get('/auth/google', { headers: { Authorization: '' } }),
 };
 
 // Dashboard API
