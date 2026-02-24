@@ -25,7 +25,7 @@ export const verifyEmailConnection = async (): Promise<boolean> => {
     console.log('');
     console.log('📧 ═══════════════════════════════════════════════');
     console.log('📧  Resend 이메일 서비스 활성화');
-    console.log('📧  발신: onboarding@resend.dev (무료 기본 주소)');
+    console.log('📧  발신: report@channelai.kro.kr');
     console.log('📧 ═══════════════════════════════════════════════');
     console.log('');
     return true;
@@ -81,7 +81,7 @@ export const sendEmail = async (to: string, subject: string, html: string): Prom
   // ── Resend API ─────────────────────────────────────────────────────────
   if (mode === 'resend' && resendClient) {
     const { error } = await resendClient.emails.send({
-      from: 'ChannelAI <onboarding@resend.dev>',   // Resend 무료 기본 발신자
+      from: 'ChannelAI 리포트 <report@channelai.kro.kr>',
       to: [to],
       subject,
       html,
