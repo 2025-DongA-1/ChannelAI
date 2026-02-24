@@ -55,14 +55,14 @@ jobs:
         run: npm run build
 
   # ============================================
-  # WAS 서버 배포 (main 브랜치 push 시)
+  # WAS 서버 배포 (수동 트리거에서만 실행)
   # ============================================
   deploy-was:
-    needs: build
+    needs: [build, deploy-web]
     runs-on: ubuntu-latest
-    if: |
-      (github.ref == 'refs/heads/main' && github.event_name == 'push') ||
-      (github.event_name == 'workflow_dispatch' && (github.event.inputs.deploy_target == 'all' || github.event.inputs.deploy_target == 'was'))
+    if: >
+      github.event_name == 'workflow_dispatch' &&
+      (github.event.inputs.deploy_target == 'all' || github.event.inputs.deploy_target == 'was')
 
     steps:
       - name: Checkout
@@ -147,14 +147,14 @@ jobs:
             pm2 save
 
   # ============================================
-  # WEB 서버 배포 (main 브랜치 push 시)
+  # WEB 서버 배포 (수동 트리거에서만 실행)
   # ============================================
   deploy-web:
     needs: build
     runs-on: ubuntu-latest
-    if: |
-      (github.ref == 'refs/heads/main' && github.event_name == 'push') ||
-      (github.event_name == 'workflow_dispatch' && (github.event.inputs.deploy_target == 'all' || github.event.inputs.deploy_target == 'web'))
+    if: >
+      github.event_name == 'workflow_dispatch' &&
+      (github.event.inputs.deploy_target == 'all' || github.event.inputs.deploy_target == 'web')
 
     steps:
       - name: Checkout

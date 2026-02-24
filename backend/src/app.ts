@@ -24,10 +24,24 @@ const app = express();
 const PORT = parseInt(process.env.PORT || '3000', 10);
 
 // 미들웨어
+const allowedOrigins = [
+  'http://localhost:5173',
+  'http://localhost:3000',
+  'http://211.188.63.79',
+  'http://channelai.kro.kr',
+  'https://channelai.kro.kr',
+  process.env.FRONTEND_URL,
+].filter(Boolean) as string[];
+
 app.use(cors({
-  // FRONTEND_URL 환경변수에 설정된 도메인만 허용 (기본값: 로컬 개발 주소)
-  // 배포 시 .env에서 FRONTEND_URL=https://your-domain.com 으로 변경
-  origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+  origin: (origin, callback) => {
+    // 서버 간 요청(origin 없음) 또는 허용 목록에 있으면 허용
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('CORS policy: origin not allowed'));
+    }
+  },
   credentials: true,
 }));
 app.use(express.json());
