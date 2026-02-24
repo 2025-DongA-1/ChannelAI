@@ -8,6 +8,8 @@ interface User {
   company?: string;
   role?: string;
   provider?: string;
+  plan?: string;
+  business_number?: string;
 }
 
 interface AuthState {

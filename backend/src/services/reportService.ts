@@ -165,3 +165,30 @@ export const sendWeeklyReports = async (): Promise<void> => {
   }
   console.log('📧 [주간 리포트] 완료');
 };
+
+// ── 특정 이메일로 테스트 리포트 발송 ───────────────────────────────────────
+export const sendTestToEmail = async (targetEmail: string, userId: number): Promise<void> => {
+  console.log(`📧 [테스트 발송] ${targetEmail} 으로 발송 시작...`);
+  const startDate = toDateStr(daysAgo(7));
+  const endDate   = toDateStr(new Date());
+  const data = await gatherReportData(userId, startDate, endDate);
+
+  if (!data) {
+    // 데이터 없어도 샘플 리포트 발송
+    const sampleData: ReportData = {
+      userName: '테스트 사용자',
+      period: { start: startDate, end: endDate },
+      totalCost: 1500000, totalImpressions: 320000, totalClicks: 6400,
+      totalConversions: 128, roas: 2.5, topCampaign: '(샘플) Launch Campaign',
+      recommendations: [
+        { priority: '정상', message: '이것은 테스트 이메일입니다. 실제 데이터가 있으면 자동 집계됩니다. 🎉' }
+      ],
+    };
+    const subject = `📊 [ChannelAI] 테스트 리포트 (${startDate} ~ ${endDate})`;
+    await sendEmail(targetEmail, subject, buildEmailHtml(sampleData));
+  } else {
+    const subject = `📊 [ChannelAI] 테스트 리포트 (${data.period.start} ~ ${data.period.end})`;
+    await sendEmail(targetEmail, subject, buildEmailHtml(data));
+  }
+  console.log(`  ✅ 테스트 발송 완료: ${targetEmail}`);
+};

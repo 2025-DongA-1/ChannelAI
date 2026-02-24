@@ -12,7 +12,9 @@ const EmailReportPage: React.FC = () => {
   const [weeklyStatus, setWeeklyStatus] = useState<SendStatus>('idle');
   const [dailyStatus,  setDailyStatus]  = useState<SendStatus>('idle');
   const [testStatus,   setTestStatus]   = useState<SendStatus>('idle');
+  const [sendToStatus, setSendToStatus] = useState<SendStatus>('idle');
   const [message, setMessage] = useState<string>('');
+  const [targetEmail, setTargetEmail] = useState<string>('');
 
   // ── 발송 핸들러 ──────────────────────────────────────────────────────────
   const handleSend = async (
@@ -25,12 +27,29 @@ const EmailReportPage: React.FC = () => {
       const res = await api.post(`/report/${type}`);
       setMessage(res.data.message || '발송 요청 완료!');
       setStatus('success');
-    } catch (err: any) {
-      setMessage(err?.response?.data?.message || '발송 실패. 이메일 서버 설정을 확인하세요.');
+    } catch (err: unknown) {
+      const axiosErr = err as { response?: { data?: { message?: string } } };
+      setMessage(axiosErr?.response?.data?.message || '발송 실패. 이메일 서버 설정을 확인하세요.');
       setStatus('error');
     }
-    // 5초 후 idle 복귀
     setTimeout(() => setStatus('idle'), 5000);
+  };
+
+  // ── 특정 이메일로 발송 ─────────────────────────────────────────────────────
+  const handleSendToEmail = async () => {
+    if (!targetEmail.trim()) { setMessage('이메일 주소를 입력하세요.'); return; }
+    setSendToStatus('loading');
+    setMessage('');
+    try {
+      const res = await api.post('/report/send-to', { email: targetEmail.trim() });
+      setMessage(res.data.message || '발송 요청 완료!');
+      setSendToStatus('success');
+    } catch (err: unknown) {
+      const axiosErr = err as { response?: { data?: { message?: string } } };
+      setMessage(axiosErr?.response?.data?.message || '발송 실패. 이메일 서버 설정을 확인하세요.');
+      setSendToStatus('error');
+    }
+    setTimeout(() => setSendToStatus('idle'), 5000);
   };
 
   // ── 버튼 스타일 ───────────────────────────────────────────────────────────
@@ -55,7 +74,7 @@ const EmailReportPage: React.FC = () => {
 
         {/* 헤더 */}
         <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex items-center gap-4">
-          <Link to="/dummy" className="p-2 text-gray-500 hover:bg-gray-100 rounded-full transition">
+          <Link to="/dummy-data" className="p-2 text-gray-500 hover:bg-gray-100 rounded-full transition">
             <ArrowLeft size={22} />
           </Link>
           <div>
@@ -71,15 +90,46 @@ const EmailReportPage: React.FC = () => {
         {/* 상태 메시지 */}
         {message && (
           <div className={`p-4 rounded-xl flex items-center gap-2 text-sm font-medium ${
-            [weeklyStatus, dailyStatus, testStatus].includes('error')
+            [weeklyStatus, dailyStatus, testStatus, sendToStatus].includes('error')
               ? 'bg-red-50 text-red-700 border border-red-100'
               : 'bg-green-50 text-green-700 border border-green-100'
           }`}>
-            {[weeklyStatus, dailyStatus, testStatus].includes('error')
+            {[weeklyStatus, dailyStatus, testStatus, sendToStatus].includes('error')
               ? <AlertTriangle size={16} /> : <CheckCircle size={16} />}
             {message}
           </div>
         )}
+
+        {/* ✉️ 특정 이메일로 테스트 발송 (맨 위) */}
+        <div className="bg-white p-6 rounded-2xl shadow-sm border-2 border-blue-200">
+          <div className="flex items-start gap-3 mb-4">
+            <Send className="text-blue-500 mt-0.5" size={22} />
+            <div>
+              <h2 className="text-lg font-bold text-gray-800">특정 이메일로 테스트 발송</h2>
+              <p className="text-sm text-gray-500 mt-1">원하는 이메일 주소를 입력하고 테스트 리포트를 발송하세요. DB에 데이터가 없으면 샘플 리포트가 전송됩니다.</p>
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <input
+              type="email"
+              placeholder="example@gmail.com"
+              value={targetEmail}
+              onChange={(e) => setTargetEmail(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleSendToEmail()}
+              className="flex-1 px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-blue-400"
+            />
+            <button
+              onClick={handleSendToEmail}
+              disabled={sendToStatus === 'loading'}
+              className={btnClass(sendToStatus, 'blue')}
+            >
+              {btnIcon(sendToStatus)}
+              {sendToStatus === 'loading' ? '발송 중...' :
+                sendToStatus === 'success' ? '발송 완료' :
+                sendToStatus === 'error'   ? '실패' : '발송'}
+            </button>
+          </div>
+        </div>
 
         {/* 발송 카드 목록 */}
         {[
@@ -105,8 +155,8 @@ const EmailReportPage: React.FC = () => {
           },
           {
             icon: <Mail className="text-green-500" size={22} />,
-            title: '테스트 발송',
-            desc: '지금 즉시 주간 리포트를 내 계정 이메일로 테스트 발송합니다.',
+            title: '전체 테스트 발송',
+            desc: '모든 사용자에게 주간 리포트를 즉시 테스트 발송합니다.',
             schedule: '수동 발송 전용 (자동 스케줄 없음)',
             color: 'green',
             status: testStatus,
