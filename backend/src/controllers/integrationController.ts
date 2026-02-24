@@ -412,12 +412,12 @@ export const syncAllMetrics = async (req: AuthRequest, res: Response) => {
             const insertResult = await pool.query(`
               INSERT INTO campaigns (
                 marketing_account_id, external_campaign_id,
-                campaign_name, status, daily_budget, total_budget
-              ) VALUES (?, ?, ?, ?, ?, ?)
+                campaign_name, status, daily_budget, total_budget, platform
+              ) VALUES (?, ?, ?, ?, ?, ?, ?)
             `, [
               account.id, campaign.id,
               campaign.name, campaign.status, campaign.budget?.daily,
-              campaign.budget?.total
+              campaign.budget?.total, account.channel_code || 'meta'
             ]);
             dbCampaignId = insertResult.insertId!;
             syncedCampaigns++;
@@ -469,6 +469,70 @@ export const syncAllMetrics = async (req: AuthRequest, res: Response) => {
 
         totalCampaigns += campaigns.length;
         totalMetrics += syncedMetrics;
+
+        // [중요] campaigns 루프 이후, meta 계정이면 광고 계정 insights 별도 저장
+        if (account.channel_code === 'meta') {
+          const accountMetrics = await service.getMetrics(
+            account.access_token,
+            account.external_account_id,
+            '', // campaignId 없이 호출
+            startDate,
+            endDate
+          );
+          console.log('[Sync All][DEBUG] 광고 계정 insights 반환값:', JSON.stringify(accountMetrics, null, 2));
+
+          // 1. 집계용 가상 캠페인 campaigns 테이블에 생성/조회 (컬럼 개수 맞춤)
+          const aggExternalCampaignId = `meta_account_${account.external_account_id}`;
+          let aggCampaignId: number | null = null;
+          const aggCampaignResult = await pool.query(
+            'SELECT id FROM campaigns WHERE marketing_account_id = ? AND external_campaign_id = ?',
+            [account.id, aggExternalCampaignId]
+          );
+          if (aggCampaignResult.rows.length > 0) {
+            aggCampaignId = aggCampaignResult.rows[0].id;
+          } else {
+            const insertResult = await pool.query(
+              `INSERT INTO campaigns (
+                marketing_account_id, external_campaign_id, campaign_name, status, daily_budget, total_budget, platform, objective, start_date, end_date
+              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+              [account.id, aggExternalCampaignId, 'Meta 계정 전체 집계', 'active', 0, 0, account.channel_code || 'meta', null, null, null]
+            );
+            aggCampaignId = insertResult.insertId!;
+          }
+
+          // 2. campaign_metrics에 저장
+          for (const metric of accountMetrics) {
+            if (!aggCampaignId) continue;
+            const existing = await pool.query(
+              'SELECT id FROM campaign_metrics WHERE campaign_id = ? AND metric_date = ?',
+              [aggCampaignId, metric.date]
+            );
+            if (existing.rows.length > 0) {
+              await pool.query(`
+                UPDATE campaign_metrics
+                SET impressions = ?, clicks = ?, conversions = ?,
+                    cost = ?, revenue = ?
+                WHERE campaign_id = ? AND metric_date = ?
+              `, [
+                metric.impressions, metric.clicks, metric.conversions,
+                metric.cost, metric.revenue || 0,
+                aggCampaignId, metric.date
+              ]);
+            } else {
+              await pool.query(`
+                INSERT INTO campaign_metrics (
+                  campaign_id, metric_date, impressions, clicks, conversions,
+                  cost, revenue
+                ) VALUES (?, ?, ?, ?, ?, ?, ?)
+              `, [
+                aggCampaignId, metric.date,
+                metric.impressions, metric.clicks, metric.conversions,
+                metric.cost, metric.revenue || 0
+              ]);
+            }
+            totalMetrics++;
+          }
+        }
 
         console.log(`[Sync All] ${account.channel_code} 완료: 캠페인 ${campaigns.length}, 메트릭 ${syncedMetrics}`);
 
