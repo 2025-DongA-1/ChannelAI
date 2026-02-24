@@ -21,7 +21,9 @@ const PORT = parseInt(process.env.PORT || '3000', 10);
 
 // 미들웨어
 app.use(cors({
-  origin: true, // 모든 출처 허용
+  // FRONTEND_URL 환경변수에 설정된 도메인만 허용 (기본값: 로컬 개발 주소)
+  // 배포 시 .env에서 FRONTEND_URL=https://your-domain.com 으로 변경
+  origin: process.env.FRONTEND_URL || 'http://localhost:5173',
   credentials: true,
 }));
 app.use(express.json());

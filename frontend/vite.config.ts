@@ -13,7 +13,7 @@ export default defineConfig({
   server: {
     proxy: {
       '/api': {
-        target: 'http://localhost:3000',
+        target: 'http://localhost:5000', // 백엔드 실제 포트 (5000번)으로 수정
         changeOrigin: true,
       },
     },

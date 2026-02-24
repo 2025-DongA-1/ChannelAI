@@ -1,6 +1,10 @@
 import { Response } from 'express';
 import pool from '../config/database';
 import { AuthRequest } from '../middlewares/auth';
+import { spawn } from 'child_process'; // Python 스크립트 호출용
+import path from 'path';               // 스크립트 경로 계산용
+import dotenv from 'dotenv';
+dotenv.config();
 
 /**
  * AI 마케팅 에이전트 컨트롤러
@@ -197,6 +201,87 @@ export const getAgentStatus = async (req: AuthRequest, res: Response) => {
     return res.status(500).json({
       success: false,
       error: '상태 조회 중 오류가 발생했습니다.',
+    });
+  }
+};
+
+/**
+ * 고급 모델 테스트 - 매체별 최우수/최하위 캠페인 분석 리포트
+ * GET /api/v1/ai/agent/advanced-metrics
+ * 쿼리 파라미터: startDate (YYYY-MM-DD), endDate (YYYY-MM-DD) - 없으면 전체 기간
+ */
+export const getAdvancedMetrics = async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user?.id;
+
+    if (!userId) {
+      return res.status(401).json({ success: false, error: '인증이 필요합니다.' });
+    }
+
+    // 쿼리 파라미터에서 기간 필터 추출 (없으면 전체 기간 조회)
+    const { startDate, endDate } = req.query as { startDate?: string; endDate?: string };
+
+    // 날짜 필터가 있을 경우 WHERE 조건을 동적으로 추가
+    const dateFilter = startDate && endDate
+      ? `AND cm.metric_date >= ? AND cm.metric_date <= ?`
+      : '';
+
+    // 날짜 파라미터 배열 구성 (날짜 필터가 있을 때만 값 추가)
+    const queryParams: any[] = startDate && endDate ? [startDate, endDate] : [];
+
+    const rawMetricsQuery = `
+      SELECT 
+        ma.channel_code AS platform,
+        c.campaign_name,
+        COALESCE(SUM(cm.conversions), 0) as total_conversions,
+        COALESCE(SUM(cm.cost), 0) as total_cost
+      FROM campaigns c
+      JOIN marketing_accounts ma ON c.marketing_account_id = ma.id
+      JOIN campaign_metrics cm ON c.id = cm.campaign_id
+      ${dateFilter}
+      GROUP BY ma.channel_code, c.campaign_name
+    `;
+
+    const result = await pool.query(rawMetricsQuery, queryParams);
+    
+    // JS 레벨에서 그룹핑 및 분석 진행 (MySQL 버전 의존성 제거)
+    const groupedData: Record<string, {name: string, efficiency: number}[]> = {};
+
+    for (const row of result.rows) {
+      const platform = row.platform;
+      // 1원 당 전환 수(효율) 계산 (0으로 나누기 방지를 위해 +1)
+      const efficiency = Number(row.total_conversions) / (Number(row.total_cost) + 1);
+      
+      if (!groupedData[platform]) {
+        groupedData[platform] = [];
+      }
+      groupedData[platform].push({ name: row.campaign_name, efficiency });
+    }
+
+    // 효율 기준으로 정렬 후 최우수(best)/최하위(worst) 캠페인 추출
+    const campaignRanks = Object.keys(groupedData).map(platform => {
+      const camps = groupedData[platform].sort((a, b) => b.efficiency - a.efficiency);
+      return {
+        media: platform,
+        best: camps.length > 0 ? camps[0].name : '-',
+        worst: camps.length > 0 ? camps[camps.length - 1].name : '-'
+      };
+    });
+
+    return res.json({
+      success: true,
+      data: {
+        campaignRanks,
+        // 적용된 기간 정보도 함께 반환 (프론트에서 표시용)
+        period: startDate && endDate ? { startDate, endDate } : null,
+      }
+    });
+
+  } catch (error: any) {
+    console.error('고급 모델 지표 조회 오류:', error);
+    return res.status(500).json({
+      success: false,
+      error: '고급 모델 지표 분석 중 오류가 발생했습니다.',
     });
   }
 };
@@ -409,3 +494,105 @@ function generateOverallInsight(
     riskLevel,
   };
 }
+
+/**
+ * 실시간 ML 예측 - XGBoost 전환 예측 + RandomForest 최적 매체 추천
+ * GET /api/v1/ai/agent/ml-realtime
+ * 쿼리 파라미터: startDate (YYYY-MM-DD), endDate (YYYY-MM-DD) - 없으면 전체 기간
+ */
+export const getMLRealtime = async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ success: false, error: '인증이 필요합니다.' });
+    }
+
+    const { startDate, endDate } = req.query as { startDate?: string; endDate?: string };
+
+    // Python 스크립트 절대 경로 (backend/python/ml_predict.py)
+    const scriptPath = path.join(__dirname, '../../python/ml_predict.py');
+
+    // Anaconda Python 실행 경로 → 환경변수로 관리 (.env의 PYTHON_PATH)
+    // 설정 안 됐을 경우 'python3' 폴백 (Linux 서버 배포 시 자동 동작)
+    const pythonPath = process.env.PYTHON_PATH || 'python3';
+
+    // DB 접속 정보를 커맨드라인 인수로 전달 (환경변수 직접 노출 최소화)
+    const args = [
+      scriptPath,
+      `--host=${process.env.DB_HOST}`,
+      `--port=${process.env.DB_PORT || 3306}`,
+      `--db=${process.env.DB_NAME}`,
+      `--user=${process.env.DB_USER}`,
+      `--password=${process.env.DB_PASSWORD}`,
+    ];
+
+    // 날짜 필터가 있을 때만 인수 추가
+    // YYYY-MM-DD 형식만 허용 (SQL Injection / 잘못된 값 방지)
+    if (startDate && endDate) {
+      const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+      if (!dateRegex.test(startDate) || !dateRegex.test(endDate)) {
+        return res.status(400).json({
+          success: false,
+          error: 'INVALID_DATE_FORMAT',
+          message: '날짜 형식이 올바르지 않습니다. YYYY-MM-DD 형식으로 입력해주세요.',
+        });
+      }
+      if (new Date(startDate) > new Date(endDate)) {
+        return res.status(400).json({
+          success: false,
+          error: 'INVALID_DATE_RANGE',
+          message: '시작일이 종료일보다 늦을 수 없습니다.',
+        });
+      }
+      args.push(`--start=${startDate}`);
+      args.push(`--end=${endDate}`);
+    }
+
+    // Python 프로세스 실행
+    // PYTHONIOENCODING=utf-8: Windows에서 Python stdout이 cp949로 출력되는 문제 방지
+    const pyProcess = spawn(pythonPath, args, {
+      env: { ...process.env, PYTHONIOENCODING: 'utf-8', PYTHONUTF8: '1' },
+    });
+
+    let stdout = '';
+    let stderr = '';
+
+    // Python이 print(json.dumps(...))로 출력하는 데이터 누적
+    pyProcess.stdout.on('data', (chunk) => { stdout += chunk.toString(); });
+    // Python 에러/경고 메시지 누적
+    pyProcess.stderr.on('data', (chunk) => { stderr += chunk.toString(); });
+
+    // 프로세스 종료 후 결과 파싱 및 응답 반환
+    pyProcess.on('close', (code) => {
+      if (code !== 0) {
+        console.error('Python 스크립트 오류:', stderr);
+        return res.status(500).json({
+          success: false,
+          error: 'ML 분석 스크립트 실행 오류',
+          detail: stderr.slice(0, 500), // 에러 메시지 일부만 노출
+        });
+      }
+      try {
+        const mlResult = JSON.parse(stdout.trim()); // stdout을 JSON으로 파싱
+        return res.json({
+          success: true,
+          data: mlResult,
+          period: startDate && endDate ? { startDate, endDate } : null,
+        });
+      } catch {
+        console.error('Python 결과 파싱 실패:', stdout);
+        return res.status(500).json({ success: false, error: 'ML 결과 파싱 실패' });
+      }
+    });
+
+    // Python 프로세스 자체 실행 실패 (파일 없음 등)
+    pyProcess.on('error', (err) => {
+      console.error('Python 프로세스 실행 실패:', err);
+      return res.status(500).json({ success: false, error: `Python 실행 실패: ${err.message}` });
+    });
+
+  } catch (error: any) {
+    console.error('ML 실시간 예측 오류:', error);
+    return res.status(500).json({ success: false, error: 'ML 예측 중 오류가 발생했습니다.' });
+  }
+};

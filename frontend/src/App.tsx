@@ -13,6 +13,7 @@ import PrivacyPolicyPage from './pages/PrivacyPolicyPage';
 import TermsOfServicePage from './pages/TermsOfServicePage';
 import DummyDataPage from './pages/DummyDataPage';
 import MyPage from './pages/MyPage';
+import AdvancedModelTestPage from './pages/AdvancedModelTestPage';
 
 // Placeholder components (to be created)
 const AccountsPage = () => <div className="p-8">계정 관리 (구현 필요)</div>;
@@ -160,6 +161,17 @@ function App() {
               <PrivateRoute>
                 <Layout>
                   <DummyDataPage />
+                </Layout>
+              </PrivateRoute>
+            }
+          />
+
+          <Route
+            path="/advanced-model-test"
+            element={
+              <PrivateRoute>
+                <Layout>
+                  <AdvancedModelTestPage />
                 </Layout>
               </PrivateRoute>
             }
