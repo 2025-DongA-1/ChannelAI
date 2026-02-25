@@ -459,19 +459,6 @@ const AdvancedModelTestPage: React.FC = () => {
                   </p>
                 </div>
               )}
-
-              {/* AI 분석 섹션 추가 */}
-              {showRF && rf?.status === 'success' && rf.aiAnalysis && !isMLLoading && (
-                <div className="mt-4 p-5 bg-gradient-to-br from-purple-50 to-white border border-purple-100 rounded-2xl relative overflow-hidden group">
-                  <div className="absolute top-0 right-0 p-2 opacity-10 group-hover:opacity-20 transition">
-                    <Brain size={48} className="text-purple-600" />
-                  </div>
-                  <h3 className="text-sm font-bold text-purple-800 flex items-center gap-1.5 mb-2">
-                    <Brain size={16} /> AI 전문가의 매체 추천 로직 분석
-                  </h3>
-                  <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">{rf.aiAnalysis}</p>
-                </div>
-              )}
             </div>
           )}
         </div>

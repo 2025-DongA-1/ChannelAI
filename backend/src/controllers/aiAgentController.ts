@@ -582,9 +582,8 @@ export const getMLRealtime = async (req: AuthRequest, res: Response) => {
       try {
         const mlResult = JSON.parse(stdout.trim()); // stdout을 JSON으로 파싱
 
-        // AI 전문가 분석 추가 (비동기 병렬 처리)
+        // XGBoost AI 분석 (Random Forest는 모델 확인 용이므로 제외)
         let xgboostAnalysis = '';
-        let rfAnalysis = '';
 
         if (mlResult.xgboost?.status === 'success') {
           xgboostAnalysis = await aiAnalysisService.analyzeXGBoost(
@@ -594,20 +593,11 @@ export const getMLRealtime = async (req: AuthRequest, res: Response) => {
           );
         }
 
-        if (mlResult.randomforest?.status === 'success') {
-          rfAnalysis = await aiAnalysisService.analyzeRandomForest(
-            mlResult.randomforest.accuracy,
-            mlResult.randomforest.platformMetrics,
-            mlResult.randomforest.sample
-          );
-        }
-
         return res.json({
           success: true,
           data: {
             ...mlResult,
             xgboost: mlResult.xgboost ? { ...mlResult.xgboost, aiAnalysis: xgboostAnalysis } : null,
-            randomforest: mlResult.randomforest ? { ...mlResult.randomforest, aiAnalysis: rfAnalysis } : null,
           },
           period: startDate && endDate ? { startDate, endDate } : null,
         });
