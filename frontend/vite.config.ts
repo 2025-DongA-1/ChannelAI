@@ -11,6 +11,7 @@ export default defineConfig({
     },
   },
   server: {
+    allowedHosts: 'all', // 터널(localtunnel, pinggy 등) 외부 접속 허용
     proxy: {
       '/api': {
         target: 'http://localhost:5000', // 백엔드 실제 포트 (5000번)으로 수정

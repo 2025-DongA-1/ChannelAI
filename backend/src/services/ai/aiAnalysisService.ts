@@ -145,4 +145,40 @@ ${JSON.stringify(ranks)}
       return '매체 추천 모델 분석 중 오류가 발생했습니다.';
     }
   }
+
+  // ──────────────────────────────────────────────
+  // AI 최적화 추천 항목별 이유 (70자 이내)
+  // ──────────────────────────────────────────────
+  async analyzeRecommendation(rec: {
+    type: string;
+    campaignName?: string;
+    platform?: string;
+    reason: string;
+  }): Promise<string> {
+    try {
+      const typeLabel =
+        rec.type === 'budget_increase'          ? '예산 증액 추천' :
+        rec.type === 'budget_decrease'          ? '예산 감액 추천' :
+        rec.type === 'creative_optimization'    ? '소재 개선 추천' :
+        rec.type === 'platform_diversification' ? '플랫폼 다각화' : '최적화 추천';
+
+      const prompt = `당신은 마케팅 비서입니다.
+아래 추천 항목에 대해 사장님이 바로 이해할 수 있는 추천 이유를 70자 이내의 한 줄 한국어로 작성해 주세요.
+전문 용어(ROAS, CTR 등)가 있다면 쉬운 말로 풀어 쓰세요.
+
+추천 종류: ${typeLabel}
+캠페인: ${rec.campaignName || '전체'}
+매체: ${rec.platform || '전체'}
+기존 이유: ${rec.reason}
+
+* 딱 한 문장, 70자 이내로만 작성하세요. 다른 말은 하지 마세요.`;
+
+      const result = await this.call(prompt);
+      // 70자 초과 시 자름
+      return result.trim().slice(0, 70);
+    } catch (error) {
+      console.error('AI Analysis (Recommendation) failed:', error);
+      return '';
+    }
+  }
 }

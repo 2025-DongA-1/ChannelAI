@@ -39,6 +39,7 @@ interface Recommendation {
   suggested_budget?: number;
   current_ctr?: string;
   reason: string;
+  aiReason?: string;  // AI 70자 이유
   expected_impact?: string;
   suggested_platforms?: string[];
 }
@@ -336,6 +337,13 @@ const AdvancedModelTestPage: React.FC = () => {
                       {rec.platform && <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-gray-100 text-gray-600">{rec.platform}</span>}
                     </div>
                     <p className="text-sm text-gray-700">{rec.reason}</p>
+                    {/* AI 70자 추천 이유 */}
+                    {rec.aiReason && (
+                      <p className="text-xs text-indigo-600 bg-indigo-50 rounded-lg px-3 py-1.5 flex items-center gap-1.5">
+                        <Brain size={12} className="shrink-0" />
+                        {rec.aiReason}
+                      </p>
+                    )}
                     {rec.current_budget !== undefined && (
                       <p className="text-xs text-gray-500">현재 예산: <span className="font-medium">{rec.current_budget.toLocaleString()}원</span>{' → '}<span className="font-medium text-blue-600">{rec.suggested_budget?.toLocaleString()}원</span></p>
                     )}
