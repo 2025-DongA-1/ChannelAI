@@ -15,6 +15,7 @@ import DummyDataPage from './pages/DummyDataPage';
 import MyPage from './pages/MyPage';
 import AdvancedModelTestPage from './pages/AdvancedModelTestPage';
 import EmailReportPage from './pages/EmailReportPage';
+import logo from "./assets/logo_crop.png";
 
 // Placeholder components (to be created)
 const AccountsPage = () => <div className="p-8">계정 관리 (구현 필요)</div>;
@@ -38,7 +39,13 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between h-16">
             <div className="flex items-center">
-              <h1 className="text-xl font-bold text-blue-600">Marketing AI Platform</h1>
+              <Link to="/dashboard" className="flex items-center">
+                <img
+                  src={logo}
+                  alt="PLAN BE"
+                  className="h-12 w-auto object-contain"
+                />
+              </Link>
             </div>
             <div className="flex items-center space-x-4">
               <a href="/dashboard" className="text-gray-700 hover:text-gray-900">대시보드</a>
