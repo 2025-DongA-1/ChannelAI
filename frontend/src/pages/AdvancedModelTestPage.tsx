@@ -17,6 +17,7 @@ interface XGBoostResult {
   platformMae?: { name: string; error: number }[];
   sample?: { platform: string; cost: number; impressions: number; clicks: number; predicted: number; actual: number; };
   message?: string;
+  aiAnalysis?: string; // AI 분석 필드 추가
 }
 
 interface RFResult {
@@ -26,6 +27,7 @@ interface RFResult {
   platformMetrics?: { name: string; precision: number; recall: number }[];
   sample?: { totalImpressions: number; totalCost: number; predicted: string; actual: string; };
   message?: string;
+  aiAnalysis?: string; // AI 분석 필드 추가
 }
 
 interface Recommendation {
@@ -53,6 +55,7 @@ const AdvancedModelTestPage: React.FC = () => {
 
   // 캠페인 랭킹
   const [campaignRanks, setCampaignRanks] = useState<CampaignRank[]>([]);
+  const [rankAnalysis,  setRankAnalysis]  = useState<string>(''); // 캠페인 랭킹 AI 분석
   const [isRankLoading, setIsRankLoading] = useState(true);
 
   // ML 모델
@@ -72,7 +75,10 @@ const AdvancedModelTestPage: React.FC = () => {
     setIsRankLoading(true);
     try {
       const res = await api.get('/ai/agent/advanced-metrics', { params: { startDate, endDate } });
-      if (res.data?.success) setCampaignRanks(res.data.data.campaignRanks ?? []);
+      if (res.data?.success) {
+        setCampaignRanks(res.data.data.campaignRanks ?? []);
+        setRankAnalysis(res.data.data.aiAnalysis ?? '');
+      }
     } catch (e) { console.error('캠페인 랭킹 조회 실패:', e); }
     finally { setIsRankLoading(false); }
   }, [startDate, endDate]);
@@ -98,7 +104,11 @@ const AdvancedModelTestPage: React.FC = () => {
     finally { setIsRecsLoading(false); }
   }, []);
 
-  useEffect(() => { fetchRanks(); fetchML(); fetchRecs(); /* eslint-disable-next-line */ }, []);
+  useEffect(() => {
+    fetchRanks();
+    fetchML();
+    fetchRecs();
+  }, [fetchRanks, fetchML, fetchRecs]);
 
   const handleSearch = () => { fetchRanks(); fetchML(); fetchRecs(); };
 
@@ -233,6 +243,19 @@ const AdvancedModelTestPage: React.FC = () => {
               </p>
             </div>
           )}
+
+          {/* AI 분석 섹션 추가 */}
+          {xgboost?.status === 'success' && xgboost.aiAnalysis && (
+            <div className="mt-4 p-5 bg-gradient-to-br from-green-50 to-white border border-green-100 rounded-2xl relative overflow-hidden group">
+              <div className="absolute top-0 right-0 p-2 opacity-10 group-hover:opacity-20 transition">
+                <Brain size={48} className="text-green-600" />
+              </div>
+              <h3 className="text-sm font-bold text-green-800 flex items-center gap-1.5 mb-2">
+                <Brain size={16} /> AI 전문가의 XGBoost 예측 모델 분석
+              </h3>
+              <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">{xgboost.aiAnalysis}</p>
+            </div>
+          )}
         </div>
 
         {/* 2. 캠페인 랭킹 */}
@@ -270,6 +293,19 @@ const AdvancedModelTestPage: React.FC = () => {
               </tbody>
             </table>
           </div>
+
+          {/* AI 분석 섹션 추가 */}
+          {campaignRanks.length > 0 && rankAnalysis && (
+            <div className="mt-4 p-5 bg-gradient-to-br from-blue-50 to-white border border-blue-100 rounded-2xl relative overflow-hidden group">
+              <div className="absolute top-0 right-0 p-2 opacity-10 group-hover:opacity-20 transition">
+                <Brain size={48} className="text-blue-600" />
+              </div>
+              <h3 className="text-sm font-bold text-blue-800 flex items-center gap-1.5 mb-2">
+                <Brain size={16} /> AI 전문가의 캠페인 효율 랭킹 분석
+              </h3>
+              <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">{rankAnalysis}</p>
+            </div>
+          )}
         </div>
 
         {/* 3. AI 최적화 추천 */}
@@ -421,6 +457,19 @@ const AdvancedModelTestPage: React.FC = () => {
                   <p className="text-sm text-orange-800">
                     {rf?.message ?? (isMLLoading ? '분석 중...' : '해당 기간에 분석 데이터가 없습니다. 기간을 늘려 조회해보세요.')}
                   </p>
+                </div>
+              )}
+
+              {/* AI 분석 섹션 추가 */}
+              {showRF && rf?.status === 'success' && rf.aiAnalysis && !isMLLoading && (
+                <div className="mt-4 p-5 bg-gradient-to-br from-purple-50 to-white border border-purple-100 rounded-2xl relative overflow-hidden group">
+                  <div className="absolute top-0 right-0 p-2 opacity-10 group-hover:opacity-20 transition">
+                    <Brain size={48} className="text-purple-600" />
+                  </div>
+                  <h3 className="text-sm font-bold text-purple-800 flex items-center gap-1.5 mb-2">
+                    <Brain size={16} /> AI 전문가의 매체 추천 로직 분석
+                  </h3>
+                  <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">{rf.aiAnalysis}</p>
                 </div>
               )}
             </div>

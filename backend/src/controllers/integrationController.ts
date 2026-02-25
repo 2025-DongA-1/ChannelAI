@@ -729,6 +729,7 @@ export const uploadCSV = async (req: AuthRequest, res: Response) => {
 
   const userId = req.user?.id;
   const filePath = file.path;
+  const tempPath = filePath + '_clean.csv'; // tempPath 선언을 try 밖으로 이동
   const startTime = new Date();
   let firstAccountId: number | null = null;
 
@@ -752,7 +753,6 @@ export const uploadCSV = async (req: AuthRequest, res: Response) => {
     }
 
     const cleanContent = lines.slice(headerRowIndex).join('\n');
-    const tempPath = filePath + '_clean.csv';
     fs.writeFileSync(tempPath, cleanContent, 'utf-8');
 
     const results: any[] = [];
@@ -765,18 +765,6 @@ export const uploadCSV = async (req: AuthRequest, res: Response) => {
         .on('end', resolve)
         .on('error', reject);
     });
-
-    const mapPlatformName = (rawPlatform: string) => {
-        if (!rawPlatform) return 'other';
-        const p = rawPlatform.toLowerCase().trim();
-        if (p.includes('facebook') || p.includes('페이스북') || p.includes('insta')) return 'meta';
-        if (p.includes('google') || p.includes('구글') || p.includes('youtube')) return 'google';
-        if (p.includes('kakao') || p.includes('카카오')) return 'kakao';
-        if (p.includes('naver') || p.includes('네이버')) return 'naver';
-        if (p.includes('tiktok') || p.includes('틱톡')) return 'tiktok';
-        if (p.includes('karrot') || p.includes('당근')) return 'karrot';
-        return 'other';
-    };
 
     const parseNumber = (val: any) => {
         if (!val) return 0;
@@ -809,20 +797,18 @@ export const uploadCSV = async (req: AuthRequest, res: Response) => {
         const conversions = parseNumber(getVal(['설치', 'conversions', '전환', 'installs']));
         const sales = parseNumber(getVal(['매출', 'sales', 'revenue']));
 
-        // 0. 채널 정보 보장 (규격화 제거로 인해 새로운 매체명이 들어올 수 있음)
-        // DB 스키마: name(UNI, NN), channel_code(YES), display_name(NN)
+        // 0. 채널 정보 보장
         try {
             await pool.query(
                 'INSERT IGNORE INTO channels (name, channel_code, display_name) VALUES (?, ?, ?)',
                 [platform, platform, platform]
             );
         } catch (e) {
-            // 채널 삽입 실패시 무시 (이미 존재하거나 다른 에러)
             console.warn('Channel insertion warning:', e);
         }
 
         // 1. 마케팅 계정 처리
-        const externalAccountId = `imported_${platform}_${userId}`; // 유저별 고유 계정 아이디 생성
+        const externalAccountId = `imported_${platform}_${userId}`;
         const { rows: accounts } = await pool.query(
             'SELECT id FROM marketing_accounts WHERE user_id = ? AND channel_code = ? AND external_account_id = ?',
             [userId, platform, externalAccountId]
@@ -834,7 +820,6 @@ export const uploadCSV = async (req: AuthRequest, res: Response) => {
                 'INSERT INTO marketing_accounts (user_id, channel_code, external_account_id, account_name, connection_status) VALUES (?, ?, ?, ?, 1)',
                 [userId, platform, externalAccountId, `${platform}_계정_${userId}`]
             );
-            // database.ts wrapper에서 insertId는 결과 객체 바로 아래에 있습니다.
             accountId = result.insertId!;
         } else {
             accountId = accounts[0].id;
@@ -843,12 +828,9 @@ export const uploadCSV = async (req: AuthRequest, res: Response) => {
         if (!firstAccountId) firstAccountId = accountId;
 
         // 2. 캠페인 처리
-        // external_campaign_id는 CSV 내 캠페인명 + userid 조합 등을 사용해 유니크하게 생성
         const externalCampaignId = `csv_${campaignName}_${userId}`;
         
-        let campaignId: number;
-        // platform 컬럼 명시적 추가
-        const campResult = await pool.query(
+        await pool.query(
             `
             INSERT INTO campaigns (marketing_account_id, external_campaign_id, campaign_name, status, platform)
             VALUES (?, ?, ?, 'active', ?)
@@ -862,10 +844,9 @@ export const uploadCSV = async (req: AuthRequest, res: Response) => {
         );
         
         if (campaigns.length === 0) continue;
-        campaignId = campaigns[0].id;
+        const campaignId = campaigns[0].id;
 
         // 3. 지표 처리
-        // 날짜 형식이 2024.01.01, 2024/01/01 형태일 경우 DB 입력을 위해 2024-01-01로 보정
         const formattedDate = rawDate.replace(/[\.\/]/g, '-');
 
         await pool.query(`
@@ -892,9 +873,6 @@ export const uploadCSV = async (req: AuthRequest, res: Response) => {
         `, [firstAccountId, processedCount, startTime]);
     }
 
-    if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath);
-    if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
-
     return res.json({
         success: true,
         message: `${processedCount}개의 데이터가 성공적으로 업로드되었습니다.`,
@@ -904,7 +882,6 @@ export const uploadCSV = async (req: AuthRequest, res: Response) => {
   } catch (error: any) {
     console.error('CSV 업로드 오류:', error);
     
-    // [디버깅] 상세 에러 로그 파일 기록 (백엔드 콘솔을 볼 수 없는 환경 대비)
     try {
         const logPath = path.join(__dirname, '../../error.log');
         const logContent = `\n[${new Date().toISOString()}] CSV Upload Error:\nMessage: ${error.message}\nSQL: ${error.sql || 'N/A'}\nStack: ${error.stack}\n-------------------\n`;
@@ -915,11 +892,18 @@ export const uploadCSV = async (req: AuthRequest, res: Response) => {
 
     res.status(500).json({ 
         error: 'CSV_UPLOAD_ERROR', 
-        message: 'CSV 처리 중 오류가 발생했습니다. (서버 관리자에게 문의하세요)',
-        details: error.message,
-        sql: error.sql,
-        stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+        message: 'CSV 처리 중 오류가 발생했습니다.',
+        details: error.message
     });
+  } finally {
+    // 파일 삭제 보장 (성공/실패 여부 상관없이)
+    try {
+        if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath);
+        if (filePath && fs.existsSync(filePath)) fs.unlinkSync(filePath);
+        console.log('[CSV Upload] 임시 파일 삭제 완료');
+    } catch (unlinkErr) {
+        console.error('[CSV Upload] 파일 삭제 실패:', unlinkErr);
+    }
   }
 };
 

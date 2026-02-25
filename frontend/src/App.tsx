@@ -47,7 +47,7 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
               <a href="/insights" className="text-gray-700 hover:text-gray-900">인사이트</a>
               <div className="flex items-center space-x-2 ml-4 pl-4 border-l">
                 <Link to="/me" className="text-sm text-gray-600 hover:text-gray-900 cursor-pointer font-medium">
-                  {user?.name}
+                  {user?.name || user?.email?.split('@')[0] || '사용자'}
                 </Link>
                 <button
                   onClick={handleLogout}

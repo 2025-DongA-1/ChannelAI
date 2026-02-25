@@ -4,7 +4,10 @@ import { AuthRequest } from '../middlewares/auth';
 import { spawn } from 'child_process'; // Python 스크립트 호출용
 import path from 'path';               // 스크립트 경로 계산용
 import dotenv from 'dotenv';
+import { AIAnalysisService } from '../services/ai/aiAnalysisService';
 dotenv.config();
+
+const aiAnalysisService = new AIAnalysisService();
 
 /**
  * AI 마케팅 에이전트 컨트롤러
@@ -268,10 +271,14 @@ export const getAdvancedMetrics = async (req: AuthRequest, res: Response) => {
       };
     });
 
+    // AI 전문가 분석 추가 (300자 내외)
+    const aiAnalysis = await aiAnalysisService.analyzeCampaignRanks(campaignRanks);
+
     return res.json({
       success: true,
       data: {
         campaignRanks,
+        aiAnalysis, // AI 분석 텍스트 추가
         // 적용된 기간 정보도 함께 반환 (프론트에서 표시용)
         period: startDate && endDate ? { startDate, endDate } : null,
       }
@@ -563,7 +570,7 @@ export const getMLRealtime = async (req: AuthRequest, res: Response) => {
     pyProcess.stderr.on('data', (chunk) => { stderr += chunk.toString(); });
 
     // 프로세스 종료 후 결과 파싱 및 응답 반환
-    pyProcess.on('close', (code) => {
+    pyProcess.on('close', async (code) => {
       if (code !== 0) {
         console.error('Python 스크립트 오류:', stderr);
         return res.status(500).json({
@@ -574,9 +581,34 @@ export const getMLRealtime = async (req: AuthRequest, res: Response) => {
       }
       try {
         const mlResult = JSON.parse(stdout.trim()); // stdout을 JSON으로 파싱
+
+        // AI 전문가 분석 추가 (비동기 병렬 처리)
+        let xgboostAnalysis = '';
+        let rfAnalysis = '';
+
+        if (mlResult.xgboost?.status === 'success') {
+          xgboostAnalysis = await aiAnalysisService.analyzeXGBoost(
+            mlResult.xgboost.mae,
+            mlResult.xgboost.platformMae,
+            mlResult.xgboost.sample
+          );
+        }
+
+        if (mlResult.randomforest?.status === 'success') {
+          rfAnalysis = await aiAnalysisService.analyzeRandomForest(
+            mlResult.randomforest.accuracy,
+            mlResult.randomforest.platformMetrics,
+            mlResult.randomforest.sample
+          );
+        }
+
         return res.json({
           success: true,
-          data: mlResult,
+          data: {
+            ...mlResult,
+            xgboost: mlResult.xgboost ? { ...mlResult.xgboost, aiAnalysis: xgboostAnalysis } : null,
+            randomforest: mlResult.randomforest ? { ...mlResult.randomforest, aiAnalysis: rfAnalysis } : null,
+          },
           period: startDate && endDate ? { startDate, endDate } : null,
         });
       } catch {
