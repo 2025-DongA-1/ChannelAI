@@ -7,23 +7,6 @@ import {
   Bot, Play, AlertTriangle, Pause, TrendingDown, Zap, ShieldCheck, Loader2
 } from 'lucide-react';
 
-// 단위 통일 함수
-// @/lib/utils (또는 해당 컴포넌트 내)
-const formatKoreanNumber = (value: number) => {
-  if (!value) return '0';
-
-  if (value >= 100000000) {
-    // 1억 이상일 때
-    return (value / 100000000).toFixed(1).replace(/\.0$/, '') + '억';
-  } else if (value >= 10000) {
-    // 1만 이상일 때
-    return (value / 10000).toFixed(1).replace(/\.0$/, '') + '만';
-  } else {
-    // 1만 미만일 때는 그냥 콤마만 찍어주기!
-    return new Intl.NumberFormat('ko-KR').format(value);
-  }
-};
-
 export default function DashboardPage() {
   // 기본 기간: 전체 (날짜 필터 없음으로 모든 데이터 표시)
   const [dateRange, setDateRange] = useState({
@@ -247,14 +230,14 @@ export default function DashboardPage() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <MetricCard
           title="총 노출수"
-          value={formatKoreanNumber(metrics?.impressions || 0)}
+          value={formatCompactNumber(metrics?.impressions || 0)}
           change={12.5}
           icon={TrendingUp}
           color="blue"
         />
         <MetricCard
           title="총 클릭수"
-          value={formatKoreanNumber(metrics?.clicks || 0)}
+          value={formatCompactNumber(metrics?.clicks || 0)}
           change={8.2}
           icon={MousePointerClick}
           color="green"

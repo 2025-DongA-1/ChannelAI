@@ -24,23 +24,19 @@ export function formatCompactNumber(num: number | string): string {
   
   // 조 단위 (1조 이상)
   if (absNum >= 1_000_000_000_000) {
-    return (numValue / 1_000_000_000_000).toFixed(1) + '조';
+    return (numValue / 1_000_000_000_000).toFixed(1).replace(/\.0$/, '') + '조';
   } 
   // 억 단위 (1억 이상)
   else if (absNum >= 100_000_000) {
-    return (numValue / 100_000_000).toFixed(1) + '억';
+    return (numValue / 100_000_000).toFixed(1).replace(/\.0$/, '') + '억';
   } 
   // 만 단위 (1만 이상)
   else if (absNum >= 10_000) {
-    return (numValue / 10_000).toFixed(1) + '만';
+    return (numValue / 10_000).toFixed(1).replace(/\.0$/, '') + '만';
   } 
-  // 천 단위 (1천 이상)
-  else if (absNum >= 1_000) {
-    return (numValue / 1_000).toFixed(1) + 'K';
-  }
   
-  // 1000 미만은 그대로 표시 (소수점 없이)
-  return Math.round(numValue).toLocaleString('ko-KR');
+  // 1만 미만은 K 대신 그냥 천 단위 콤마 찍어서 표시!
+  return new Intl.NumberFormat('ko-KR').format(numValue);
 }
 
 export function formatCurrency(amount: number, currency: string = 'KRW'): string {
