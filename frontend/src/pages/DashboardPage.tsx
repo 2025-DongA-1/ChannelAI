@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { dashboardAPI, aiAgentAPI } from '@/lib/api';
-import { formatCurrency, formatPercent, formatCompactNumber, getComparisonText } from '@/lib/utils';
+import { formatCurrency, formatPercent, formatCompactNumber, getComparisonText, getPreviousDateRange, calculateChangeRate } from '@/lib/utils';
 import { 
   TrendingUp, MousePointerClick, DollarSign, Target, ArrowUp, ArrowDown, Calendar,
   Bot, Play, AlertTriangle, Pause, TrendingDown, Zap, ShieldCheck, Loader2
@@ -37,7 +37,18 @@ export default function DashboardPage() {
     ),
   });
 
+  const prevDates = getPreviousDateRange(dateRange.startDate, dateRange.endDate);
+
+  const { data: prevSummary } = useQuery({
+    queryKey: ['dashboard-summary-prev', prevDates?.startDate, prevDates?.endDate],
+    queryFn: () => dashboardAPI.getSummary(
+      prevDates ? { startDate: prevDates.startDate, endDate: prevDates.endDate } : undefined
+    ),
+    enabled: !!prevDates,
+  });
+
   const metrics = summary?.data?.metrics;
+  const prevMetrics = prevSummary?.data?.metrics;
   const budget = summary?.data?.budget;
 
   // AI 마케팅 에이전트
@@ -235,32 +246,36 @@ export default function DashboardPage() {
         <MetricCard
           title="총 노출수"
           value={formatCompactNumber(metrics?.impressions || 0)}
-          change={12.5}
-          comparisonText={comparisonText} // 👈 1. 추가!
+          // 👇 요기 수정! (현재 노출수, 이전 노출수)
+          change={calculateChangeRate(metrics?.impressions, prevMetrics?.impressions)}
+          comparisonText={comparisonText}
           icon={TrendingUp}
           color="blue"
         />
         <MetricCard
           title="총 클릭수"
           value={formatCompactNumber(metrics?.clicks || 0)}
-          change={8.2}
-          comparisonText={comparisonText} // 👈 2. 추가!
+          // 👇 요기 수정!
+          change={calculateChangeRate(metrics?.clicks, prevMetrics?.clicks)}
+          comparisonText={comparisonText}
           icon={MousePointerClick}
           color="green"
         />
         <MetricCard
           title="총 광고비"
           value={formatCurrency(metrics?.cost || 0)}
-          change={-3.1}
-          comparisonText={comparisonText} // 👈 3. 추가!
+          // 👇 요기 수정!
+          change={calculateChangeRate(metrics?.cost, prevMetrics?.cost)}
+          comparisonText={comparisonText}
           icon={DollarSign}
           color="yellow"
         />
         <MetricCard
           title="전환수"
           value={formatCompactNumber(metrics?.conversions || 0)}
-          change={15.8}
-          comparisonText={comparisonText} // 👈 4. 추가!
+          // 👇 요기 수정!
+          change={calculateChangeRate(metrics?.conversions, prevMetrics?.conversions)}
+          comparisonText={comparisonText}
           icon={Target}
           color="purple"
         />
