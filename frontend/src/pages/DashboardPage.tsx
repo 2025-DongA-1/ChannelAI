@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { dashboardAPI, aiAgentAPI } from '@/lib/api';
-import { formatCurrency, formatPercent, formatCompactNumber } from '@/lib/utils';
+import { formatCurrency, formatPercent, formatCompactNumber, getComparisonText } from '@/lib/utils';
 import { 
   TrendingUp, MousePointerClick, DollarSign, Target, ArrowUp, ArrowDown, Calendar,
   Bot, Play, AlertTriangle, Pause, TrendingDown, Zap, ShieldCheck, Loader2
@@ -14,6 +14,10 @@ export default function DashboardPage() {
     endDate: '',
   });
   const [selectedPreset, setSelectedPreset] = useState('all');
+
+  const comparisonText = dateRange.startDate && dateRange.endDate 
+    ? getComparisonText(dateRange.startDate, dateRange.endDate)
+    : '';
 
   const { data: summary, isLoading } = useQuery({
     queryKey: ['dashboard-summary', dateRange.startDate, dateRange.endDate],
@@ -232,6 +236,7 @@ export default function DashboardPage() {
           title="총 노출수"
           value={formatCompactNumber(metrics?.impressions || 0)}
           change={12.5}
+          comparisonText={comparisonText} // 👈 1. 추가!
           icon={TrendingUp}
           color="blue"
         />
@@ -239,6 +244,7 @@ export default function DashboardPage() {
           title="총 클릭수"
           value={formatCompactNumber(metrics?.clicks || 0)}
           change={8.2}
+          comparisonText={comparisonText} // 👈 2. 추가!
           icon={MousePointerClick}
           color="green"
         />
@@ -246,6 +252,7 @@ export default function DashboardPage() {
           title="총 광고비"
           value={formatCurrency(metrics?.cost || 0)}
           change={-3.1}
+          comparisonText={comparisonText} // 👈 3. 추가!
           icon={DollarSign}
           color="yellow"
         />
@@ -253,6 +260,7 @@ export default function DashboardPage() {
           title="전환수"
           value={formatCompactNumber(metrics?.conversions || 0)}
           change={15.8}
+          comparisonText={comparisonText} // 👈 4. 추가!
           icon={Target}
           color="purple"
         />
@@ -709,11 +717,12 @@ interface MetricCardProps {
   title: string;
   value: string;
   change?: number;
+  comparisonText?: string;
   icon: any;
   color: 'blue' | 'green' | 'yellow' | 'purple';
 }
 
-function MetricCard({ title, value, change, icon: Icon, color }: MetricCardProps) {
+function MetricCard({ title, value, change, comparisonText, icon: Icon, color }: MetricCardProps) {
   const colors = {
     blue: { bg: 'bg-blue-50', text: 'text-blue-600', border: 'border-blue-100' },
     green: { bg: 'bg-green-50', text: 'text-green-600', border: 'border-green-100' },
@@ -730,9 +739,14 @@ function MetricCard({ title, value, change, icon: Icon, color }: MetricCardProps
           <Icon className={`w-6 h-6 ${colors[color].text}`} />
         </div>
         {change !== undefined && (
-          <div className={`flex items-center text-sm font-medium ${isPositive ? 'text-green-600' : 'text-red-600'}`}>
-            {isPositive ? <ArrowUp className="w-4 h-4" /> : <ArrowDown className="w-4 h-4" />}
-            {Math.abs(change)}%
+          <div className="flex flex-col items-end">
+            <div className={`flex items-center text-sm font-medium ${isPositive ? 'text-green-600' : 'text-red-600'}`}>
+              {isPositive ? <ArrowUp className="w-4 h-4" /> : <ArrowDown className="w-4 h-4" />}
+              {Math.abs(change)}%
+            </div>
+            {comparisonText && (
+              <span className="text-[10px] text-gray-400 mt-1">{comparisonText}</span>
+            )}
           </div>
         )}
       </div>

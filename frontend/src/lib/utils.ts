@@ -124,3 +124,27 @@ export function calculateCTR(clicks: number, impressions: number): number {
 export function calculateCPC(cost: number, clicks: number): number {
   return clicks > 0 ? cost / clicks : 0;
 }
+
+// 기간 계산 함수
+export function getComparisonText(startDate: string, endDate: string): string {
+  if (!startDate || !endDate) return ''; // '전체' 기간일 때는 빈 문자열 반환
+
+  const start = new Date(startDate);
+  const end = new Date(endDate);
+
+  // 선택한 기간이 총 며칠인지 계산 (종료일 포함이므로 +1)
+  const diffTime = Math.abs(end.getTime() - start.getTime());
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+
+  // 직전 기간의 끝나는 날 = 선택한 시작일의 하루 전
+  const prevEnd = new Date(start.getTime() - 24 * 60 * 60 * 1000);
+  // 직전 기간의 시작일 = 직전 종료일에서 (기간-1)만큼 뺀 날짜
+  const prevStart = new Date(prevEnd.getTime() - (diffDays - 1) * 24 * 60 * 60 * 1000);
+
+  // 날짜를 YYYY.MM.DD 형식으로 예쁘게 바꿔주는 내부 함수
+  const formatDt = (date: Date) => {
+    return `${date.getFullYear()}.${String(date.getMonth() + 1).padStart(2, '0')}.${String(date.getDate()).padStart(2, '0')}`;
+  };
+
+  return `직전 동기간 (${formatDt(prevStart)} ~ ${formatDt(prevEnd)}) 대비`;
+}
