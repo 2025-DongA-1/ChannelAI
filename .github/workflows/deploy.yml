@@ -116,26 +116,40 @@ jobs:
             else
               echo ">> 최초 clone..."
               rm -rf $APP_DIR
-              git clone https://github.com/Kum-donghyun/channel_AI.git $APP_DIR
+              git clone https://github.com/2025-DongA-1/ChannelAI.git $APP_DIR
             fi
 
             cd $APP_DIR/backend
 
             # ========== 5. 환경변수 설정 ==========
             cat > .env << ENVEOF
-            DB_HOST=${{ secrets.DB_HOST }}
-            DB_PORT=${{ secrets.DB_PORT }}
-            DB_NAME=${{ secrets.DB_NAME }}
-            DB_USER=${{ secrets.DB_USER }}
-            DB_PASSWORD=${{ secrets.DB_PASSWORD }}
-            REDIS_HOST=127.0.0.1
-            REDIS_PORT=6379
-            REDIS_PASSWORD=
-            JWT_SECRET=${{ secrets.JWT_SECRET }}
-            NODE_ENV=production
-            PORT=3000
-            ENVEOF
-
+PORT=3000
+DB_HOST=${{ secrets.DB_HOST }}
+DB_PORT=${{ secrets.DB_PORT }}
+DB_NAME=${{ secrets.DB_NAME }}
+DB_USER=${{ secrets.DB_USER }}
+DB_PASSWORD=${{ secrets.DB_PASSWORD }}
+JWT_SECRET=${{ secrets.JWT_SECRET }}
+NODE_ENV=production
+FRONTEND_URL=https://channelai.kro.kr
+AI_PROVIDER=groq
+GROQ_API_KEY=${{ secrets.GROQ_API_KEY }}
+GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}
+RESEND_API_KEY=${{ secrets.RESEND_API_KEY }}
+EMAIL_FROM=report@channelai.kro.kr
+ENABLE_DAILY_REPORT=false
+KAKAO_CLIENT_ID=${{ secrets.KAKAO_CLIENT_ID }}
+KAKAO_REDIRECT_URI=https://channelai.kro.kr/api/v1/auth/kakao/callback
+NAVER_CLIENT_ID=${{ secrets.NAVER_CLIENT_ID }}
+NAVER_CLIENT_SECRET=${{ secrets.NAVER_CLIENT_SECRET }}
+NAVER_REDIRECT_URI=https://channelai.kro.kr/api/v1/auth/naver/callback
+GOOGLE_CLIENT_ID=${{ secrets.GOOGLE_CLIENT_ID }}
+GOOGLE_CLIENT_SECRET=${{ secrets.GOOGLE_CLIENT_SECRET }}
+GOOGLE_REDIRECT_URI=https://channelai.kro.kr/api/v1/auth/google/callback
+REDIS_HOST=127.0.0.1
+REDIS_PORT=6379
+REDIS_PASSWORD=
+ENVEOF
             # ========== 6. 의존성 설치 & 빌드 ==========
             npm ci --production=false
             npx tsc
