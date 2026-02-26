@@ -16,6 +16,8 @@ import budgetRoutes from './routes/budgetRoutes';
 import insightRoutes from './routes/insightRoutes';
 import aiRoutes from './routes/aiRoutes';
 import reportRoutes from './routes/reportRoutes';
+import { spawn } from 'child_process';
+import path from 'path';
 
 // 환경 변수 로드
 dotenv.config();
@@ -76,6 +78,56 @@ app.get('/health', async (req: Request, res: Response) => {
     });
   }
 });
+
+// ─────────────────────────────────────────────────────────────
+// [추가됨] AI 마케팅 예산 분석 (Python 연동)
+// ─────────────────────────────────────────────────────────────
+app.post('/api/v1/ai/recommend', (req: Request, res: Response) => {
+  console.log("🤖 [AI] 예산 분석 요청 수신");
+
+  const inputData = req.body;
+
+  // 1. 파이썬 스크립트 경로 찾기
+  // process.cwd()는 현재 서버가 실행되는 루트 폴더(backend)를 가리킵니다.
+  const pythonScriptPath = path.join(process.cwd(), 'ai', 'predict_budget.py');
+
+  // 2. 파이썬 실행
+  const pythonProcess = spawn('python', [pythonScriptPath, JSON.stringify(inputData)]);
+
+  let resultString = '';
+  let errorString = '';
+
+  // 데이터 수신
+  pythonProcess.stdout.on('data', (data) => {
+    resultString += data.toString();
+  });
+
+  // 에러 수신
+  pythonProcess.stderr.on('data', (data) => {
+    errorString += data.toString();
+  });
+
+  // 종료 처리
+  pythonProcess.on('close', (code) => {
+    if (code !== 0) {
+      console.error('❌ [AI Error]', errorString);
+      return res.status(500).json({ 
+        error: "AI 분석 중 오류 발생", 
+        details: errorString 
+      });
+    }
+
+    try {
+      // 파이썬 결과를 JSON으로 변환
+      const result = JSON.parse(resultString);
+      res.json(result);
+    } catch (e) {
+      console.error('❌ [Parsing Error]', e);
+      res.status(500).json({ error: "결과 파싱 실패" });
+    }
+  });
+});
+// ─────────────────────────────────────────────────────────────
 
 // API 라우트
 app.use('/api/v1/auth', authRoutes);

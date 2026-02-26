@@ -15,7 +15,9 @@ import DummyDataPage from './pages/DummyDataPage';
 import MyPage from './pages/MyPage';
 import AdvancedModelTestPage from './pages/AdvancedModelTestPage';
 import EmailReportPage from './pages/EmailReportPage';
+import MarketingAnalysis from './pages/MarketingAnalysis';
 import logo from "./assets/logo_crop.png";
+
 
 // Placeholder components (to be created)
 const AccountsPage = () => <div className="p-8">계정 관리 (구현 필요)</div>;
@@ -51,6 +53,7 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
               <a href="/dashboard" className="text-gray-700 hover:text-gray-900">대시보드</a>
               <a href="/campaigns" className="text-gray-700 hover:text-gray-900">캠페인 & 예산</a>
               <a href="/integration" className="text-gray-700 hover:text-gray-900">연동</a>
+              <a href="/analysis" className="text-gray-700 hover:text-gray-900">AI 예산 분석</a>
               <a href="/insights" className="text-gray-700 hover:text-gray-900">인사이트</a>
               <div className="flex items-center space-x-2 ml-4 pl-4 border-l">
                 <Link to="/me" className="text-sm text-gray-600 hover:text-gray-900 cursor-pointer font-medium">
@@ -162,6 +165,19 @@ function App() {
               </PrivateRoute>
             }
           />
+
+            {/* ★ [추가] AI 분석 페이지 라우트 */}
+          <Route
+            path="/analysis"
+            element={
+              <PrivateRoute>
+                <Layout>
+                  <MarketingAnalysis />
+                </Layout>
+              </PrivateRoute>
+            }
+          />
+
 
           <Route
             path="/dummy-data"
