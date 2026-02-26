@@ -53,11 +53,10 @@ const DummyDataPage: React.FC = () => {
 
   // Dummy generation config
   const [genConfig, setGenConfig] = useState({
-    // 👇 7을 365(1년)로 변경!
-    startDate: new Date(new Date().getTime() - 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+    // 👇 365를 30(1달)로 가볍게 줄여줍니다!
+    startDate: new Date(new Date().getTime() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
     endDate: new Date().toISOString().split('T')[0],
-    // 👇 기본 개수를 3개로 변경!
-    count: 3, 
+    count: 3,
   });
 
   const generateId = () => Math.random().toString(36).substr(2, 9);
