@@ -68,15 +68,46 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Deploy to WAS server via SSH (WEB 경유)
+      - name: Deploy to WAS via WEB server
         uses: appleboy/ssh-action@v1.0.3
         with:
-          # WAS (Private Subnet) 접속 정보
+          host: ${{ secrets.WEB_HOST }}
+          username: root
+          key: ${{ secrets.WEB_SSH_KEY }}
+          port: 22
+          command_timeout: 10m
+          script: |
+            set -e
+
+            APP_DIR="/opt/marketing-platform"
+
+            # ========== 1. WEB 서버에서 최신 코드 pull ==========
+            if [ -d "$APP_DIR/.git" ]; then
+              echo ">> git pull..."
+              cd $APP_DIR
+              git fetch origin
+              git reset --hard origin/main
+            else
+              echo ">> 최초 clone..."
+              rm -rf $APP_DIR
+              git clone https://github.com/2025-DongA-1/ChannelAI.git $APP_DIR
+            fi
+
+            # ========== 2. WAS 서버로 코드 복사 ==========
+            echo ">> WAS 서버로 코드 복사 중..."
+            rsync -av --delete \
+              --exclude='.git' \
+              --exclude='node_modules' \
+              --exclude='frontend' \
+              $APP_DIR/ root@10.10.10.7:/opt/marketing-platform/
+
+      - name: Setup WAS server
+        uses: appleboy/ssh-action@v1.0.3
+        with:
           host: ${{ secrets.WAS_HOST }}
           username: root
           key: ${{ secrets.WAS_SSH_KEY }}
           port: 22
-          # WEB (Public) 서버를 Proxy로 경유
           proxy_host: ${{ secrets.WEB_HOST }}
           proxy_username: root
           proxy_key: ${{ secrets.WEB_SSH_KEY }}
@@ -99,31 +130,9 @@ jobs:
               npm install -g pm2
             fi
 
-            # ========== 3. Git 설치 (없으면) ==========
-            if ! command -v git &> /dev/null; then
-              echo ">> Git 설치 중..."
-              apt-get update && apt-get install -y git
-            fi
+            cd /opt/marketing-platform/backend
 
-            # ========== 4. 프로젝트 디렉토리 준비 ==========
-            APP_DIR="/opt/marketing-platform"
-            
-            if [ -d "$APP_DIR/.git" ]; then
-              echo ">> git pull..."
-              cd $APP_DIR
-              git fetch origin
-              git reset --hard origin/main
-            else
-              echo ">> 최초 clone..."
-              rm -rf $APP_DIR
-              git clone https://github.com/2025-DongA-1/ChannelAI.git $APP_DIR
-            fi
-
-            cd $APP_DIR/backend
-
-            # ========== 5. 환경변수 설정 (.env 로컬과 동일 구조) ==========
-          
-
+            # ========== 3. 환경변수 설정 (.env 로컬과 동일 구조) ==========
             cat > .env << 'ENVEOF'
             PORT=3000
             # --- External DB ---
@@ -185,18 +194,19 @@ jobs:
             # Ad Platform - Karrot
             KARROT_CLIENT_ID=${{ secrets.KAKAO_CLIENT_ID }}
             KARROT_REDIRECT_URI=https://channelai.kro.kr/api/v1/auth/karrot/callback
+
             # Redis
             REDIS_HOST=127.0.0.1
             REDIS_PORT=6379
             REDIS_PASSWORD=
             ENVEOF
-            
-            # ========== 6. 의존성 설치 & 빌드 ==========
+
+            # ========== 4. 의존성 설치 & 빌드 ==========
             npm ci --production=false
             npx tsc
 
-            # ========== 7. PM2 시작/재시작 ==========
-            cd $APP_DIR
+            # ========== 5. PM2 시작/재시작 ==========
+            cd /opt/marketing-platform
             pm2 delete marketing-api 2>/dev/null || true
             pm2 start deploy/ecosystem.config.js
             pm2 save
