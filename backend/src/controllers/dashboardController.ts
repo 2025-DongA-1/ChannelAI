@@ -69,22 +69,19 @@ export const getSummary = async (req: AuthRequest, res: Response) => {
 
     const statusResult = await pool.query(statusQuery, [userId]);
 
-    // 예산 현황
-    const budgetQuery = `
-      SELECT 
-        COALESCE(SUM(c.daily_budget), 0) as total_daily_budget,
-        COALESCE(SUM(c.total_budget), 0) as total_budget,
-        COALESCE(SUM(cm.cost), 0) as total_spent
-      FROM campaigns c
-      LEFT JOIN marketing_accounts ma ON c.marketing_account_id = ma.id
-      LEFT JOIN campaign_metrics cm ON c.id = cm.campaign_id
-      WHERE ma.user_id = ?
-        AND c.status = 'active'
-        ${dateFilter}
-    `;
+    // [수정] budget_settings 테이블에서 사용자의 마스터 예산 정보를 직접 가져옵니다.
+    const budgetSettingsResult = await pool.query(
+      'SELECT total_budget, daily_budget FROM budget_settings WHERE user_id = ? LIMIT 1',
+      [userId]
+    );
+    const userSettings = budgetSettingsResult.rows[0] || { total_budget: 0, daily_budget: 0 };
 
-    const budgetResult = await pool.query(budgetQuery, queryParams);
-    const budget = budgetResult.rows[0];
+    // [수정] 지출액은 이미 위(27행 metricsQuery)에서 합산된 total_cost를 사용하여 중복 계산을 방지합니다.
+    const budget = {
+      total_daily_budget: userSettings.daily_budget,
+      total_budget: userSettings.total_budget,
+      total_spent: metrics.total_cost // metricsQuery에서 계산된 SUM(cm.cost) 결과값 재사용
+    };
 
     res.json({
       period: startDate && endDate ? { startDate, endDate } : null,

@@ -23,6 +23,19 @@ export default function CampaignsPage() {
     totalBudget: '',
   });
 
+  const [isTotalBudgetModalOpen, setIsTotalBudgetModalOpen] = useState(false);
+  const [newTotalBudget, setNewTotalBudget] = useState('');
+
+  const updateTotalBudgetMutation = useMutation({
+    mutationFn: (amount: number) => budgetAPI.updateTotalBudget({ totalBudget: amount }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['budget-summary'] });
+      setIsTotalBudgetModalOpen(false);
+      alert('전체 예산이 성공적으로 설정되었습니다! 💰');
+    },
+    onError: () => alert('예산 설정에 실패했습니다. 다시 시도해 주세요.'),
+  });
+
   const { data, isLoading, refetch } = useQuery({
     queryKey: ['campaigns'],
     queryFn: () => campaignAPI.getCampaigns(),
@@ -211,7 +224,16 @@ export default function CampaignsPage() {
         <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
           <div className="flex items-center justify-between mb-2">
             <p className="text-sm text-gray-500">전체 예산</p>
-            <DollarSign className="w-5 h-5 text-blue-500" />
+            {/* 👇 누르면 모달이 열리는 연필 아이콘 버튼 추가! */}
+            <button 
+              onClick={() => {
+                setNewTotalBudget(String(summary?.totalBudget || 0));
+                setIsTotalBudgetModalOpen(true);
+              }}
+              className="p-1 hover:bg-blue-50 rounded-full transition"
+            >
+              <Edit className="w-4 h-4 text-blue-500" />
+            </button>
           </div>
           <p className="text-2xl font-bold text-gray-900">{formatCurrency(summary?.totalBudget || 0)}</p>
         </div>
@@ -467,6 +489,44 @@ export default function CampaignsPage() {
           </div>
         )}
       </div>
+        {isTotalBudgetModalOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl p-8 w-full max-w-md shadow-2xl">
+            <h3 className="text-xl font-bold text-gray-900 mb-4">전체 예산 설정 💰</h3>
+            <p className="text-gray-600 mb-6 text-sm">
+              회사의 전체 광고 집행 목표 예산을 설정해 주세요.<br/>
+              설정된 금액을 기준으로 소진율이 계산됩니다.
+            </p>
+            
+            <div className="mb-6">
+              <label className="block text-sm font-medium text-gray-700 mb-2">목표 금액 (원)</label>
+              <input
+                type="number"
+                value={newTotalBudget}
+                onChange={(e) => setNewTotalBudget(e.target.value)}
+                placeholder="예: 10000000"
+                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-lg font-semibold"
+              />
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => setIsTotalBudgetModalOpen(false)}
+                className="flex-1 py-3 bg-gray-100 text-gray-700 rounded-xl font-medium hover:bg-gray-200 transition"
+              >
+                취소
+              </button>
+              <button
+                onClick={() => updateTotalBudgetMutation.mutate(Number(newTotalBudget))}
+                disabled={updateTotalBudgetMutation.isPending}
+                className="flex-1 py-3 bg-blue-600 text-white rounded-xl font-medium hover:bg-blue-700 transition disabled:opacity-50"
+              >
+                {updateTotalBudgetMutation.isPending ? '저장 중...' : '설정하기'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
