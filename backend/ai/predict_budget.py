@@ -15,6 +15,12 @@ if sys.platform.startswith('win'):
 # ==========================================
 
 # ==========================================
+# ★ [NEW] stderr 로깅 (stdout JSON 깨짐 방지)
+# ==========================================
+def log(*args):
+    print(*args, file=sys.stderr)
+
+# ==========================================
 # 1. Numpy 숫자 변환기 (에러 방지용)
 # ==========================================
 class NumpyEncoder(json.JSONEncoder):
@@ -32,26 +38,24 @@ class NumpyEncoder(json.JSONEncoder):
 # ==========================================
 def generate_past_history(predicted_roas, duration=7):
     history = []
-    
+
     # 과거 (duration-1)일부터 1일 전까지 반복
-    # 예: duration이 7이면 -> 6일 전, 5일 전 ... 1일 전
     for i in range(duration - 1, 0, -1):
         day_label = f"{i}일 전"
-        
-        # 트렌드 시뮬레이션: 과거로 갈수록 수치를 조금씩 낮춰서 '성장하는 그래프' 연출
-        # (i가 클수록 과거이므로 값을 작게 만듦)
-        trend_factor = 1.0 - (i * 0.015) 
-        if trend_factor < 0.6: trend_factor = 0.6 # 너무 낮아지지 않게 방어
+
+        # 트렌드 시뮬레이션
+        trend_factor = 1.0 - (i * 0.015)
+        if trend_factor < 0.6:
+            trend_factor = 0.6
 
         row = {"day": day_label}
-        
-        # 채널별 데이터 생성 (약간의 랜덤 변동성 추가)
+
         # predicted_roas 순서: [Naver, Meta, Google, Karrot]
         row["Naver"] = round(float(predicted_roas[0] * trend_factor * np.random.uniform(0.9, 1.1)), 2)
         row["Meta"] = round(float(predicted_roas[1] * trend_factor * np.random.uniform(0.9, 1.1)), 2)
         row["Google"] = round(float(predicted_roas[2] * trend_factor * np.random.uniform(0.9, 1.1)), 2)
         row["Karrot"] = round(float(predicted_roas[3] * trend_factor * np.random.uniform(0.9, 1.1)), 2)
-        
+
         history.append(row)
 
     # 마지막으로 '오늘(예측)' 데이터 추가
@@ -62,8 +66,175 @@ def generate_past_history(predicted_roas, duration=7):
         "Google": round(float(predicted_roas[2]), 2),
         "Karrot": round(float(predicted_roas[3]), 2)
     })
-    
+
+    # ✅ [FIX] day 라벨에 섞일 수 있는 공백/줄바꿈 최종 정리(방탄)
+    for r in history:
+        if "day" in r and isinstance(r["day"], str):
+            r["day"] = r["day"].replace("\n", "").replace("\r", "").strip()
+
     return history
+
+# ==========================================
+# ★ [NEW] 예측 ROAS 클리핑 (비현실 튐 방지)
+# ==========================================
+def clip_predicted_roas(pred, min_roas=50.0, max_roas=800.0):
+    pred = np.asarray(pred, dtype=float)
+    return np.clip(pred, min_roas, max_roas)
+
+# ==========================================
+# ★ [NEW] 최적화 bounds를 총예산에 맞게 안전하게 만드는 함수
+# ==========================================
+def build_safe_bounds(n, total_budget, min_budget_default=30000, max_ratio_default=0.6):
+    """
+    - 총예산이 작아서 (n * 30000) 충족 못하면 자동으로 min을 낮춤
+    - max도 total_budget*0.6이 min보다 작아지지 않게 보정
+    """
+    total_budget = float(total_budget)
+
+    if n <= 0:
+        return []
+
+    # 채널당 최소 예산 (총예산이 작으면 자동으로 낮춘다)
+    min_per = float(min_budget_default)
+    if total_budget < n * min_per:
+        min_per = 0.0
+
+    # 채널당 최대 예산
+    max_per = float(total_budget * max_ratio_default)
+
+    # max가 min보다 작으면(총예산 매우 작음) max도 min으로 맞춤
+    if max_per < min_per:
+        max_per = min_per
+
+    # 한 번 더 방어
+    if total_budget - (n * min_per) < -1e-6:
+        min_per = 0.0
+        if max_per < min_per:
+            max_per = min_per
+
+    return [(min_per, max_per) for _ in range(n)]
+
+# ==========================================
+# ★ [NEW] PRO 리포트 생성 함수 (컨설팅 프레임워크)
+# ==========================================
+def build_pro_report(
+    total_budget,
+    allocated_budget,
+    predicted_roas,
+    expected_revenue,
+    duration,
+    clip_min=50.0,
+    clip_max=800.0,
+    min_budget_default=30000,
+    max_ratio_default=0.6
+):
+    """
+    리포트 구성:
+    📢 Executive Summary
+    🔍 매체별 정밀 진단 (현상 → 데이터 근거 → 전략 → 기대효과)
+    ✅ 실행 가이드 (액션 아이템)
+    ⚠️ 한계/면책
+    """
+    # 순서 고정: [Naver, Meta, Google, Karrot]
+    channel_codes = ["naver", "meta", "google", "karrot"]
+    channel_names = ["네이버", "메타", "구글", "당근"]
+    channel_names_kr = {
+        "네이버": "네이버",
+        "메타": "인스타그램/페이스북",
+        "구글": "구글/유튜브",
+        "당근": "당근마켓"
+    }
+    channel_display = [channel_names_kr.get(n, n) for n in channel_names]
+
+    total_budget = float(total_budget)
+    alloc = np.asarray(allocated_budget, dtype=float)
+    roas = np.asarray(predicted_roas, dtype=float)
+
+    # 채널별 기대 매출(추정): 예산 * (ROAS/100)
+    exp_rev_by_channel = alloc * (roas / 100.0)
+
+    # 핵심 지표
+    best_idx = int(np.argmax(roas))
+    best_name = channel_display[best_idx]
+    best_roas = float(roas[best_idx])
+    best_alloc = float(alloc[best_idx])
+    best_ratio = int(round((best_alloc / total_budget) * 100)) if total_budget > 0 else 0
+
+    # 2등 대비 우위
+    sorted_idx = np.argsort(-roas)
+    top1 = sorted_idx[0]
+    top2 = sorted_idx[1] if len(sorted_idx) > 1 else top1
+    gap_vs_2nd = float(roas[top1] - roas[top2])
+
+    # 제약조건 요약
+    # (현 코드의 bounds 룰을 사람이 이해하기 쉬운 형태로)
+    min_per = min_budget_default
+    if total_budget < len(roas) * min_per:
+        min_per = 0
+    max_per = int(total_budget * max_ratio_default)
+
+    # 채널별 “진단 문장” 만들기
+    lines = []
+    lines.append(f"📢 Executive Summary: **{best_name}** 중심으로 예산을 재배치해 **예상 매출을 극대화**하는 전략이 최적입니다. (Top2 대비 ROAS 차이: **{gap_vs_2nd:.1f}%p**)")
+
+    lines.append("")
+    lines.append("🔍 매체별 정밀 진단 (현상 → 데이터 근거 → 전략 → 기대효과)")
+
+    # 비교/근거용: 평균 ROAS
+    avg_roas = float(np.mean(roas)) if len(roas) else 0.0
+
+    for i in range(len(roas)):
+        name = channel_display[i]
+        r = float(roas[i])
+        b = float(alloc[i])
+        ratio = int(round((b / total_budget) * 100)) if total_budget > 0 else 0
+        rev = float(exp_rev_by_channel[i])
+
+        # 상대 비교
+        vs_avg = r - avg_roas
+        compare_word = "상회" if vs_avg >= 0 else "하회"
+        compare_abs = abs(vs_avg)
+
+        # 전략 톤: 예산 비중에 따라 추천 액션을 다르게
+        if i == best_idx:
+            action = f"**집중 투자 유지**(상한 {int(max_ratio_default*100)}% 범위 내) + 고효율 구간 확장"
+            effect = f"동일 예산 대비 **예상 매출 기여**가 가장 큼(추정 {int(round(rev)):,}원)."
+        else:
+            if ratio <= 10:
+                action = "**테스트 예산 유지**(소액) + 소재/타겟 개선 후 재평가"
+                effect = "낭비 리스크를 줄이면서 개선 여지를 탐색."
+            elif ratio <= 30:
+                action = "**균형 운영** + ROAS 하락 시 자동 감액 기준 설정"
+                effect = "성과 변동에 대응하며 안정적으로 운영."
+            else:
+                action = "**부분 감액 고려** + 고효율 채널로 일부 이동"
+                effect = "예상 수익률을 끌어올리는 방향으로 재배분."
+
+        # 데이터 근거(숫자 중심)
+        lines.append(
+            f"• **{name}**\n"
+            f"  - 현상: 예측 ROAS **{r:.2f}%** / 예산 배정 **{ratio}%**\n"
+            f"  - 데이터 근거: 평균 대비 **{compare_abs:.2f}%p {compare_word}**, 예상 매출 기여 **{int(round(rev)):,}원**\n"
+            f"  - 전략 제안: {action}\n"
+            f"  - 기대 효과: {effect}"
+        )
+
+    lines.append("")
+    lines.append("✅ 수익 극대화를 위한 실천 가이드 (바로 실행 가능한 액션)")
+    lines.append(f"• **예산 집행(오늘~{duration}일)**: {best_name}에 **{best_ratio}%** 수준으로 집중 운영하고, 나머지는 테스트/방어 예산으로 유지하세요.")
+    lines.append("• **운영 룰(간단 자동화)**: 7일 기준 ROAS가 평균 대비 하회하는 채널은 **소재/타겟 1회 개선 후** 개선 없으면 감액하는 룰을 적용하세요.")
+    lines.append("• **검증 방법(낭비 방지)**: 채널별로 '클릭→전환→매출' 이벤트가 정상 수집되는지 먼저 점검하고, 데이터가 불완전하면 보수적으로 운영하세요.")
+
+    lines.append("")
+    lines.append("📌 알고리즘/제약조건 근거 (투명성)")
+    lines.append(f"• 본 배분은 **총예산 {int(total_budget):,}원** 내에서 기대 수익(예산×예측ROAS)을 최대화하도록 계산되었습니다.")
+    lines.append(f"• 채널별 예산은 최소 **{int(min_per):,}원**(총예산이 작으면 0원) ~ 최대 **{int(max_per):,}원**(총예산의 {int(max_ratio_default*100)}%) 범위 제약을 적용했습니다.")
+    lines.append(f"• 예측 ROAS는 이상치 방지를 위해 **{int(clip_min)}% ~ {int(clip_max)}%** 범위로 클리핑되었습니다.")
+
+    
+
+    # 프론트 파싱을 위해 줄바꿈으로 구조 유지
+    return "\n".join(lines)
 
 # ==========================================
 # 2. 메인 실행 함수
@@ -75,150 +246,176 @@ def main():
             # 테스트 모드 (기본값)
             data = {
                 "total_budget": 500000,
-                "duration": 7,  # 테스트용 기본 기간
+                "duration": 7,
                 "features": [
-                    {"채널명_Naver": 1, "비용": 100000, "ROAS": 300},
-                    {"채널명_Meta": 1, "비용": 100000, "ROAS": 200},
-                    {"채널명_Google": 1, "비용": 100000, "ROAS": 250},
-                    {"채널명_Karrot": 1, "비용": 50000, "ROAS": 150}
+                    {"채널명_Naver": 1, "비용": 100000, "ROAS": 300, "trend_score": 90},
+                    {"채널명_Meta": 1, "비용": 100000, "ROAS": 200, "trend_score": 90},
+                    {"채널명_Google": 1, "비용": 100000, "ROAS": 250, "trend_score": 90},
+                    {"채널명_Karrot": 1, "비용": 50000, "ROAS": 150, "trend_score": 90}
                 ]
             }
         else:
             # 실전 모드 (Node.js에서 받음)
             input_data = sys.argv[1]
             data = json.loads(input_data)
-            
+
     except Exception as e:
-        print(json.dumps({"error": f"데이터 수신 실패: {str(e)}"}))
+        log(json.dumps({"error": f"데이터 수신 실패: {str(e)}"}, ensure_ascii=False))
         sys.exit(1)
 
     # [수정] 변수 추출 (리스트/객체 모두 대응하는 안전한 코드)
     if isinstance(data, list):
-        # 만약 데이터가 옛날 방식(리스트)으로 오면 -> 그대로 사용
         features_list = data
-        total_budget = 500000 
+        total_budget = 500000
         duration = 7
     else:
-        # 새로운 방식(객체)으로 오면 -> 키 값으로 꺼내기
         features_list = data.get('features', [])
         total_budget = data.get('total_budget', 500000)
         duration = data.get('duration', 7)
 
-    # [데이터 가공]
+    # ==========================================
+    # [중요] train_model_v2.py와 컬럼(피처) 정합 맞추기
+    # - 학습에서는 channel_* 사용
+    # - predict에서도 최종적으로 channel_*로 맞춘다
+    # ==========================================
     model_columns = [
-        '비용', 'CPC', 'CTR', 'ROAS_3d_trend', 
-        'day_of_week', 'is_weekend', 
-        'trend_score',  # ★ 여기가 핵심입니다! 이 줄이 꼭 있어야 함
-        '채널명_Naver', '채널명_Meta', '채널명_Google', '채널명_Karrot'
+        '비용', 'CPC', 'CTR', 'ROAS_3d_trend',
+        'trend_score',
+        'channel_naver', 'channel_meta', 'channel_google', 'channel_karrot'
     ]
-    
+
     processed_data = []
-    today = datetime.now().weekday()
-    is_weekend = 1 if today >= 5 else 0
 
     for item in features_list:
         cost = item.get('비용', 100000)
         current_roas = item.get('ROAS', 200)
-        
-        # ★ React에서 보내준 'trend_score' 받기 (없으면 기본값 50)
+
+        # React에서 보내준 'trend_score' 받기 (없으면 기본값 50)
         trend_score = item.get('trend_score', 50)
-        
-        # 보조 지표 추정
-        ctr = 1.5 + (current_roas / 1000)
+
+        # 보조 지표 추정 (※ MVP 단계에서는 유지, 추후 DB 계산값으로 교체 권장)
+        ctr = 1.5 + (float(current_roas) / 1000.0)
         cpc = 500
-        roas_3d = current_roas * 1.02
-        
+        roas_3d = float(current_roas) * 1.02
+
+        # ✅ 채널 입력을 유연하게 받기:
+        # 1) 기존: 채널명_Naver/Meta/Google/Karrot
+        # 2) 신규: channel_naver/meta/google/karrot
+        channel_naver = item.get('channel_naver', item.get('채널명_Naver', 0))
+        channel_meta = item.get('channel_meta', item.get('채널명_Meta', 0))
+        channel_google = item.get('channel_google', item.get('채널명_Google', 0))
+        channel_karrot = item.get('channel_karrot', item.get('채널명_Karrot', 0))
+
         row = {
-            '비용': cost,
-            'CPC': cpc,
-            'CTR': ctr,
-            'ROAS_3d_trend': roas_3d,
-            'day_of_week': today,
-            'is_weekend': is_weekend,
-            'trend_score': trend_score,
-            '채널명_Naver': item.get('채널명_Naver', 0),
-            '채널명_Meta': item.get('채널명_Meta', 0),
-            '채널명_Google': item.get('채널명_Google', 0),
-            '채널명_Karrot': item.get('채널명_Karrot', 0)
+            '비용': float(cost),
+            'CPC': float(cpc),
+            'CTR': float(ctr),
+            'ROAS_3d_trend': float(roas_3d),
+            'trend_score': float(trend_score),
+
+            'channel_naver': int(channel_naver),
+            'channel_meta': int(channel_meta),
+            'channel_google': int(channel_google),
+            'channel_karrot': int(channel_karrot),
         }
         processed_data.append(row)
 
     df = pd.DataFrame(processed_data)
-    
-    # 컬럼 순서 강제 맞춤 (모델 학습때와 동일하게)
+
     # 만약 데이터가 비어있다면 에러 처리
     if df.empty:
-        print(json.dumps({"error": "분석할 데이터가 없습니다."}))
+        log(json.dumps({"error": "분석할 데이터가 없습니다."}, ensure_ascii=False))
         sys.exit(1)
-        
-    X = df[model_columns]
+
+    # 컬럼 순서 강제 맞춤 (학습때와 동일하게)
+    try:
+        X = df[model_columns]
+    except Exception as e:
+        log(json.dumps({
+            "error": f"입력 컬럼이 모델과 맞지 않습니다: {str(e)}",
+            "expected_columns": model_columns,
+            "received_columns": list(df.columns)
+        }, ensure_ascii=False))
+        sys.exit(1)
 
     # [AI 모델 로드 및 예측]
     try:
         model = xgb.XGBRegressor()
         script_dir = os.path.dirname(os.path.abspath(__file__))
         model_path = os.path.join(script_dir, 'optimal_budget_xgb_model.json')
-        
+
         model.load_model(model_path)
         predicted_roas = model.predict(X)
-        
+
+        # ✅ 예측값 클리핑: 비현실 튐 방지
+        CLIP_MIN = 50.0
+        CLIP_MAX = 800.0
+        predicted_roas = clip_predicted_roas(predicted_roas, min_roas=CLIP_MIN, max_roas=CLIP_MAX)
+
     except Exception as e:
-        print(json.dumps({"error": f"모델 로드/예측 실패: {str(e)}"}))
+        log(json.dumps({"error": f"모델 로드/예측 실패: {str(e)}"}, ensure_ascii=False))
         sys.exit(1)
 
     # [선형 계획법 - 예산 최적화]
     try:
+        n = len(predicted_roas)
+
         c = [-float(r) for r in predicted_roas]
-        A_eq = [[1] * len(predicted_roas)]
-        b_eq = [total_budget]
-        bounds = [(30000, total_budget * 0.6) for _ in range(len(predicted_roas))]
-        
+        A_eq = [[1] * n]
+        b_eq = [float(total_budget)]
+
+        # ✅ 총예산에 따라 infeasible 방지용 bounds 자동 생성
+        MIN_BUDGET_DEFAULT = 30000
+        MAX_RATIO_DEFAULT = 0.6
+        bounds = build_safe_bounds(
+            n,
+            total_budget,
+            min_budget_default=MIN_BUDGET_DEFAULT,
+            max_ratio_default=MAX_RATIO_DEFAULT
+        )
+
         result = linprog(c, A_eq=A_eq, b_eq=b_eq, bounds=bounds, method='highs')
 
         if result.success:
             allocated_budget = result.x
-            real_expected_revenue = np.sum(allocated_budget * (predicted_roas / 100))
-            
-            # 리포트 생성
-            channel_names = ['네이버', '메타', '구글', '당근']
-            best_idx = np.argmax(predicted_roas)
-            best_channel = channel_names[best_idx]
-            
-            # 한국어 이름 매핑
-            channel_names_kr = {'네이버': '네이버', '메타': '인스타그램', '구글': '구글/유튜브', '당근': '당근마켓'}
-            best_channel_kr = channel_names_kr.get(best_channel, best_channel)
-            
-            best_ratio = int(allocated_budget[best_idx] / total_budget * 100)
-            
-            report_text = (
-                f"📢 **사장님을 위한 오늘의 마케팅 핵심 요약**\n"
-                f"지금 우리 가게에 딱 맞는 곳은 **'{best_channel_kr}'**입니다! 여기에 집중하세요.\n\n"
-                f"✅ **AI가 제안하는 3가지 실천 가이드**\n"
-                f"• **예산 집중**: 전체 예산의 **{best_ratio}%**를 **{best_channel_kr}**에 투자하세요. 지금 손님들 반응이 가장 뜨겁습니다.\n"
-                f"• **효율 관리**: 예상 수익률이 **{predicted_roas[best_idx]:.0f}%**까지 오를 것으로 보입니다. 물 들어올 때 노 저으세요!\n"
-                f"• **리스크 방어**: 효율이 다소 낮은 채널은 예산을 줄여서 낭비를 막았습니다."
+
+            real_expected_revenue = np.sum(allocated_budget * (predicted_roas / 100.0))
+
+            # ✅ [PRO] 컨설팅 리포트 생성
+            report_text = build_pro_report(
+                total_budget=total_budget,
+                allocated_budget=allocated_budget,
+                predicted_roas=predicted_roas,
+                expected_revenue=real_expected_revenue,
+                duration=duration,
+                clip_min=CLIP_MIN,
+                clip_max=CLIP_MAX,
+                min_budget_default=MIN_BUDGET_DEFAULT,
+                max_ratio_default=MAX_RATIO_DEFAULT
             )
 
-            # ★ [수정] 함수 호출로 변경 (duration 적용)
+            # duration 적용 히스토리 생성
             history_data = generate_past_history(predicted_roas, duration=duration)
 
             output = {
                 "status": "success",
-                "total_budget": total_budget,
+                "total_budget": int(total_budget),
                 "allocated_budget": [int(b) for b in np.round(allocated_budget, 0)],
-                "predicted_roas": [round(float(r), 2) for r in predicted_roas],     
+                "predicted_roas": [round(float(r), 2) for r in predicted_roas],
                 "expected_revenue": int(round(real_expected_revenue, 0)),
-                "history": history_data, # 동적 생성된 히스토리
+                "history": history_data,
                 "ai_report": report_text
             }
         else:
-            output = {"status": "failed", "reason": "최적화 실패"}
-            
+            output = {"status": "failed", "reason": "최적화 실패", "detail": str(result.message)}
+
     except Exception as e:
-        print(json.dumps({"error": f"최적화 계산 실패: {str(e)}"}))
+        log(json.dumps({"error": f"최적화 계산 실패: {str(e)}"}, ensure_ascii=False))
         sys.exit(1)
 
-    print(json.dumps(output, cls=NumpyEncoder, ensure_ascii=False))
+    # ✅ stdout에는 JSON만 1번 출력 (Node 파싱 안정)
+    sys.stdout.write(json.dumps(output, cls=NumpyEncoder, ensure_ascii=False))
+    sys.stdout.flush()
 
 if __name__ == "__main__":
     main()
