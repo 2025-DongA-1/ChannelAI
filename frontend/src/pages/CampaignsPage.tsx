@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { campaignAPI, budgetAPI } from '@/lib/api';
 import { formatCurrency, formatPercent, getStatusColor, getPlatformColor } from '@/lib/utils';
-import { Plus, Search, Filter, RefreshCw, DollarSign, TrendingUp, AlertTriangle, Edit, Check, X } from 'lucide-react';
+import { Plus, Search, Filter, RefreshCw, DollarSign, TrendingUp, AlertTriangle, Edit, Check, X, Trash2 } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recharts';
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'];
@@ -64,6 +64,29 @@ export default function CampaignsPage() {
       alert('예산 수정에 실패했습니다.');
     },
   });
+
+  // 👇 캠페인 삭제 Mutation 추가!
+  const deleteMutation = useMutation({
+    mutationFn: (id: number) => campaignAPI.deleteCampaign(id),
+    onSuccess: () => {
+      // 삭제 후 화면의 모든 데이터를 최신화합니다!
+      queryClient.invalidateQueries({ queryKey: ['campaigns'] });
+      queryClient.invalidateQueries({ queryKey: ['budget-campaigns'] });
+      queryClient.invalidateQueries({ queryKey: ['budget-summary'] });
+      queryClient.invalidateQueries({ queryKey: ['budget-platforms'] });
+      alert('캠페인이 성공적으로 삭제되었습니다. 🗑️');
+    },
+    onError: () => {
+      alert('캠페인 삭제에 실패했습니다.');
+    },
+  });
+
+  // 👇 삭제 버튼 클릭 시 실행될 함수 추가!
+  const handleDelete = (id: number, name: string) => {
+    if (window.confirm(`'${name}' 캠페인을 정말 삭제하시겠습니까?\n관련된 성과 데이터도 모두 함께 삭제됩니다.`)) {
+      deleteMutation.mutate(id);
+    }
+  };
 
   const campaigns = data?.data?.campaigns || [];
   const summary = summaryData?.data?.summary;
@@ -415,13 +438,25 @@ export default function CampaignsPage() {
                             </button>
                           </div>
                         ) : (
-                          <button
-                            onClick={() => handleEdit({ id: campaign.id, dailyBudget: campaign.daily_budget, totalBudget: campaign.total_budget })}
-                            className="p-1 text-blue-600 hover:bg-blue-50 rounded"
-                            title="예산 수정"
-                          >
-                            <Edit className="w-4 h-4" />
-                          </button>
+                          // 👇 버튼이 두 개가 되니까 div로 예쁘게 묶어줬어요!
+                          <div className="flex items-center justify-center gap-2">
+                            <button
+                              onClick={() => handleEdit({ id: campaign.id, dailyBudget: campaign.daily_budget, totalBudget: campaign.total_budget })}
+                              className="p-1 text-blue-600 hover:bg-blue-50 rounded"
+                              title="예산 수정"
+                            >
+                              <Edit className="w-4 h-4" />
+                            </button>
+                            {/* 👇 삭제 버튼 추가! */}
+                            <button
+                              onClick={() => handleDelete(campaign.id, campaign.campaign_name)}
+                              disabled={deleteMutation.isPending}
+                              className="p-1 text-red-600 hover:bg-red-50 rounded"
+                              title="캠페인 삭제"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
                         )}
                       </td>
                     </tr>

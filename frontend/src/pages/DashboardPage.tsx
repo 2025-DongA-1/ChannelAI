@@ -65,18 +65,28 @@ export default function DashboardPage() {
   
   const allCampaignMetrics = selectedCampaignMetrics?.data?.metrics || [];
   
-  // 👇 현재 기간(dateRange)에 해당하는 데이터만 필터링
+  // 👇 🌟 프론트엔드 시차 버그 완벽 해결! 🌟
+  // 날짜 데이터를 한국 시간 기준으로 안전하게 변환하는 헬퍼 함수
+  const getLocalDataString = (dateString: string) => {
+    if (!dateString) return '';
+    const dateObj = new Date(dateString);
+    // UTC와 한국 시간의 시차를 보정해서 정확한 YYYY-MM-DD를 뽑아냅니다!
+    const offset = dateObj.getTimezoneOffset() * 60000;
+    return new Date(dateObj.getTime() - offset).toISOString().split('T')[0];
+  };
+
+  // 현재 기간(dateRange) 데이터 필터링
   const campaignMetricsData = allCampaignMetrics.filter((m: any) => {
-    if (!dateRange.startDate || !dateRange.endDate) return true; // 전체 기간
-    const mDate = (m.date || m.metric_date || m.metricDate || '').split('T')[0];
+    if (!dateRange.startDate || !dateRange.endDate) return true;
+    const mDate = getLocalDataString(m.date || m.metric_date || m.metricDate);
     if (!mDate) return true;
     return mDate >= dateRange.startDate && mDate <= dateRange.endDate;
   });
 
-  // 👇 이전 기간(prevDates)에 해당하는 데이터만 필터링 (증감률 계산용)
+  // 이전 기간(prevDates) 데이터 필터링
   const prevCampaignMetricsData = allCampaignMetrics.filter((m: any) => {
-    if (!prevDates) return false; // 전체 기간이면 이전 데이터는 없음
-    const mDate = (m.date || m.metric_date || m.metricDate || '').split('T')[0];
+    if (!prevDates) return false;
+    const mDate = getLocalDataString(m.date || m.metric_date || m.metricDate);
     if (!mDate) return false;
     return mDate >= prevDates.startDate && mDate <= prevDates.endDate;
   });
