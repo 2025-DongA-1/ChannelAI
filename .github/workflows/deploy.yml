@@ -116,9 +116,10 @@ jobs:
           script: |
             set -e
 
-            # ========== 1. Node.js 설치 (없으면) ==========
-            if ! command -v node &> /dev/null; then
-              echo ">> Node.js 설치 중..."
+            # ========== 1. Node.js 설치/업그레이드 ==========
+            NODE_MAJOR=$(node -v 2>/dev/null | cut -d'.' -f1 | tr -d 'v' || echo "0")
+            if [ "$NODE_MAJOR" -lt 20 ]; then
+              echo ">> Node.js 20 설치 중... (현재: $(node -v 2>/dev/null || echo '없음'))"
               curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
               apt-get install -y nodejs
             fi
