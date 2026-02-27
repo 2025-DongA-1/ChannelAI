@@ -5,6 +5,8 @@ import {
   BarChart, Bar, LabelList, XAxis, YAxis, CartesianGrid, ResponsiveContainer,
   LineChart, Line
 } from 'recharts';
+import { useQuery } from '@tanstack/react-query'; // 데이터 가져오는 훅
+import { dashboardAPI } from '@/lib/api';
 // import './App.css'; // 필요하다면 주석 해제
 
 const BG_COLOR = '#F4F7FC';
@@ -43,6 +45,10 @@ function MarketingAnalysis() {
   const [result, setResult] = useState<AnalysisResult | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
   const [mounted, setMounted] = useState<boolean>(false);
+  const { data: dbData} = useQuery({
+    queryKey: ['ai-analysis-data'], // 고유한 이름표
+    queryFn: () => dashboardAPI.getChannelPerformance(), // 대시보드와 같은 API 호출
+  }); 
 
   useEffect(() => {
     setMounted(true);
@@ -72,14 +78,39 @@ function MarketingAnalysis() {
 
       let features: FeatureItem[] = [];
       const trendScore = currentDuration === 7 ? 90 : 50;
-      console.log("🔥 현재 AI에게 보내는 트렌드 점수:", trendScore);
+      
+      // ★ [수정] 무조건 4개 채널을 고정적으로 생성 (없으면 0으로 채움)
+      const targetPlatforms = ['naver', 'meta', 'google', 'karrot'];
+      
+      // DB 데이터(realPerformance)가 없으면 빈 배열로 처리
+      const dbList = dbData?.data?.performance || [];
+      
+      console.log("🔥 DB 원본 데이터:", dbList);
 
-      features = [
-          { "채널명_Naver": 1, "비용": 150000, "ROAS": 320, "trend_score": trendScore },
-          { "채널명_Meta": 1, "비용": 100000, "ROAS": 210, "trend_score": trendScore },
-          { "채널명_Google": 1, "비용": 80000, "ROAS": 240, "trend_score": trendScore },
-          { "채널명_Karrot": 1, "비용": 50000, "ROAS": 350, "trend_score": trendScore }
-      ];
+      features = targetPlatforms.map(pName => {
+        // ★ [수정] 다시 심플해진 로직!
+        // 이제 DB에도 'karrot'으로 들어오니까 복잡한 비교 필요 없음
+        const match = dbList.find((item: any) => 
+          item.platform.toLowerCase().includes(pName)
+        );
+        
+        // 데이터가 있으면 쓰고, 없으면 0
+        const cost = match ? match.metrics.cost : 0;
+        const roas = match ? match.metrics.roas : 0;
+        
+        return {
+          "채널명_Naver": pName === 'naver' ? 1 : 0,
+          "채널명_Meta": pName === 'meta' ? 1 : 0,
+          "채널명_Google": pName === 'google' ? 1 : 0,
+          "채널명_Karrot": pName === 'karrot' ? 1 : 0, 
+          
+          "비용": Number(cost),
+          "ROAS": Number(roas),
+          "trend_score": trendScore
+        };
+      });
+      
+      console.log("✅ AI로 보내는 최종 데이터(4개 고정):", features);
 
       // 백엔드 요청
       const response = await axios.post('http://localhost:5000/api/v1/ai/recommend', {
@@ -117,6 +148,10 @@ function MarketingAnalysis() {
     { name: '구글', roas: result.predicted_roas[2] },
     { name: '당근', roas: result.predicted_roas[3] }
   ] : [];
+  
+  // DB 데이터(realPerformance)가 없으면 빈 배열로 처리
+  const dbList = dbData?.data?.performance || [];
+  const totalInputCost = dbList.reduce((acc: number, cur: any) => acc + (cur.metrics?.cost || 0), 0);
 
   return (
     <div style={{ backgroundColor: BG_COLOR, minHeight: '100vh', padding: '40px 20px', fontFamily: '"Pretendard", sans-serif' }}>
@@ -231,207 +266,234 @@ function MarketingAnalysis() {
       {/* 2. 하단 결과 대시보드 영역 */}
       <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
         {result ? (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '25px' }}>
+          // ▼ 내 입력 데이터가 1원이라도 있니?
+          totalInputCost>0 ? (
+            
+            /* ─── CASE A: 데이터가 있어서 그래프를 보여주는 화면 ─── */
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '25px' }}>
 
-            {/* 핵심 지표 (KPI Cards) */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
-              <div style={{ backgroundColor: 'white', padding: '30px', borderRadius: '20px', boxShadow: '0 5px 20px rgba(0,0,0,0.03)', textAlign: 'center' }}>
-                <span style={{ fontSize: '1rem', color: '#888', fontWeight: 'bold' }}>💰 예측 총 매출액</span>
-                <div style={{ fontSize: '2.5rem', fontWeight: '900', color: '#2D3436', marginTop: '10px', letterSpacing: '-1px' }}>
-                  {Math.round(result.expected_revenue).toLocaleString()}원
+              {/* 핵심 지표 (KPI Cards) */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+                <div style={{ backgroundColor: 'white', padding: '30px', borderRadius: '20px', boxShadow: '0 5px 20px rgba(0,0,0,0.03)', textAlign: 'center' }}>
+                  <span style={{ fontSize: '1rem', color: '#888', fontWeight: 'bold' }}>💰 예측 총 매출액</span>
+                  <div style={{ fontSize: '2.5rem', fontWeight: '900', color: '#2D3436', marginTop: '10px', letterSpacing: '-1px' }}>
+                    {Math.round(result.expected_revenue).toLocaleString()}원
+                  </div>
+                </div>
+                <div style={{ backgroundColor: 'white', padding: '30px', borderRadius: '20px', boxShadow: '0 5px 20px rgba(0,0,0,0.03)', textAlign: 'center' }}>
+                  <span style={{ fontSize: '1rem', color: '#888', fontWeight: 'bold' }}>🏆 베스트 전략</span>
+                  <div style={{ fontSize: '2rem', fontWeight: '900', color: '#0984e3', marginTop: '10px', letterSpacing: '-1px' }}>
+                    {barData.length > 0 ? barData.reduce((prev, current) => (prev.roas > current.roas) ? prev : current).name : '-'} 집중 공략
+                  </div>
                 </div>
               </div>
-              <div style={{ backgroundColor: 'white', padding: '30px', borderRadius: '20px', boxShadow: '0 5px 20px rgba(0,0,0,0.03)', textAlign: 'center' }}>
-                <span style={{ fontSize: '1rem', color: '#888', fontWeight: 'bold' }}>🏆 베스트 전략</span>
-                <div style={{ fontSize: '2rem', fontWeight: '900', color: '#0984e3', marginTop: '10px', letterSpacing: '-1px' }}>
-                  {barData.reduce((prev, current) => (prev.roas > current.roas) ? prev : current).name} 집중 공략
-                </div>
-              </div>
-            </div>
 
-            {/* 과거 추세 그래프 */}
-            <div style={{ backgroundColor: 'white', padding: '35px', borderRadius: '20px', boxShadow: '0 10px 30px rgba(0,0,0,0.05)' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-                  <h3 style={{ fontSize: '1.3rem', margin: 0, color: '#333' }}>📉 성과 시뮬레이션</h3>
+              {/* 과거 추세 그래프 */}
+              <div style={{ backgroundColor: 'white', padding: '35px', borderRadius: '20px', boxShadow: '0 10px 30px rgba(0,0,0,0.05)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+                    <h3 style={{ fontSize: '1.3rem', margin: 0, color: '#333' }}>📉 성과 시뮬레이션</h3>
+                    
+                    <div style={{ display: 'flex', backgroundColor: '#f1f3f5', borderRadius: '20px', padding: '4px' }}>
+                      <button 
+                        onClick={() => handlePeriodChange(7)}
+                        style={{
+                          padding: '5px 15px', borderRadius: '15px', border: 'none', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.9rem',
+                          backgroundColor: period === 7 ? 'white' : 'transparent',
+                          color: period === 7 ? '#2D3436' : '#868e96',
+                          boxShadow: period === 7 ? '0 2px 5px rgba(0,0,0,0.1)' : 'none',
+                          transition: 'all 0.2s'
+                        }}
+                      >
+                        최근 7일
+                      </button>
+                      <button 
+                        onClick={() => handlePeriodChange(30)}
+                        style={{
+                          padding: '5px 15px', borderRadius: '15px', border: 'none', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.9rem',
+                          backgroundColor: period === 30 ? 'white' : 'transparent',
+                          color: period === 30 ? '#2D3436' : '#868e96',
+                          boxShadow: period === 30 ? '0 2px 5px rgba(0,0,0,0.1)' : 'none',
+                          transition: 'all 0.2s'
+                        }}
+                      >
+                        최근 30일
+                      </button>
+                    </div>
+                  </div>
                   
-                  <div style={{ display: 'flex', backgroundColor: '#f1f3f5', borderRadius: '20px', padding: '4px' }}>
-                    <button 
-                      onClick={() => handlePeriodChange(7)}
-                      style={{
-                        padding: '5px 15px', borderRadius: '15px', border: 'none', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.9rem',
-                        backgroundColor: period === 7 ? 'white' : 'transparent',
-                        color: period === 7 ? '#2D3436' : '#868e96',
-                        boxShadow: period === 7 ? '0 2px 5px rgba(0,0,0,0.1)' : 'none',
-                        transition: 'all 0.2s'
-                      }}
-                    >
-                      최근 7일
-                    </button>
-                    <button 
-                      onClick={() => handlePeriodChange(30)}
-                      style={{
-                        padding: '5px 15px', borderRadius: '15px', border: 'none', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.9rem',
-                        backgroundColor: period === 30 ? 'white' : 'transparent',
-                        color: period === 30 ? '#2D3436' : '#868e96',
-                        boxShadow: period === 30 ? '0 2px 5px rgba(0,0,0,0.1)' : 'none',
-                        transition: 'all 0.2s'
-                      }}
-                    >
-                      최근 30일
-                    </button>
-                  </div>
+                  <span style={{ fontSize: '0.9rem', color: '#aaa' }}>* 업종 평균 데이터 기반</span>
                 </div>
-                
-                <span style={{ fontSize: '0.9rem', color: '#aaa' }}>* 업종 평균 데이터 기반</span>
-              </div>
-              <div style={{ width: '100%', height: 320, position: 'relative' }}>
-                {mounted && (
-                  <ResponsiveContainer width="100%" height="100%" minWidth={10} minHeight={10} debounce={50}>
-                    <LineChart data={result.history} margin={{ top: 10, right: 30, left: 10, bottom: 0 }}>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#eee" />
-                      <XAxis dataKey="day" tick={{ fontSize: 12, fill: '#888' }} axisLine={false} tickLine={false} dy={10} />
-                      <YAxis tick={{ fontSize: 12, fill: '#888' }} axisLine={false} tickLine={false} />
-                      <Tooltip contentStyle={{ borderRadius: '10px', border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.1)' }} />
-                      <Legend iconType="circle" wrapperStyle={{ paddingTop: '20px' }} />
-                      <Line type="monotone" dataKey="Naver" name="네이버" stroke="#2DB400" strokeWidth={3} dot={{ r: 4 }} activeDot={{ r: 6 }} />
-                      <Line type="monotone" dataKey="Meta" name="인스타그램" stroke="#1877F2" strokeWidth={3} dot={{ r: 4 }} />
-                      <Line type="monotone" dataKey="Google" name="구글" stroke="#EA4335" strokeWidth={3} dot={{ r: 4 }} />
-                      <Line type="monotone" dataKey="Karrot" name="당근" stroke="#FF6F0F" strokeWidth={3} dot={{ r: 4 }} />
-                    </LineChart>
-                  </ResponsiveContainer>
-                )}
-              </div>
-            </div>
-
-            {/* 예산 비중 & 매체 효율 */}
-            <div style={{ 
-              backgroundColor: 'white', 
-              padding: '35px', 
-              borderRadius: '20px', 
-              boxShadow: '0 10px 30px rgba(0,0,0,0.05)',
-              display: 'grid',
-              gridTemplateColumns: '1fr 1fr',
-              gap: '50px'
-            }}>
-                {/* 파이 차트 */}
-                <div style={{ textAlign: 'center', minWidth:0, overflow: 'hidden'}}>
-                  <h3 style={{ fontSize: '1.2rem', marginBottom: '20px', color: '#333' }}>💰 채널별 예산 추천 비율</h3>
-                  <div style={{ height: '300px', width: '100%', position: 'relative' }}>
-                    {mounted && (
-                      <ResponsiveContainer width="100%" height="100%" minWidth={10} minHeight={10} debounce={50}>
-                        <PieChart>
-                          <Pie
-                            data={pieData}
-                            cx="50%"
-                            cy="50%"
-                            innerRadius={80}
-                            outerRadius={110}
-                            paddingAngle={5}
-                            dataKey="value"
-                            label={({ name, percent }: any) => `${name} ${(percent * 100).toFixed(0)}%`}
-                          >
-                            {pieData.map((entry, index) => (
-                              <Cell key={`cell-${index}`} fill={entry.color} stroke="none" />
-                            ))}
-                          </Pie>
-                          <Tooltip formatter={(value: any) => `${value.toLocaleString()}원`} contentStyle={{ borderRadius: '10px', border: 'none' }} />
-                        </PieChart>
-                      </ResponsiveContainer>
-                    )} 
-                  </div>
+                <div style={{ width: '100%', height: 320, position: 'relative' }}>
+                  {mounted && (
+                    <ResponsiveContainer width="100%" height="100%" minWidth={10} minHeight={10} debounce={50}>
+                      <LineChart data={result.history} margin={{ top: 10, right: 30, left: 10, bottom: 0 }}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#eee" />
+                        <XAxis dataKey="day" tick={{ fontSize: 12, fill: '#888' }} axisLine={false} tickLine={false} dy={10} />
+                        <YAxis tick={{ fontSize: 12, fill: '#888' }} axisLine={false} tickLine={false} />
+                        <Tooltip contentStyle={{ borderRadius: '10px', border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.1)' }} />
+                        <Legend iconType="circle" wrapperStyle={{ paddingTop: '20px' }} />
+                        <Line type="monotone" dataKey="Naver" name="네이버" stroke="#2DB400" strokeWidth={3} dot={{ r: 4 }} activeDot={{ r: 6 }} />
+                        <Line type="monotone" dataKey="Meta" name="인스타그램" stroke="#1877F2" strokeWidth={3} dot={{ r: 4 }} />
+                        <Line type="monotone" dataKey="Google" name="구글" stroke="#EA4335" strokeWidth={3} dot={{ r: 4 }} />
+                        <Line type="monotone" dataKey="Karrot" name="당근" stroke="#FF6F0F" strokeWidth={3} dot={{ r: 4 }} />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  )}
                 </div>
-
-                {/* 막대 차트 */}
-                <div style={{ borderLeft: '1px solid #f1f3f5', paddingLeft: '50px', minWidth:0, overflow: 'hidden' }}>
-                  <h3 style={{ fontSize: '1.2rem', marginBottom: '20px', color: '#333' }}>📈 매체별 예측 효율 (ROAS)</h3>
-                  <div style={{ height: '300px', width: '100%', position: 'relative' }}>
-                    {mounted && (
-                      <ResponsiveContainer width="100%" height="100%" minWidth={10} minHeight={10} debounce={50}>
-                        <BarChart data={barData} layout="vertical" margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
-                          <CartesianGrid strokeDasharray="3 3" vertical={true} horizontal={false} stroke="#f1f3f5" />
-                          <XAxis type="number" hide />
-                          <YAxis dataKey="name" type="category" width={70} tick={{ fontSize: 13, fontWeight: 'bold', fill: '#555' }} axisLine={false} tickLine={false} />
-                          <Tooltip formatter={(value: any) => [`${value}%`, '예측 ROAS']} cursor={{ fill: '#f8f9fa' }} contentStyle={{ borderRadius: '10px', border: 'none' }} />
-                          <Bar dataKey="roas" barSize={30} radius={[0, 10, 10, 0]}>
-                            <LabelList dataKey="roas" position="right" formatter={(v: any) => `${v}%`} style={{ fontSize: '13px', fontWeight: 'bold', fill: '#333' }} />
-                            {barData.map((_, index) => (
-                              <Cell key={`cell-${index}`} fill={pieData[index].color} />
-                            ))}
-                          </Bar>
-                        </BarChart>
-                      </ResponsiveContainer>
-                    )}
-                  </div>
-                </div>
-            </div>
-
-            {/* AI 리포트 */}
-            <div style={{
-              backgroundColor: '#F8F9FA',
-              border: '1px solid #E9ECEF',
-              borderLeft: '8px solid #2D3436',
-              padding: '40px',
-              borderRadius: '16px',
-              marginTop: '10px',
-              boxShadow: '0 4px 12px rgba(0,0,0,0.05)'
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', marginBottom: '25px' }}>
-                <span style={{ fontSize: '2rem', marginRight: '15px' }}>👩🏻‍🏫</span>
-                <h3 style={{ fontSize: '1.6rem', fontWeight: '800', color: '#2D3436', margin: 0 }}>
-                  AI 마케팅 컨설팅 리포트
-                </h3>
               </div>
 
-              <div style={{
-                fontSize: '1.25rem',
-                lineHeight: '1.8',
-                color: '#495057',
-                whiteSpace: 'pre-wrap',
-                fontFamily: '"Pretendard", sans-serif'
+              {/* 예산 비중 & 매체 효율 */}
+              <div style={{ 
+                backgroundColor: 'white', 
+                padding: '35px', 
+                borderRadius: '20px', 
+                boxShadow: '0 10px 30px rgba(0,0,0,0.05)',
+                display: 'grid',
+                gridTemplateColumns: '1fr 1fr',
+                gap: '50px'
               }}>
-                {result.ai_report ? (
-                  result.ai_report.split('\n').map((line, index) => {
-                    if (line.includes('📢') || line.includes('✅')) {
-                      return (
-                        <div key={index} style={{ fontWeight: 'bold', fontSize: '1.4rem', color: '#333', marginTop: index > 0 ? '30px' : '0', marginBottom: '15px' }}>
-                          {line}
-                        </div>
-                      );
-                    }
-                    else if (line.trim().startsWith('•')) {
-                      return (
-                        <div key={index} style={{ paddingLeft: '15px', marginBottom: '10px', display: 'flex' }}>
-                          <span style={{ marginRight: '10px', color: '#0984e3' }}>✔</span>
-                          <span>
-                            {line.replace('•', '').split('**').map((part, i) => 
-                              i % 2 === 1 ? <span key={i} style={{ fontWeight: 'bold', color: '#000', backgroundColor: '#fff5ce' }}>{part}</span> : part
+                  {/* 파이 차트 */}
+                  <div style={{ textAlign: 'center', minWidth:0, overflow: 'hidden'}}>
+                    <h3 style={{ fontSize: '1.2rem', marginBottom: '20px', color: '#333' }}>💰 채널별 예산 추천 비율</h3>
+                    <div style={{ height: '300px', width: '100%', position: 'relative' }}>
+                      {mounted && (
+                        <ResponsiveContainer width="100%" height="100%" minWidth={10} minHeight={10} debounce={50}>
+                          <PieChart>
+                            <Pie
+                              data={pieData}
+                              cx="50%"
+                              cy="50%"
+                              innerRadius={80}
+                              outerRadius={110}
+                              paddingAngle={5}
+                              dataKey="value"
+                              label={({ name, percent }: any) => `${name} ${(percent * 100).toFixed(0)}%`}
+                            >
+                              {pieData.map((entry, index) => (
+                                <Cell key={`cell-${index}`} fill={entry.color} stroke="none" />
+                              ))}
+                            </Pie>
+                            <Tooltip formatter={(value: any) => `${value.toLocaleString()}원`} contentStyle={{ borderRadius: '10px', border: 'none' }} />
+                          </PieChart>
+                        </ResponsiveContainer>
+                      )} 
+                    </div>
+                  </div>
+
+                  {/* 막대 차트 */}
+                  <div style={{ borderLeft: '1px solid #f1f3f5', paddingLeft: '50px', minWidth:0, overflow: 'hidden' }}>
+                    <h3 style={{ fontSize: '1.2rem', marginBottom: '20px', color: '#333' }}>📈 매체별 예측 효율 (ROAS)</h3>
+                    <div style={{ height: '300px', width: '100%', position: 'relative' }}>
+                      {mounted && (
+                        <ResponsiveContainer width="100%" height="100%" minWidth={10} minHeight={10} debounce={50}>
+                          <BarChart data={barData} layout="vertical" margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+                            <CartesianGrid strokeDasharray="3 3" vertical={true} horizontal={false} stroke="#f1f3f5" />
+                            <XAxis type="number" hide />
+                            <YAxis dataKey="name" type="category" width={70} tick={{ fontSize: 13, fontWeight: 'bold', fill: '#555' }} axisLine={false} tickLine={false} />
+                            <Tooltip formatter={(value: any) => [`${value}%`, '예측 ROAS']} cursor={{ fill: '#f8f9fa' }} contentStyle={{ borderRadius: '10px', border: 'none' }} />
+                            <Bar dataKey="roas" barSize={30} radius={[0, 10, 10, 0]}>
+                              <LabelList dataKey="roas" position="right" formatter={(v: any) => `${v}%`} style={{ fontSize: '13px', fontWeight: 'bold', fill: '#333' }} />
+                              {barData.map((_, index) => (
+                                <Cell key={`cell-${index}`} fill={pieData[index].color} />
+                              ))}
+                            </Bar>
+                          </BarChart>
+                        </ResponsiveContainer>
+                      )}
+                    </div>
+                  </div>
+              </div>
+
+              {/* AI 리포트 */}
+              <div style={{
+                backgroundColor: '#F8F9FA',
+                border: '1px solid #E9ECEF',
+                borderLeft: '8px solid #2D3436',
+                padding: '40px',
+                borderRadius: '16px',
+                marginTop: '10px',
+                boxShadow: '0 4px 12px rgba(0,0,0,0.05)'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', marginBottom: '25px' }}>
+                  <span style={{ fontSize: '2rem', marginRight: '15px' }}>👩🏻‍🏫</span>
+                  <h3 style={{ fontSize: '1.6rem', fontWeight: '800', color: '#2D3436', margin: 0 }}>
+                    AI 마케팅 컨설팅 리포트
+                  </h3>
+                </div>
+
+                <div style={{
+                  fontSize: '1.25rem',
+                  lineHeight: '1.8',
+                  color: '#495057',
+                  whiteSpace: 'pre-wrap',
+                  fontFamily: '"Pretendard", sans-serif'
+                }}>
+                  {result.ai_report ? (
+                    result.ai_report.split('\n').map((line, index) => {
+                      if (line.includes('📢') || line.includes('✅')) {
+                        return (
+                          <div key={index} style={{ fontWeight: 'bold', fontSize: '1.4rem', color: '#333', marginTop: index > 0 ? '30px' : '0', marginBottom: '15px' }}>
+                            {line}
+                          </div>
+                        );
+                      }
+                      else if (line.trim().startsWith('•')) {
+                        return (
+                          <div key={index} style={{ paddingLeft: '15px', marginBottom: '10px', display: 'flex' }}>
+                            <span style={{ marginRight: '10px', color: '#0984e3' }}>✔</span>
+                            <span>
+                              {line.replace('•', '').split('**').map((part, i) => 
+                                i % 2 === 1 ? <span key={i} style={{ fontWeight: 'bold', color: '#000', backgroundColor: '#fff5ce' }}>{part}</span> : part
+                              )}
+                            </span>
+                          </div>
+                        );
+                      }
+                      else {
+                        return (
+                          <div key={index}>
+                            {line.split('**').map((part, i) => 
+                               i % 2 === 1 ? <span key={i} style={{ fontWeight: 'bold', color: '#000' }}>{part}</span> : part
                             )}
-                          </span>
-                        </div>
-                      );
-                    }
-                    else {
-                      return (
-                        <div key={index}>
-                          {line.split('**').map((part, i) => 
-                             i % 2 === 1 ? <span key={i} style={{ fontWeight: 'bold', color: '#000' }}>{part}</span> : part
-                          )}
-                        </div>
-                      );
-                    }
-                  })
-                ) : "분석 중입니다..."}
+                          </div>
+                        );
+                      }
+                    })
+                  ) : "분석 중입니다..."}
+                </div>
+
+                <div style={{ marginTop: '40px', paddingTop: '20px', borderTop: '1px dashed #ced4da', fontSize: '1rem', color: '#868e96', textAlign: 'right' }}>
+                  * 이 분석은 연동된 광고 계정의 실시간 데이터를 기반으로 XGBoost 예측 모델과 선형 계획법 알고리즘을 기반으로 작성되었습니다 *
+                </div>
               </div>
 
-              <div style={{ marginTop: '40px', paddingTop: '20px', borderTop: '1px dashed #ced4da', fontSize: '1rem', color: '#868e96', textAlign: 'right' }}>
-                * 이 분석은 연동된 광고 계정의 실시간 데이터를 기반으로 XGBoost 예측 모델과 선형 계획법 알고리즘을 기반으로 작성되었습니다 *
-              </div>
             </div>
-
-          </div>
+          ) : (
+            /* ─── CASE B: 연동은 성공했지만 데이터가 0인 경우 (빈 화면) ─── */
+            <div style={{ 
+              display: 'flex', 
+              flexDirection: 'column', 
+              alignItems: 'center', 
+              justifyContent: 'center', 
+              backgroundColor: '#f8f9fa', 
+              borderRadius: '20px', 
+              border: '2px dashed #ced4da', 
+              color: '#495057', 
+              minHeight: '400px',
+              padding: '40px',
+              textAlign: 'center'
+            }}>
+              <div style={{ fontSize: '4rem', marginBottom: '20px' }}>📭</div>
+              <h3 style={{ fontSize: '1.5rem', fontWeight: 'bold', marginBottom: '10px' }}>분석할 데이터가 부족합니다</h3>
+              <p style={{ fontSize: '1.1rem', color: '#868e96', lineHeight: '1.6' }}>
+                DB에 저장된 광고 성과 데이터가 없습니다.<br/>
+                <span style={{ fontSize: '1rem' }}>데이터가 쌓이면 AI가 자동으로 예산을 분석해 드립니다.</span>
+              </p>
+            </div>
+          )
         ) : (
-          /* 분석 전 대기 화면 */
+          /* ─── CASE C: 아직 분석 버튼을 누르지 않은 초기 화면 ─── */
           <div style={{ 
             display: 'flex', 
             flexDirection: 'column',
