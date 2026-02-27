@@ -1,3 +1,230 @@
+/**
+ * 당근마켓 수동 입력 캠페인 수정 (기간/성과)
+ * PUT /api/v1/integration/karrot/manual/:campaignId
+ * body: { campaignName, subject, startDate, endDate, impressions, reach, clicks, ctr, cost, cpc }
+ */
+export const updateKarrotManualCampaign = async (req: AuthRequest, res: Response) => {
+  try {
+    const { campaignId } = req.params;
+    const userId = req.user?.id;
+    const {
+      campaignName,
+      subject,
+      startDate,
+      endDate,
+      impressions,
+      reach,
+      clicks,
+      ctr,
+      cost,
+      cpc
+    }: {
+      campaignName: string;
+      subject: string;
+      startDate: string;
+      endDate: string;
+      impressions: number;
+      reach: number;
+      clicks: number;
+      ctr: number;
+      cost: number;
+      cpc: number;
+    } = req.body;
+    if (!campaignId) {
+      return res.status(400).json({ error: '캠페인 ID가 필요합니다.' });
+    }
+    // 캠페인 소유 및 karrot 플랫폼 확인
+    const campaignResult = await pool.query(
+      `SELECT c.id FROM campaigns c
+        JOIN marketing_accounts ma ON c.marketing_account_id = ma.id
+        WHERE c.id = ? AND ma.user_id = ? AND c.platform = 'karrot'`,
+      [campaignId, userId]
+    );
+    if (!campaignResult.rows || campaignResult.rows.length === 0) {
+      return res.status(404).json({ error: '해당 캠페인을 찾을 수 없습니다.' });
+    }
+    // 캠페인 정보 수정
+    await pool.query(
+      `UPDATE campaigns SET campaign_name = ?, start_date = ?, end_date = ? WHERE id = ?`,
+      [campaignName, startDate, endDate, campaignId]
+    );
+    // 메트릭 정보 수정 (기간 내 모든 날짜에 대해 upsert)
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+      const metricDate = d.toISOString().slice(0, 10);
+      // update 먼저 시도, 없으면 insert
+      const updateResult = await pool.query(
+        `UPDATE campaign_metrics SET impressions = ?, reach = ?, clicks = ?, ctr = ?, cost = ?, cpc = ? WHERE campaign_id = ? AND metric_date = ?`,
+        [impressions, reach, clicks, ctr, cost, cpc, campaignId, metricDate]
+      );
+      if (updateResult.affectedRows === 0) {
+        await pool.query(
+          `INSERT INTO campaign_metrics (campaign_id, metric_date, impressions, reach, clicks, ctr, cost, cpc, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
+          [campaignId, metricDate, impressions, reach, clicks, ctr, cost, cpc]
+        );
+      }
+    }
+    // subject는 별도 저장 테이블이 없으므로, 필요시 campaigns에 컬럼 추가 필요
+    return res.json({ success: true, message: '캠페인 정보가 수정되었습니다.' });
+  } catch (error) {
+    console.error('Karrot 캠페인 수정 오류:', error);
+    res.status(500).json({ error: '캠페인 수정 중 서버 오류가 발생했습니다.' });
+  }
+};
+/**
+ * 당근마켓 수동 입력 캠페인 삭제
+ * DELETE /api/v1/integration/karrot/manual/:campaignId
+ * (캠페인 및 관련 메트릭 모두 삭제)
+ */
+export const deleteKarrotManualCampaign = async (req: AuthRequest, res: Response) => {
+  try {
+    const { campaignId } = req.params;
+    const userId = req.user?.id;
+    if (!campaignId) {
+      return res.status(400).json({ error: '캠페인 ID가 필요합니다.' });
+    }
+    // 캠페인 소유 및 karrot 플랫폼 확인
+    const campaignResult = await pool.query(
+      `SELECT c.id FROM campaigns c
+        JOIN marketing_accounts ma ON c.marketing_account_id = ma.id
+        WHERE c.id = ? AND ma.user_id = ? AND c.platform = 'karrot'`,
+      [campaignId, userId]
+    );
+    if (!campaignResult.rows || campaignResult.rows.length === 0) {
+      return res.status(404).json({ error: '해당 캠페인을 찾을 수 없습니다.' });
+    }
+    // 메트릭 삭제
+    await pool.query('DELETE FROM campaign_metrics WHERE campaign_id = ?', [campaignId]);
+    // 캠페인 삭제
+    await pool.query('DELETE FROM campaigns WHERE id = ?', [campaignId]);
+    return res.json({ success: true, message: '캠페인이 삭제되었습니다.' });
+  } catch (error) {
+    console.error('Karrot 캠페인 삭제 오류:', error);
+    res.status(500).json({ error: '캠페인 삭제 중 서버 오류가 발생했습니다.' });
+  }
+};
+/**
+ * 당근마켓 광고 데이터 수동 입력 (사용자 입력 기반)
+ * POST /api/v1/integration/karrot/manual
+ * body: { campaignName, subject, startDate, endDate, impressions, reach, clicks, ctr, cost, cpc }
+ */
+export const crawlKarrotAdResultManual = async (req: AuthRequest, res: Response) => {
+  let conn;
+  try {
+    const {
+      campaignName,
+      subject,
+      startDate,
+      endDate,
+      impressions,
+      reach,
+      clicks,
+      ctr,
+      cost,
+      cpc
+    }: {
+      campaignName: string;
+      subject: string;
+      startDate: string;
+      endDate: string;
+      impressions: number;
+      reach: number;
+      clicks: number;
+      ctr: number;
+      cost: number;
+      cpc: number;
+    } = req.body;
+    const userId = req.user?.id;
+    if (!campaignName || !subject || !startDate || !endDate || impressions == null || reach == null || clicks == null || ctr == null || cost == null || cpc == null) {
+      return res.status(400).json({ error: '모든 항목을 입력해야 저장할 수 있습니다.' });
+    }
+    conn = await pool.connect();
+    try {
+      await conn.query('START TRANSACTION');
+      // 1. marketing_accounts: 'karrot' 계정 찾기/없으면 생성
+      let marketingAccountId: number | null = null;
+      const maRows = await conn.query(
+        `SELECT id FROM marketing_accounts WHERE user_id = ? AND channel_code = 'karrot' LIMIT 1`,
+        [userId]
+      );
+      if (maRows.rows && maRows.rows.length > 0) {
+        marketingAccountId = maRows.rows[0].id;
+      } else {
+        const maInsert = await conn.query(
+          `INSERT INTO marketing_accounts (user_id, channel_code, account_name, connection_status, created_at)
+           VALUES (?, 'karrot', '당근마켓 수동입력', 1, NOW())`,
+          [userId]
+        );
+        marketingAccountId = maInsert.insertId ?? null;
+        if (marketingAccountId === null) throw new Error('Failed to create marketing_account');
+      }
+      // 2. campaigns: 캠페인 저장
+      const campaignInsert = await conn.query(
+        `INSERT INTO campaigns (marketing_account_id, campaign_name, platform, status, start_date, end_date, created_at)
+         VALUES (?, ?, 'karrot', 'active', ?, ?, NOW())`,
+        [marketingAccountId, campaignName, startDate, endDate]
+      );
+      const campaignId = campaignInsert.insertId;
+      // 3. campaign_metrics: 메트릭 저장 (기간 내 모든 날짜에 대해 row 생성)
+      const start = new Date(startDate);
+      const end = new Date(endDate);
+      for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+        const metricDate = d.toISOString().slice(0, 10);
+        await conn.query(
+          `INSERT INTO campaign_metrics (campaign_id, metric_date, impressions, reach, clicks, ctr, cost, cpc, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
+          [campaignId, metricDate, impressions, reach, clicks, ctr, cost, cpc]
+        );
+      }
+      await conn.query('COMMIT');
+      return res.json({ success: true, message: '광고 데이터가 정상적으로 저장되었습니다.' });
+    } catch (err) {
+      if (conn) await conn.query('ROLLBACK');
+      throw err;
+    } finally {
+      if (conn) conn.release();
+    }
+  } catch (error) {
+    console.error('당근마켓 광고 수동 입력 저장 오류:', error);
+    res.status(500).json({ error: '광고 데이터 저장 중 서버 오류가 발생했습니다.' });
+  }
+};
+export const crawlKarrotAdResult = async (req: AuthRequest, res: Response) => {
+  try {
+    const { adUrl, sessionCookie } = req.body;
+    const userId = req.user?.id;
+    if (!adUrl || !sessionCookie) {
+      return res.status(400).json({ error: 'adUrl과 sessionCookie가 필요합니다.' });
+    }
+    // 크롤링 시도
+    let result: any = undefined;
+    try {
+      // TODO: Implement or import crawlKarrotAdResultService
+      // result = await crawlKarrotAdResultService(adUrl, sessionCookie);
+    } catch (err: any) {
+      return res.status(500).json({ error: err.message || '크롤링 실패' });
+    }
+    if (!result) {
+      return res.status(500).json({ error: '크롤링 결과가 없습니다.' });
+    }
+    // DB 저장 (예시: karrot_ad_results 테이블, 필요시 테이블 생성)
+    try {
+      await pool.query(
+        `INSERT INTO karrot_ad_results (user_id, campaign_name, impressions, clicks, cost, conversions, crawled_at, ad_url)
+         VALUES (?, ?, ?, ?, ?, ?, NOW(), ?)`,
+        [userId, result.campaignName, result.impressions, result.clicks, result.cost, result.conversions, adUrl]
+      );
+    } catch (dbErr: any) {
+      return res.status(500).json({ error: 'DB 저장 실패: ' + (dbErr.message || dbErr) });
+    }
+    return res.json({ success: true, message: '광고 데이터가 정상적으로 수집 및 저장되었습니다.', data: result });
+  } catch (error) {
+    console.error('당근마켓 광고 크롤링 오류:', error);
+    res.status(500).json({ error: '당근마켓 광고 크롤링 중 서버 오류가 발생했습니다.' });
+  }
+};
 import { Response } from 'express';
 import { AuthRequest } from '../middlewares/auth';
 import pool from '../config/database';

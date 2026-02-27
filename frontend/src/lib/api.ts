@@ -177,6 +177,43 @@ export const integrationAPI = {
   disconnect: (platform: string) =>
     api.delete(`/integration/disconnect/${platform}`),
 
+  // 🥕 당근마켓 광고 데이터 연동 (크롤링)
+  // adUrl: 광고 결과 페이지 URL, sessionCookie: 사용자의 세션 쿠키
+  connectKarrot: (adUrl: string, sessionCookie: string) =>
+    api.post('/integration/karrot', { adUrl, sessionCookie }),
+
+  // 🥕 당근마켓 광고 데이터 수동 입력
+  submitKarrotManual: (data: {
+    campaignName: string;
+    subject: string;
+    startDate: string;
+    endDate: string;
+    impressions: number;
+    reach: number;
+    clicks: number;
+    ctr: number;
+    cost: number;
+    cpc: number;
+  }) => api.post('/integration/karrot/manual', data),
+
+  // 🥕 당근마켓 수동 입력 캠페인 삭제
+  deleteKarrotManualCampaign: (campaignId: number) =>
+    api.delete(`/integration/karrot/manual/${campaignId}`),
+
+  // 🥕 당근마켓 수동 입력 캠페인 수정
+  updateKarrotManualCampaign: (campaignId: number, data: {
+    campaignName: string;
+    subject: string;
+    startDate: string;
+    endDate: string;
+    impressions: number;
+    reach: number;
+    clicks: number;
+    ctr: number;
+    cost: number;
+    cpc: number;
+  }) => api.put(`/integration/karrot/manual/${campaignId}`, data),
+
   // 📤 CSV 파일 업로드 (File 객체 필요)
   uploadCSV: (file: File) => {
     // FormData 생성 (파일 업로드용)
