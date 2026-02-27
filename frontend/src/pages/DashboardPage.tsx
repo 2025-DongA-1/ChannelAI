@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
-import { dashboardAPI, aiAgentAPI } from '@/lib/api';
+import { dashboardAPI, aiAgentAPI, campaignAPI } from '@/lib/api';
 import { formatCurrency, formatPercent, formatCompactNumber, getComparisonText, getPreviousDateRange, calculateChangeRate } from '@/lib/utils';
 import { 
   TrendingUp, MousePointerClick, DollarSign, Target, ArrowUp, ArrowDown, Calendar,
@@ -14,8 +14,10 @@ export default function DashboardPage() {
     endDate: '',
   });
   const [selectedPreset, setSelectedPreset] = useState('all');
+  const [activeTab, setActiveTab] = useState<'overall' | 'campaign'>('overall');
+  const [selectedCampaignId, setSelectedCampaignId] = useState<string>('all');
 
-  const comparisonText = dateRange.startDate && dateRange.endDate 
+  const comparisonText = dateRange.startDate && dateRange.endDate
     ? getComparisonText(dateRange.startDate, dateRange.endDate)
     : '';
 
@@ -37,7 +39,76 @@ export default function DashboardPage() {
     ),
   });
 
+  // 👇 1. 캠페인 목록 불러오기 (드롭다운용)
+  const { data: campaignsList } = useQuery({
+    queryKey: ['campaigns'],
+    queryFn: () => campaignAPI.getCampaigns(),
+  });
+  const campaigns = campaignsList?.data?.campaigns || [];
+
+  // 🌟 요청 1 해결: 탭을 눌렀을 때 가장 상위(첫 번째) 캠페인이 자동 선택되게 합니다!
+  useEffect(() => {
+    if (activeTab === 'campaign' && selectedCampaignId === 'all' && campaigns.length > 0) {
+      setSelectedCampaignId(String(campaigns[0].id));
+    }
+  }, [activeTab, selectedCampaignId, campaigns.length]);
+
   const prevDates = getPreviousDateRange(dateRange.startDate, dateRange.endDate);
+
+  // 🌟 요청 2 해결: 프론트엔드에서 데이터를 기간별로 직접 쪼개줍니다!
+  // 일단 해당 캠페인의 전체 데이터를 다 가져옵니다.
+  const { data: selectedCampaignMetrics } = useQuery({
+    queryKey: ['campaign-metrics', selectedCampaignId],
+    queryFn: () => campaignAPI.getMetrics(Number(selectedCampaignId)),
+    enabled: selectedCampaignId !== 'all',
+  });
+  
+  const allCampaignMetrics = selectedCampaignMetrics?.data?.metrics || [];
+  
+  // 👇 현재 기간(dateRange)에 해당하는 데이터만 필터링
+  const campaignMetricsData = allCampaignMetrics.filter((m: any) => {
+    if (!dateRange.startDate || !dateRange.endDate) return true; // 전체 기간
+    const mDate = (m.date || m.metric_date || m.metricDate || '').split('T')[0];
+    if (!mDate) return true;
+    return mDate >= dateRange.startDate && mDate <= dateRange.endDate;
+  });
+
+  // 👇 이전 기간(prevDates)에 해당하는 데이터만 필터링 (증감률 계산용)
+  const prevCampaignMetricsData = allCampaignMetrics.filter((m: any) => {
+    if (!prevDates) return false; // 전체 기간이면 이전 데이터는 없음
+    const mDate = (m.date || m.metric_date || m.metricDate || '').split('T')[0];
+    if (!mDate) return false;
+    return mDate >= prevDates.startDate && mDate <= prevDates.endDate;
+  });
+  
+  // 👇 4. 개별 캠페인 데이터 총합 계산기 (현재 기간)
+  const campaignTotals = campaignMetricsData.reduce(
+    (acc: any, m: any) => ({
+      impressions: acc.impressions + (Number(m.impressions) || 0),
+      clicks: acc.clicks + (Number(m.clicks) || 0),
+      conversions: acc.conversions + (Number(m.conversions) || 0),
+      cost: acc.cost + (Number(m.cost) || 0),
+      revenue: acc.revenue + (Number(m.revenue) || 0),
+    }),
+    { impressions: 0, clicks: 0, conversions: 0, cost: 0, revenue: 0 }
+  );
+
+  // 👇 5. 개별 캠페인 데이터 총합 계산기 (이전 기간)
+  const prevCampaignTotals = prevCampaignMetricsData.reduce(
+    (acc: any, m: any) => ({
+      impressions: acc.impressions + (Number(m.impressions) || 0),
+      clicks: acc.clicks + (Number(m.clicks) || 0),
+      conversions: acc.conversions + (Number(m.conversions) || 0),
+      cost: acc.cost + (Number(m.cost) || 0),
+      revenue: acc.revenue + (Number(m.revenue) || 0),
+    }),
+    { impressions: 0, clicks: 0, conversions: 0, cost: 0, revenue: 0 }
+  );
+  
+  // CTR, CPC, ROAS 비율 계산
+  const campaignCtr = campaignTotals.impressions > 0 ? (campaignTotals.clicks / campaignTotals.impressions) * 100 : 0;
+  const campaignCpc = campaignTotals.clicks > 0 ? campaignTotals.cost / campaignTotals.clicks : 0;
+  const campaignRoas = campaignTotals.cost > 0 ? campaignTotals.revenue / campaignTotals.cost : 0;
 
   const { data: prevSummary } = useQuery({
     queryKey: ['dashboard-summary-prev', prevDates?.startDate, prevDates?.endDate],
@@ -147,6 +218,30 @@ export default function DashboardPage() {
         </button>
       </div>
 
+      {/* 👇 탭 버튼 영역 추가! */}
+      <div className="flex border-b border-gray-200 mt-2 mb-2">
+        <button
+          onClick={() => setActiveTab('overall')}
+          className={`py-3 px-6 text-sm font-bold border-b-2 transition-colors ${
+            activeTab === 'overall'
+              ? 'border-blue-600 text-blue-600'
+              : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+          }`}
+        >
+          전체 성과 요약
+        </button>
+        <button
+          onClick={() => setActiveTab('campaign')}
+          className={`py-3 px-6 text-sm font-bold border-b-2 transition-colors ${
+            activeTab === 'campaign'
+              ? 'border-blue-600 text-blue-600'
+              : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+          }`}
+        >
+          캠페인별 성과 요약
+        </button>
+      </div>
+
       {/* Date Range Filter */}
       <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
         <div className="flex flex-wrap items-center gap-4">
@@ -241,8 +336,11 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Main Metrics Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      {/* 👇 탭에 따른 콘텐츠 렌더링 시작! */}
+      {activeTab === 'overall' ? (
+        <div className="space-y-6">
+          {/* Main Metrics Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <MetricCard
           title="총 노출수"
           value={formatCompactNumber(metrics?.impressions || 0)}
@@ -576,6 +674,117 @@ export default function DashboardPage() {
           </div>
         </div>
       </div>
+        </div>
+      ) : (
+        /* 👇 캠페인별 상세 성과 탭 화면 */
+        <div className="space-y-6">
+          
+          {/* 1. 캠페인 선택 드롭다운 */}
+          <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex items-center gap-4">
+            <span className="font-semibold text-gray-700">분석할 캠페인:</span>
+            <select
+              value={selectedCampaignId}
+              onChange={(e) => setSelectedCampaignId(e.target.value)}
+              className="flex-1 max-w-md px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+            >
+              {/* 자동 선택되므로 빈 안내 문구는 깔끔하게 삭제했어요! 👇 */}
+              {campaigns.map((camp: any) => (
+                <option key={camp.id} value={camp.id}>
+                  [{camp.platform.toUpperCase()}] {camp.campaign_name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* 2. 캠페인 선택 유무에 따른 화면 렌더링 */}
+          {selectedCampaignId === 'all' ? (
+            <div className="bg-white p-16 text-center rounded-xl border border-gray-100 shadow-sm mt-2">
+              <Target className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+              <h3 className="text-xl font-bold text-gray-900 mb-2">캠페인 성과 분석</h3>
+              <p className="text-gray-500">위의 드롭다운에서 개별 캠페인을 선택하시면 상세 성과가 나타납니다.</p>
+            </div>
+          ) : (
+            <div className="space-y-6 mt-2">
+              {/* 메인 요약 카드 (전체 성과 탭과 똑같은 스타일!) */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <MetricCard
+                  title="총 노출수"
+                  value={formatCompactNumber(campaignTotals.impressions)}
+                  change={prevDates ? calculateChangeRate(campaignTotals.impressions, prevCampaignTotals.impressions) : undefined}
+                  comparisonText={comparisonText}
+                  icon={TrendingUp}
+                  color="blue"
+                />
+                <MetricCard
+                  title="총 클릭수"
+                  value={formatCompactNumber(campaignTotals.clicks)}
+                  change={prevDates ? calculateChangeRate(campaignTotals.clicks, prevCampaignTotals.clicks) : undefined}
+                  comparisonText={comparisonText}
+                  icon={MousePointerClick}
+                  color="green"
+                />
+                <MetricCard
+                  title="총 광고비"
+                  value={formatCurrency(campaignTotals.cost)}
+                  change={prevDates ? calculateChangeRate(campaignTotals.cost, prevCampaignTotals.cost) : undefined}
+                  comparisonText={comparisonText}
+                  icon={DollarSign}
+                  color="yellow"
+                />
+                <MetricCard
+                  title="전환수"
+                  value={formatCompactNumber(campaignTotals.conversions)}
+                  change={prevDates ? calculateChangeRate(campaignTotals.conversions, prevCampaignTotals.conversions) : undefined}
+                  comparisonText={comparisonText}
+                  icon={Target}
+                  color="purple"
+                />
+              </div>
+
+              {/* 디테일 지표 및 벤치마크 카드 */}
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <PerformanceMetricCard
+                  title="캠페인 클릭률 (CTR)"
+                  subtitle="광고를 본 사람 중 클릭한 비율"
+                  value={campaignCtr}
+                  format="percent"
+                  benchmarks={{ good: 3.5, average: 2.0, poor: 1.0 }}
+                  advice={{
+                    good: "해당 캠페인의 소재가 타겟에게 아주 매력적입니다!",
+                    average: "무난한 수준입니다. A/B 테스트로 더 최적화할 수 있어요.",
+                    poor: "클릭률이 낮습니다. 눈에 띄는 문구나 이미지로 교체해보세요."
+                  }}
+                />
+                <PerformanceMetricCard
+                  title="클릭당 비용 (CPC)"
+                  subtitle="클릭 한 번당 지불한 캠페인 평균 비용"
+                  value={campaignCpc}
+                  format="currency"
+                  benchmarks={{ good: 500, average: 1000, poor: 2000 }}
+                  isLowerBetter={true}
+                  advice={{
+                    good: "비용 효율이 좋습니다. 현재 입찰 전략을 유지하세요.",
+                    average: "예산이 적절히 소진되고 있습니다. 타겟팅을 정교하게 다듬어보세요.",
+                    poor: "클릭당 비용이 너무 비쌉니다. 키워드나 타겟의 경쟁도를 확인하세요."
+                  }}
+                />
+                <PerformanceMetricCard
+                  title="광고 수익률 (ROAS)"
+                  subtitle="이 캠페인이 벌어들인 매출 효율"
+                  value={campaignRoas}
+                  format="multiplier"
+                  benchmarks={{ good: 4.0, average: 2.5, poor: 1.5 }}
+                  advice={{
+                    good: "ROAS가 매우 높습니다! 이 캠페인에 예산을 더 투자해보세요.",
+                    average: "손익분기점을 넘기는 수준입니다. 구매 전환율을 높일 방법을 찾아보세요.",
+                    poor: "수익성이 저조합니다. 캠페인 운영 중단을 고려하거나 타겟을 전면 수정하세요."
+                  }}
+                />
+              </div>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

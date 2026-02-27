@@ -124,8 +124,9 @@ export const campaignAPI = {
   // 캠페인 삭제 (캠페인 ID 필요)
   deleteCampaign: (id: number) => api.delete(`/campaigns/${id}`),
   
-  // 특정 캠페인의 성과 지표 조회 (캠페인 ID 필요)
-  getMetrics: (id: number) => api.get(`/campaigns/${id}/metrics`),
+  // 👇 특정 캠페인의 성과 지표 조회 (캠페인 ID, 그리고 날짜 파라미터도 받도록 수정!)
+  getMetrics: (id: number, params?: { startDate?: string; endDate?: string }) => 
+    api.get(`/campaigns/${id}/metrics`, { params }),
 };
 
 // 🔑 광고 계정 관련 API 함수 모음
