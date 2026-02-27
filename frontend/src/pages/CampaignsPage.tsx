@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { campaignAPI, budgetAPI } from '@/lib/api';
 import { formatCurrency, formatPercent, getStatusColor, getPlatformColor } from '@/lib/utils';
-import { Plus, Search, Filter, RefreshCw, DollarSign, TrendingUp, AlertTriangle, Edit, Check, X, Trash2 } from 'lucide-react';
+import { Plus, Search, Filter, RefreshCw, TrendingUp, AlertTriangle, Edit, Check, X, Trash2 } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recharts';
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'];
