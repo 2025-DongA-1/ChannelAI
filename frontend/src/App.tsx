@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useNavigate, Link } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useAuthStore } from './store/authStore';
 import LoginPage from './pages/LoginPage';
@@ -12,6 +12,12 @@ import InsightsPage from './pages/InsightsPage';
 import PrivacyPolicyPage from './pages/PrivacyPolicyPage';
 import TermsOfServicePage from './pages/TermsOfServicePage';
 import DummyDataPage from './pages/DummyDataPage';
+import MyPage from './pages/MyPage';
+import AdvancedModelTestPage from './pages/AdvancedModelTestPage';
+import EmailReportPage from './pages/EmailReportPage';
+import MarketingAnalysis from './pages/MarketingAnalysis';
+import logo from "./assets/logo_crop.png";
+
 
 // Placeholder components (to be created)
 const AccountsPage = () => <div className="p-8">계정 관리 (구현 필요)</div>;
@@ -35,15 +41,24 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between h-16">
             <div className="flex items-center">
-              <h1 className="text-xl font-bold text-blue-600">Marketing AI Platform</h1>
+              <Link to="/dashboard" className="flex items-center">
+                <img
+                  src={logo}
+                  alt="PLAN BE"
+                  className="h-12 w-auto object-contain"
+                />
+              </Link>
             </div>
             <div className="flex items-center space-x-4">
-              <a href="/dashboard" className="text-gray-700 hover:text-gray-900">대시보드</a>
-              <a href="/campaigns" className="text-gray-700 hover:text-gray-900">캠페인 & 예산</a>
-              <a href="/integration" className="text-gray-700 hover:text-gray-900">연동</a>
-              <a href="/insights" className="text-gray-700 hover:text-gray-900">인사이트</a>
+              <Link to="/dashboard" className="text-gray-700 hover:text-gray-900">대시보드</Link>
+              <Link to="/campaigns" className="text-gray-700 hover:text-gray-900">캠페인 & 예산</Link>
+              <Link to="/integration" className="text-gray-700 hover:text-gray-900">연동</Link>
+              <Link to="/analysis" className="text-gray-700 hover:text-gray-900">AI 예산 분석</Link>
+              <Link to="/insights" className="text-gray-700 hover:text-gray-900">인사이트</Link>
               <div className="flex items-center space-x-2 ml-4 pl-4 border-l">
-                <span className="text-sm text-gray-600">{user?.name}</span>
+                <Link to="/me" className="text-sm text-gray-600 hover:text-gray-900 cursor-pointer font-medium">
+                  {user?.name || user?.email?.split('@')[0] || '사용자'}
+                </Link>
                 <button
                   onClick={handleLogout}
                   className="px-3 py-1 text-sm text-red-600 hover:bg-red-50 rounded transition"
@@ -151,12 +166,58 @@ function App() {
             }
           />
 
+            {/* ★ [추가] AI 분석 페이지 라우트 */}
+          <Route
+            path="/analysis"
+            element={
+              <PrivateRoute>
+                <Layout>
+                  <MarketingAnalysis />
+                </Layout>
+              </PrivateRoute>
+            }
+          />
+
+
           <Route
             path="/dummy-data"
             element={
               <PrivateRoute>
                 <Layout>
                   <DummyDataPage />
+                </Layout>
+              </PrivateRoute>
+            }
+          />
+
+          <Route
+            path="/advanced-model-test"
+            element={
+              <PrivateRoute>
+                <Layout>
+                  <AdvancedModelTestPage />
+                </Layout>
+              </PrivateRoute>
+            }
+          />
+
+          <Route
+            path="/me"
+            element={
+              <PrivateRoute>
+                <Layout>
+                  <MyPage />
+                </Layout>
+              </PrivateRoute>
+            }
+          />
+
+          <Route
+            path="/email-report"
+            element={
+              <PrivateRoute>
+                <Layout>
+                  <EmailReportPage />
                 </Layout>
               </PrivateRoute>
             }

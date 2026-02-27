@@ -1,0 +1,6 @@
+Flask==3.0.0
+flask-cors==4.0.0
+numpy
+pandas
+scikit-learn==1.8.0
+xgboost

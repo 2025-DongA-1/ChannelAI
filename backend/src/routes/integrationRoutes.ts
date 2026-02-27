@@ -9,11 +9,20 @@ import {
   syncAllMetrics,
   disconnectAccount,
   uploadCSV,
-  connectPlatform
+  exportCSV,
+  connectPlatform,
+  crawlKarrotAdResult,
+  crawlKarrotAdResultManual,
+  deleteKarrotManualCampaign,
+  updateKarrotManualCampaign
 } from '../controllers/integrationController';
 import { authenticate } from '../middlewares/auth';
 
 const router = Router();
+// 🥕 당근마켓 광고 데이터 수동 입력/수정/삭제
+router.post('/karrot/manual', authenticate, crawlKarrotAdResultManual);
+router.delete('/karrot/manual/:campaignId', authenticate, deleteKarrotManualCampaign);
+router.put('/karrot/manual/:campaignId', authenticate, updateKarrotManualCampaign);
 
 // Multer 설정
 // Multer 설정
@@ -45,7 +54,13 @@ router.post('/sync/all', authenticate, syncAllMetrics);
 // CSV 업로드 ( Ad-Mate 기능 이식 )
 router.post('/upload/csv', authenticate, upload.single('file'), uploadCSV);
 
+// DB CSV 추출 다운로드
+router.get('/export/csv', authenticate, exportCSV);
+
 // 계정 연동 해제 (인증 필요)
 router.delete('/disconnect/:platform', authenticate, disconnectAccount);
+
+// 🥕 당근마켓 광고 결과 크롤링 (사용자 입력 기반)
+router.post('/karrot', authenticate, crawlKarrotAdResult);
 
 export default router;

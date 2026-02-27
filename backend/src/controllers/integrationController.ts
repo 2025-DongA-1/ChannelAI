@@ -1,3 +1,230 @@
+/**
+ * 당근마켓 수동 입력 캠페인 수정 (기간/성과)
+ * PUT /api/v1/integration/karrot/manual/:campaignId
+ * body: { campaignName, subject, startDate, endDate, impressions, reach, clicks, ctr, cost, cpc }
+ */
+export const updateKarrotManualCampaign = async (req: AuthRequest, res: Response) => {
+  try {
+    const { campaignId } = req.params;
+    const userId = req.user?.id;
+    const {
+      campaignName,
+      subject,
+      startDate,
+      endDate,
+      impressions,
+      reach,
+      clicks,
+      ctr,
+      cost,
+      cpc
+    }: {
+      campaignName: string;
+      subject: string;
+      startDate: string;
+      endDate: string;
+      impressions: number;
+      reach: number;
+      clicks: number;
+      ctr: number;
+      cost: number;
+      cpc: number;
+    } = req.body;
+    if (!campaignId) {
+      return res.status(400).json({ error: '캠페인 ID가 필요합니다.' });
+    }
+    // 캠페인 소유 및 karrot 플랫폼 확인
+    const campaignResult = await pool.query(
+      `SELECT c.id FROM campaigns c
+        JOIN marketing_accounts ma ON c.marketing_account_id = ma.id
+        WHERE c.id = ? AND ma.user_id = ? AND c.platform = 'karrot'`,
+      [campaignId, userId]
+    );
+    if (!campaignResult.rows || campaignResult.rows.length === 0) {
+      return res.status(404).json({ error: '해당 캠페인을 찾을 수 없습니다.' });
+    }
+    // 캠페인 정보 수정
+    await pool.query(
+      `UPDATE campaigns SET campaign_name = ?, start_date = ?, end_date = ? WHERE id = ?`,
+      [campaignName, startDate, endDate, campaignId]
+    );
+    // 메트릭 정보 수정 (기간 내 모든 날짜에 대해 upsert)
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+      const metricDate = d.toISOString().slice(0, 10);
+      // update 먼저 시도, 없으면 insert
+      const updateResult = await pool.query(
+        `UPDATE campaign_metrics SET impressions = ?, reach = ?, clicks = ?, ctr = ?, cost = ?, cpc = ? WHERE campaign_id = ? AND metric_date = ?`,
+        [impressions, reach, clicks, ctr, cost, cpc, campaignId, metricDate]
+      );
+      if (updateResult.affectedRows === 0) {
+        await pool.query(
+          `INSERT INTO campaign_metrics (campaign_id, metric_date, impressions, reach, clicks, ctr, cost, cpc, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
+          [campaignId, metricDate, impressions, reach, clicks, ctr, cost, cpc]
+        );
+      }
+    }
+    // subject는 별도 저장 테이블이 없으므로, 필요시 campaigns에 컬럼 추가 필요
+    return res.json({ success: true, message: '캠페인 정보가 수정되었습니다.' });
+  } catch (error) {
+    console.error('Karrot 캠페인 수정 오류:', error);
+    res.status(500).json({ error: '캠페인 수정 중 서버 오류가 발생했습니다.' });
+  }
+};
+/**
+ * 당근마켓 수동 입력 캠페인 삭제
+ * DELETE /api/v1/integration/karrot/manual/:campaignId
+ * (캠페인 및 관련 메트릭 모두 삭제)
+ */
+export const deleteKarrotManualCampaign = async (req: AuthRequest, res: Response) => {
+  try {
+    const { campaignId } = req.params;
+    const userId = req.user?.id;
+    if (!campaignId) {
+      return res.status(400).json({ error: '캠페인 ID가 필요합니다.' });
+    }
+    // 캠페인 소유 및 karrot 플랫폼 확인
+    const campaignResult = await pool.query(
+      `SELECT c.id FROM campaigns c
+        JOIN marketing_accounts ma ON c.marketing_account_id = ma.id
+        WHERE c.id = ? AND ma.user_id = ? AND c.platform = 'karrot'`,
+      [campaignId, userId]
+    );
+    if (!campaignResult.rows || campaignResult.rows.length === 0) {
+      return res.status(404).json({ error: '해당 캠페인을 찾을 수 없습니다.' });
+    }
+    // 메트릭 삭제
+    await pool.query('DELETE FROM campaign_metrics WHERE campaign_id = ?', [campaignId]);
+    // 캠페인 삭제
+    await pool.query('DELETE FROM campaigns WHERE id = ?', [campaignId]);
+    return res.json({ success: true, message: '캠페인이 삭제되었습니다.' });
+  } catch (error) {
+    console.error('Karrot 캠페인 삭제 오류:', error);
+    res.status(500).json({ error: '캠페인 삭제 중 서버 오류가 발생했습니다.' });
+  }
+};
+/**
+ * 당근마켓 광고 데이터 수동 입력 (사용자 입력 기반)
+ * POST /api/v1/integration/karrot/manual
+ * body: { campaignName, subject, startDate, endDate, impressions, reach, clicks, ctr, cost, cpc }
+ */
+export const crawlKarrotAdResultManual = async (req: AuthRequest, res: Response) => {
+  let conn;
+  try {
+    const {
+      campaignName,
+      subject,
+      startDate,
+      endDate,
+      impressions,
+      reach,
+      clicks,
+      ctr,
+      cost,
+      cpc
+    }: {
+      campaignName: string;
+      subject: string;
+      startDate: string;
+      endDate: string;
+      impressions: number;
+      reach: number;
+      clicks: number;
+      ctr: number;
+      cost: number;
+      cpc: number;
+    } = req.body;
+    const userId = req.user?.id;
+    if (!campaignName || !subject || !startDate || !endDate || impressions == null || reach == null || clicks == null || ctr == null || cost == null || cpc == null) {
+      return res.status(400).json({ error: '모든 항목을 입력해야 저장할 수 있습니다.' });
+    }
+    conn = await pool.connect();
+    try {
+      await conn.query('START TRANSACTION');
+      // 1. marketing_accounts: 'karrot' 계정 찾기/없으면 생성
+      let marketingAccountId: number | null = null;
+      const maRows = await conn.query(
+        `SELECT id FROM marketing_accounts WHERE user_id = ? AND channel_code = 'karrot' LIMIT 1`,
+        [userId]
+      );
+      if (maRows.rows && maRows.rows.length > 0) {
+        marketingAccountId = maRows.rows[0].id;
+      } else {
+        const maInsert = await conn.query(
+          `INSERT INTO marketing_accounts (user_id, channel_code, account_name, connection_status, created_at)
+           VALUES (?, 'karrot', '당근마켓 수동입력', 1, NOW())`,
+          [userId]
+        );
+        marketingAccountId = maInsert.insertId ?? null;
+        if (marketingAccountId === null) throw new Error('Failed to create marketing_account');
+      }
+      // 2. campaigns: 캠페인 저장
+      const campaignInsert = await conn.query(
+        `INSERT INTO campaigns (marketing_account_id, campaign_name, platform, status, start_date, end_date, created_at)
+         VALUES (?, ?, 'karrot', 'active', ?, ?, NOW())`,
+        [marketingAccountId, campaignName, startDate, endDate]
+      );
+      const campaignId = campaignInsert.insertId;
+      // 3. campaign_metrics: 메트릭 저장 (기간 내 모든 날짜에 대해 row 생성)
+      const start = new Date(startDate);
+      const end = new Date(endDate);
+      for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+        const metricDate = d.toISOString().slice(0, 10);
+        await conn.query(
+          `INSERT INTO campaign_metrics (campaign_id, metric_date, impressions, reach, clicks, ctr, cost, cpc, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
+          [campaignId, metricDate, impressions, reach, clicks, ctr, cost, cpc]
+        );
+      }
+      await conn.query('COMMIT');
+      return res.json({ success: true, message: '광고 데이터가 정상적으로 저장되었습니다.' });
+    } catch (err) {
+      if (conn) await conn.query('ROLLBACK');
+      throw err;
+    } finally {
+      if (conn) conn.release();
+    }
+  } catch (error) {
+    console.error('당근마켓 광고 수동 입력 저장 오류:', error);
+    res.status(500).json({ error: '광고 데이터 저장 중 서버 오류가 발생했습니다.' });
+  }
+};
+export const crawlKarrotAdResult = async (req: AuthRequest, res: Response) => {
+  try {
+    const { adUrl, sessionCookie } = req.body;
+    const userId = req.user?.id;
+    if (!adUrl || !sessionCookie) {
+      return res.status(400).json({ error: 'adUrl과 sessionCookie가 필요합니다.' });
+    }
+    // 크롤링 시도
+    let result: any = undefined;
+    try {
+      // TODO: Implement or import crawlKarrotAdResultService
+      // result = await crawlKarrotAdResultService(adUrl, sessionCookie);
+    } catch (err: any) {
+      return res.status(500).json({ error: err.message || '크롤링 실패' });
+    }
+    if (!result) {
+      return res.status(500).json({ error: '크롤링 결과가 없습니다.' });
+    }
+    // DB 저장 (예시: karrot_ad_results 테이블, 필요시 테이블 생성)
+    try {
+      await pool.query(
+        `INSERT INTO karrot_ad_results (user_id, campaign_name, impressions, clicks, cost, conversions, crawled_at, ad_url)
+         VALUES (?, ?, ?, ?, ?, ?, NOW(), ?)`,
+        [userId, result.campaignName, result.impressions, result.clicks, result.cost, result.conversions, adUrl]
+      );
+    } catch (dbErr: any) {
+      return res.status(500).json({ error: 'DB 저장 실패: ' + (dbErr.message || dbErr) });
+    }
+    return res.json({ success: true, message: '광고 데이터가 정상적으로 수집 및 저장되었습니다.', data: result });
+  } catch (error) {
+    console.error('당근마켓 광고 크롤링 오류:', error);
+    res.status(500).json({ error: '당근마켓 광고 크롤링 중 서버 오류가 발생했습니다.' });
+  }
+};
 import { Response } from 'express';
 import { AuthRequest } from '../middlewares/auth';
 import pool from '../config/database';
@@ -87,7 +314,7 @@ export const handleOAuthCallback = async (req: AuthRequest, res: Response) => {
     // 계정 정보 조회
     const accounts = await service.getAccounts(credentials.accessToken);
 
-    // 첫 번째 계정을 DB에 저장
+    // 계정 정보를 DB에 저장 (계정이 없어도 OAuth 연결은 저장)
     if (accounts.length > 0) {
       const account = accounts[0];
       
@@ -105,6 +332,26 @@ export const handleOAuthCallback = async (req: AuthRequest, res: Response) => {
         platform,
         account.id,
         account.name,
+        credentials.accessToken,
+        credentials.refreshToken
+      ]);
+    } else {
+      // 계정 목록은 못 가져왔지만 OAuth 인증은 성공 → 연결 저장
+      console.log(`[${platform}] 계정 목록 0개, OAuth 연결만 저장`);
+      await pool.query(`
+        INSERT INTO marketing_accounts (
+          user_id, channel_code, external_account_id, account_name,
+          access_token, refresh_token, connection_status
+        ) VALUES (?, ?, ?, ?, ?, ?, 1)
+        ON DUPLICATE KEY UPDATE
+          access_token = VALUES(access_token),
+          refresh_token = VALUES(refresh_token),
+          connection_status = 1
+      `, [
+        userId,
+        platform,
+        'oauth_connected',
+        `${platform.charAt(0).toUpperCase() + platform.slice(1)} Ads (OAuth)`,
         credentials.accessToken,
         credentials.refreshToken
       ]);
@@ -392,12 +639,12 @@ export const syncAllMetrics = async (req: AuthRequest, res: Response) => {
             const insertResult = await pool.query(`
               INSERT INTO campaigns (
                 marketing_account_id, external_campaign_id,
-                campaign_name, status, daily_budget, total_budget
-              ) VALUES (?, ?, ?, ?, ?, ?)
+                campaign_name, status, daily_budget, total_budget, platform
+              ) VALUES (?, ?, ?, ?, ?, ?, ?)
             `, [
               account.id, campaign.id,
               campaign.name, campaign.status, campaign.budget?.daily,
-              campaign.budget?.total
+              campaign.budget?.total, account.channel_code || 'meta'
             ]);
             dbCampaignId = insertResult.insertId!;
             syncedCampaigns++;
@@ -449,6 +696,70 @@ export const syncAllMetrics = async (req: AuthRequest, res: Response) => {
 
         totalCampaigns += campaigns.length;
         totalMetrics += syncedMetrics;
+
+        // [중요] campaigns 루프 이후, meta 계정이면 광고 계정 insights 별도 저장
+        if (account.channel_code === 'meta') {
+          const accountMetrics = await service.getMetrics(
+            account.access_token,
+            account.external_account_id,
+            '', // campaignId 없이 호출
+            startDate,
+            endDate
+          );
+          console.log('[Sync All][DEBUG] 광고 계정 insights 반환값:', JSON.stringify(accountMetrics, null, 2));
+
+          // 1. 집계용 가상 캠페인 campaigns 테이블에 생성/조회 (컬럼 개수 맞춤)
+          const aggExternalCampaignId = `meta_account_${account.external_account_id}`;
+          let aggCampaignId: number | null = null;
+          const aggCampaignResult = await pool.query(
+            'SELECT id FROM campaigns WHERE marketing_account_id = ? AND external_campaign_id = ?',
+            [account.id, aggExternalCampaignId]
+          );
+          if (aggCampaignResult.rows.length > 0) {
+            aggCampaignId = aggCampaignResult.rows[0].id;
+          } else {
+            const insertResult = await pool.query(
+              `INSERT INTO campaigns (
+                marketing_account_id, external_campaign_id, campaign_name, status, daily_budget, total_budget, platform, objective, start_date, end_date
+              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+              [account.id, aggExternalCampaignId, 'Meta 계정 전체 집계', 'active', 0, 0, account.channel_code || 'meta', null, null, null]
+            );
+            aggCampaignId = insertResult.insertId!;
+          }
+
+          // 2. campaign_metrics에 저장
+          for (const metric of accountMetrics) {
+            if (!aggCampaignId) continue;
+            const existing = await pool.query(
+              'SELECT id FROM campaign_metrics WHERE campaign_id = ? AND metric_date = ?',
+              [aggCampaignId, metric.date]
+            );
+            if (existing.rows.length > 0) {
+              await pool.query(`
+                UPDATE campaign_metrics
+                SET impressions = ?, clicks = ?, conversions = ?,
+                    cost = ?, revenue = ?
+                WHERE campaign_id = ? AND metric_date = ?
+              `, [
+                metric.impressions, metric.clicks, metric.conversions,
+                metric.cost, metric.revenue || 0,
+                aggCampaignId, metric.date
+              ]);
+            } else {
+              await pool.query(`
+                INSERT INTO campaign_metrics (
+                  campaign_id, metric_date, impressions, clicks, conversions,
+                  cost, revenue
+                ) VALUES (?, ?, ?, ?, ?, ?, ?)
+              `, [
+                aggCampaignId, metric.date,
+                metric.impressions, metric.clicks, metric.conversions,
+                metric.cost, metric.revenue || 0
+              ]);
+            }
+            totalMetrics++;
+          }
+        }
 
         console.log(`[Sync All] ${account.channel_code} 완료: 캠페인 ${campaigns.length}, 메트릭 ${syncedMetrics}`);
 
@@ -645,6 +956,7 @@ export const uploadCSV = async (req: AuthRequest, res: Response) => {
 
   const userId = req.user?.id;
   const filePath = file.path;
+  const tempPath = filePath + '_clean.csv'; // tempPath 선언을 try 밖으로 이동
   const startTime = new Date();
   let firstAccountId: number | null = null;
 
@@ -668,7 +980,6 @@ export const uploadCSV = async (req: AuthRequest, res: Response) => {
     }
 
     const cleanContent = lines.slice(headerRowIndex).join('\n');
-    const tempPath = filePath + '_clean.csv';
     fs.writeFileSync(tempPath, cleanContent, 'utf-8');
 
     const results: any[] = [];
@@ -681,18 +992,6 @@ export const uploadCSV = async (req: AuthRequest, res: Response) => {
         .on('end', resolve)
         .on('error', reject);
     });
-
-    const mapPlatformName = (rawPlatform: string) => {
-        if (!rawPlatform) return 'other';
-        const p = rawPlatform.toLowerCase().trim();
-        if (p.includes('facebook') || p.includes('페이스북') || p.includes('insta')) return 'meta';
-        if (p.includes('google') || p.includes('구글') || p.includes('youtube')) return 'google';
-        if (p.includes('kakao') || p.includes('카카오')) return 'kakao';
-        if (p.includes('naver') || p.includes('네이버')) return 'naver';
-        if (p.includes('tiktok') || p.includes('틱톡')) return 'tiktok';
-        if (p.includes('karrot') || p.includes('당근')) return 'karrot';
-        return 'other';
-    };
 
     const parseNumber = (val: any) => {
         if (!val) return 0;
@@ -725,20 +1024,18 @@ export const uploadCSV = async (req: AuthRequest, res: Response) => {
         const conversions = parseNumber(getVal(['설치', 'conversions', '전환', 'installs']));
         const sales = parseNumber(getVal(['매출', 'sales', 'revenue']));
 
-        // 0. 채널 정보 보장 (규격화 제거로 인해 새로운 매체명이 들어올 수 있음)
-        // DB 스키마: name(UNI, NN), channel_code(YES), display_name(NN)
+        // 0. 채널 정보 보장
         try {
             await pool.query(
                 'INSERT IGNORE INTO channels (name, channel_code, display_name) VALUES (?, ?, ?)',
                 [platform, platform, platform]
             );
         } catch (e) {
-            // 채널 삽입 실패시 무시 (이미 존재하거나 다른 에러)
             console.warn('Channel insertion warning:', e);
         }
 
         // 1. 마케팅 계정 처리
-        const externalAccountId = `imported_${platform}_${userId}`; // 유저별 고유 계정 아이디 생성
+        const externalAccountId = `imported_${platform}_${userId}`;
         const { rows: accounts } = await pool.query(
             'SELECT id FROM marketing_accounts WHERE user_id = ? AND channel_code = ? AND external_account_id = ?',
             [userId, platform, externalAccountId]
@@ -750,7 +1047,6 @@ export const uploadCSV = async (req: AuthRequest, res: Response) => {
                 'INSERT INTO marketing_accounts (user_id, channel_code, external_account_id, account_name, connection_status) VALUES (?, ?, ?, ?, 1)',
                 [userId, platform, externalAccountId, `${platform}_계정_${userId}`]
             );
-            // database.ts wrapper에서 insertId는 결과 객체 바로 아래에 있습니다.
             accountId = result.insertId!;
         } else {
             accountId = accounts[0].id;
@@ -759,12 +1055,9 @@ export const uploadCSV = async (req: AuthRequest, res: Response) => {
         if (!firstAccountId) firstAccountId = accountId;
 
         // 2. 캠페인 처리
-        // external_campaign_id는 CSV 내 캠페인명 + userid 조합 등을 사용해 유니크하게 생성
         const externalCampaignId = `csv_${campaignName}_${userId}`;
         
-        let campaignId: number;
-        // platform 컬럼 명시적 추가
-        const campResult = await pool.query(
+        await pool.query(
             `
             INSERT INTO campaigns (marketing_account_id, external_campaign_id, campaign_name, status, platform)
             VALUES (?, ?, ?, 'active', ?)
@@ -778,10 +1071,9 @@ export const uploadCSV = async (req: AuthRequest, res: Response) => {
         );
         
         if (campaigns.length === 0) continue;
-        campaignId = campaigns[0].id;
+        const campaignId = campaigns[0].id;
 
         // 3. 지표 처리
-        // 날짜 형식이 2024.01.01, 2024/01/01 형태일 경우 DB 입력을 위해 2024-01-01로 보정
         const formattedDate = rawDate.replace(/[\.\/]/g, '-');
 
         await pool.query(`
@@ -808,9 +1100,6 @@ export const uploadCSV = async (req: AuthRequest, res: Response) => {
         `, [firstAccountId, processedCount, startTime]);
     }
 
-    if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath);
-    if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
-
     return res.json({
         success: true,
         message: `${processedCount}개의 데이터가 성공적으로 업로드되었습니다.`,
@@ -820,7 +1109,6 @@ export const uploadCSV = async (req: AuthRequest, res: Response) => {
   } catch (error: any) {
     console.error('CSV 업로드 오류:', error);
     
-    // [디버깅] 상세 에러 로그 파일 기록 (백엔드 콘솔을 볼 수 없는 환경 대비)
     try {
         const logPath = path.join(__dirname, '../../error.log');
         const logContent = `\n[${new Date().toISOString()}] CSV Upload Error:\nMessage: ${error.message}\nSQL: ${error.sql || 'N/A'}\nStack: ${error.stack}\n-------------------\n`;
@@ -831,10 +1119,100 @@ export const uploadCSV = async (req: AuthRequest, res: Response) => {
 
     res.status(500).json({ 
         error: 'CSV_UPLOAD_ERROR', 
-        message: 'CSV 처리 중 오류가 발생했습니다. (서버 관리자에게 문의하세요)',
-        details: error.message,
-        sql: error.sql,
-        stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+        message: 'CSV 처리 중 오류가 발생했습니다.',
+        details: error.message
     });
+  } finally {
+    // 파일 삭제 보장 (성공/실패 여부 상관없이)
+    try {
+        if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath);
+        if (filePath && fs.existsSync(filePath)) fs.unlinkSync(filePath);
+        console.log('[CSV Upload] 임시 파일 삭제 완료');
+    } catch (unlinkErr) {
+        console.error('[CSV Upload] 파일 삭제 실패:', unlinkErr);
+    }
+  }
+};
+
+/**
+ * DB 데이터를 지정된 CSV 양식으로 생성 후 다운로드
+ * GET /api/v1/integration/export/csv
+ */
+export const exportCSV = async (req: any, res: any) => {
+  const client = await pool.connect();
+  
+  try {
+    const query = `
+      SELECT 
+        DATE_FORMAT(m.metric_date, '%Y-%m-%d') as metric_date,
+        c.platform,
+        c.campaign_name,
+        m.cost,
+        m.impressions,
+        m.clicks,
+        m.conversions
+      FROM campaign_metrics m
+      JOIN campaigns c ON m.campaign_id = c.id
+      ORDER BY m.metric_date DESC, c.campaign_name ASC
+    `;
+
+    const { rows } = await client.query(query);
+    const metricsData = rows as any[];
+
+    // CSV 이스케이프 함수
+    const escapeCSV = (val: any) => {
+      if (val === null || val === undefined) return '';
+      const str = String(val);
+      if (str.includes(',') || str.includes('\n') || str.includes('\r') || str.includes('"')) {
+        return `"${str.replace(/"/g, '""')}"`;
+      }
+      return str;
+    };
+
+    const getDayOfWeek = (dateString: string) => {
+      const days = ['일', '월', '화', '수', '목', '금', '토'];
+      return days[new Date(dateString).getDay()];
+    };
+
+    const getMonth = (dateString: string) => {
+      return (new Date(dateString).getMonth() + 1).toString();
+    };
+
+    // 요구하신 정확한 업로드 헤더 양식
+    const headers = [
+      '날짜', '월', '요일', '매체', '캠페인', '그룹', '소재', 
+      '비용', '노출', '클릭', '조회', '설치', '잠재고객'
+    ];
+
+    const csvRows = metricsData.map(row => {
+      const dateStr = row.metric_date;
+      return [
+        escapeCSV(dateStr),
+        escapeCSV(getMonth(dateStr)),
+        escapeCSV(getDayOfWeek(dateStr)),
+        escapeCSV(row.platform),
+        escapeCSV(row.campaign_name),
+        escapeCSV(''),
+        escapeCSV(''),
+        escapeCSV(row.cost || 0),
+        escapeCSV(row.impressions || 0),
+        escapeCSV(row.clicks || 0),
+        escapeCSV(0),
+        escapeCSV(row.conversions || 0),
+        escapeCSV(0)
+      ].join(',');
+    });
+
+    const finalCsvContent = '\uFEFF' + [headers.join(','), ...csvRows].join('\n');
+
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', 'attachment; filename="channel_ai_upload_template.csv"');
+    return res.send(finalCsvContent);
+
+  } catch (error) {
+    console.error('CSV export error:', error);
+    res.status(500).json({ error: 'CSV 파일 생성 중 서버 오류가 발생했습니다.' });
+  } finally {
+    client.release();
   }
 };

@@ -1,3 +1,5 @@
+  // ...existing code...
+  // ...existing code...
 import { useState, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api, accountAPI, integrationAPI } from '@/lib/api';
@@ -5,6 +7,61 @@ import { Link2, CheckCircle, XCircle, RefreshCw, AlertCircle, UploadCloud, FileS
 import { Link } from 'react-router-dom';
 
 export default function IntegrationPage() {
+  // 수정 상태 관리 (반드시 함수 내부에서 선언)
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editForm, setEditForm] = useState<any>({});
+
+  // 수정 mutation
+  const updateKarrotManualMutation = useMutation({
+    mutationFn: ({ campaignId, data }: { campaignId: number; data: any }) => integrationAPI.updateKarrotManualCampaign(campaignId, data),
+    onSuccess: () => {
+      refetchKarrotCampaigns();
+      setEditingId(null);
+      alert('수정되었습니다.');
+    },
+    onError: (err: any) => {
+      alert(err?.response?.data?.error || '수정 실패');
+    },
+  });
+  // 🥕 당근마켓 연동 입력값 상태는 반드시 컴포넌트 함수 내부에서 선언해야 함
+  // (미사용) const [karrotUrl, setKarrotUrl] = useState('');
+  // (미사용) const [karrotCookie, setKarrotCookie] = useState('');
+    // 🥕 당근마켓 수동 입력 캠페인 목록
+    const { data: karrotCampaignsData, refetch: refetchKarrotCampaigns } = useQuery({
+      queryKey: ['karrot-manual-campaigns'],
+      queryFn: async () => {
+        // 모든 캠페인 중 platform이 'karrot'이고 external_campaign_id가 null/undefined/없는(즉, 수동입력) 것만 필터
+        const res = await api.get('/campaigns', { params: { platform: 'karrot' } });
+        return (res.data.campaigns || []).filter((c: any) => !c.external_campaign_id || c.external_campaign_id === '' || c.external_campaign_id === null);
+      },
+    });
+
+    // 삭제 mutation
+    const deleteKarrotManualMutation = useMutation({
+      mutationFn: (campaignId: number) => integrationAPI.deleteKarrotManualCampaign(campaignId),
+      onSuccess: () => {
+        refetchKarrotCampaigns();
+        queryClient.invalidateQueries({ queryKey: ['campaigns'] });
+        alert('삭제되었습니다.');
+      },
+      onError: (err: any) => {
+        alert(err?.response?.data?.error || '삭제 실패');
+      },
+    });
+  const [karrotLoading, setKarrotLoading] = useState(false);
+
+  // 🥕 당근마켓 광고 수동 입력 상태
+  const [campaignName, setCampaignName] = useState('');
+  const [subject, setSubject] = useState('');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+  const [impressions, setImpressions] = useState('');
+  const [reach, setReach] = useState('');
+  const [clicks, setClicks] = useState('');
+  const [ctr, setCtr] = useState('');
+  const [cost, setCost] = useState('');
+  const [cpc, setCpc] = useState('');
+
   const queryClient = useQueryClient();
   const [syncing, setSyncing] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -256,10 +313,10 @@ export default function IntegrationPage() {
       {/* Platform Cards */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {platforms.map((platform) => {
+          if (platform.id === 'karrot') return null; // 당근마켓은 별도 폼으로 처리
           const account = getAccountForPlatform(platform.id);
           const isConnected = !!account;
           const isSyncing = syncing === platform.id;
-
           return (
             <div
               key={platform.id}
@@ -358,6 +415,192 @@ export default function IntegrationPage() {
             </div>
           );
         })}
+      </div>
+
+      {/* 당근마켓 광고 수동 입력 폼 */}
+      <div className="bg-orange-50 border border-orange-200 rounded-xl p-6 mt-8">
+        <h2 className="text-2xl font-bold text-orange-700 mb-2 flex items-center">
+          🥕 당근마켓 광고 데이터 직접 입력
+        </h2>
+        <p className="text-sm text-orange-900 mb-4">
+          당근마켓 광고센터에서 확인한 성과 데이터를 아래 입력란에 직접 입력해 주세요.<br />
+          AI 분석 및 대시보드 표출에 필요한 모든 항목을 빠짐없이 입력해야 정확한 분석이 가능합니다.
+        </p>
+        <form className="space-y-4 max-w-xl" onSubmit={async e => {
+          e.preventDefault();
+          setKarrotLoading(true);
+          try {
+            const payload = {
+              campaignName,
+              subject,
+              startDate,
+              endDate,
+              impressions: Number(impressions),
+              reach: Number(reach),
+              clicks: Number(clicks),
+              ctr: Number(ctr),
+              cost: Number(cost),
+              cpc: Number(cpc),
+            };
+            const res = await integrationAPI.submitKarrotManual(payload);
+            alert(res.data.message || '저장 성공!');
+            refetchKarrotCampaigns();
+            // 입력값 초기화
+            setCampaignName(''); setSubject(''); setStartDate(''); setEndDate('');
+            setImpressions(''); setReach(''); setClicks(''); setCtr(''); setCost(''); setCpc('');
+          } catch (err: any) {
+            alert(err?.response?.data?.error || '저장 실패');
+          } finally {
+            setKarrotLoading(false);
+          }
+        }}>
+                {/* 🥕 수동 입력된 당근마켓 캠페인 목록 */}
+                {karrotCampaignsData && karrotCampaignsData.length > 0 && (
+                  <div className="bg-white border border-orange-200 rounded-xl p-4 mt-6">
+                    <h3 className="text-lg font-bold text-orange-700 mb-2 flex items-center">🥕 수동 입력 캠페인 목록</h3>
+                    <table className="min-w-full text-sm">
+                      <thead>
+                        <tr className="bg-orange-50">
+                          <th className="px-2 py-1">캠페인명</th>
+                          <th className="px-2 py-1">기간</th>
+                          <th className="px-2 py-1">노출</th>
+                          <th className="px-2 py-1">클릭</th>
+                          <th className="px-2 py-1">비용</th>
+                          <th className="px-2 py-1">액션</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {karrotCampaignsData.map((c: any) => (
+                          <tr key={c.id} className="border-b">
+                            {editingId === c.id ? (
+                              <>
+                                <td className="px-2 py-1">
+                                  <input type="text" className="w-full border rounded px-1" value={editForm.campaignName ?? c.campaign_name} onChange={e => setEditForm((f: any) => ({ ...f, campaignName: e.target.value }))} />
+                                </td>
+                                <td className="px-2 py-1">
+                                  <input type="date" className="border rounded px-1 mr-1" value={editForm.startDate ?? c.start_date} onChange={e => setEditForm((f: any) => ({ ...f, startDate: e.target.value }))} />
+                                  ~
+                                  <input type="date" className="border rounded px-1 ml-1" value={editForm.endDate ?? c.end_date} onChange={e => setEditForm((f: any) => ({ ...f, endDate: e.target.value }))} />
+                                </td>
+                                <td className="px-2 py-1 text-right">
+                                  <input type="number" className="w-20 border rounded px-1" value={editForm.impressions ?? c.metrics?.impressions ?? ''} onChange={e => setEditForm((f: any) => ({ ...f, impressions: e.target.value }))} />
+                                </td>
+                                <td className="px-2 py-1 text-right">
+                                  <input type="number" className="w-20 border rounded px-1" value={editForm.clicks ?? c.metrics?.clicks ?? ''} onChange={e => setEditForm((f: any) => ({ ...f, clicks: e.target.value }))} />
+                                </td>
+                                <td className="px-2 py-1 text-right">
+                                  <input type="number" className="w-20 border rounded px-1" value={editForm.cost ?? c.metrics?.cost ?? ''} onChange={e => setEditForm((f: any) => ({ ...f, cost: e.target.value }))} />
+                                </td>
+                                <td className="px-2 py-1">
+                                  <button className="px-2 py-1 text-green-600 hover:underline mr-2" onClick={() => {
+                                    updateKarrotManualMutation.mutate({
+                                      campaignId: c.id,
+                                      data: {
+                                        campaignName: editForm.campaignName ?? c.campaign_name,
+                                        subject: c.subject ?? '', // subject는 별도 관리 필요시 확장
+                                        startDate: editForm.startDate ?? c.start_date,
+                                        endDate: editForm.endDate ?? c.end_date,
+                                        impressions: Number(editForm.impressions ?? c.metrics?.impressions ?? 0),
+                                        reach: c.metrics?.reach ?? 0,
+                                        clicks: Number(editForm.clicks ?? c.metrics?.clicks ?? 0),
+                                        ctr: c.metrics?.ctr ?? 0,
+                                        cost: Number(editForm.cost ?? c.metrics?.cost ?? 0),
+                                        cpc: c.metrics?.cpc ?? 0,
+                                      },
+                                    });
+                                  }}>저장</button>
+                                  <button className="px-2 py-1 text-gray-500 hover:underline" onClick={() => setEditingId(null)}>취소</button>
+                                </td>
+                              </>
+                            ) : (
+                              <>
+                                <td className="px-2 py-1">{c.campaign_name}</td>
+                                <td className="px-2 py-1">{c.start_date} ~ {c.end_date}</td>
+                                <td className="px-2 py-1 text-right">{c.metrics?.impressions ?? '-'}</td>
+                                <td className="px-2 py-1 text-right">{c.metrics?.clicks ?? '-'}</td>
+                                <td className="px-2 py-1 text-right">{c.metrics?.cost ? c.metrics.cost.toLocaleString() : '-'}</td>
+                                <td className="px-2 py-1">
+                                  <button
+                                    className="px-2 py-1 text-blue-600 hover:underline mr-2"
+                                    onClick={() => {
+                                      setEditingId(c.id);
+                                      setEditForm({
+                                        campaignName: c.campaign_name,
+                                        startDate: c.start_date,
+                                        endDate: c.end_date,
+                                        impressions: c.metrics?.impressions ?? '',
+                                        clicks: c.metrics?.clicks ?? '',
+                                        cost: c.metrics?.cost ?? '',
+                                      });
+                                    }}
+                                  >수정</button>
+                                  <button
+                                    className="px-2 py-1 text-red-600 hover:underline"
+                                    onClick={() => {
+                                      if (window.confirm('정말 삭제하시겠습니까?')) deleteKarrotManualMutation.mutate(c.id);
+                                    }}
+                                  >삭제</button>
+                                </td>
+                              </>
+                            )}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+          <div>
+            <label className="block text-sm font-medium text-orange-900 mb-1">캠페인명</label>
+            <input type="text" required value={campaignName} onChange={e => setCampaignName(e.target.value)} className="w-full px-3 py-2 border border-orange-300 rounded focus:outline-none focus:ring-2 focus:ring-orange-400" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-orange-900 mb-1">광고 소재</label>
+            <input type="text" required value={subject} onChange={e => setSubject(e.target.value)} className="w-full px-3 py-2 border border-orange-300 rounded focus:outline-none focus:ring-2 focus:ring-orange-400" />
+          </div>
+          <div className="flex gap-2">
+            <div className="flex-1">
+              <label className="block text-sm font-medium text-orange-900 mb-1">광고 시작일</label>
+              <input type="date" required value={startDate} onChange={e => setStartDate(e.target.value)} className="w-full px-3 py-2 border border-orange-300 rounded focus:outline-none focus:ring-2 focus:ring-orange-400" />
+            </div>
+            <div className="flex-1">
+              <label className="block text-sm font-medium text-orange-900 mb-1">광고 종료일</label>
+              <input type="date" required value={endDate} onChange={e => setEndDate(e.target.value)} className="w-full px-3 py-2 border border-orange-300 rounded focus:outline-none focus:ring-2 focus:ring-orange-400" />
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <div className="flex-1">
+              <label className="block text-sm font-medium text-orange-900 mb-1">노출수</label>
+              <input type="number" required value={impressions} onChange={e => setImpressions(e.target.value)} className="w-full px-3 py-2 border border-orange-300 rounded focus:outline-none focus:ring-2 focus:ring-orange-400" />
+            </div>
+            <div className="flex-1">
+              <label className="block text-sm font-medium text-orange-900 mb-1">도달수</label>
+              <input type="number" required value={reach} onChange={e => setReach(e.target.value)} className="w-full px-3 py-2 border border-orange-300 rounded focus:outline-none focus:ring-2 focus:ring-orange-400" />
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <div className="flex-1">
+              <label className="block text-sm font-medium text-orange-900 mb-1">클릭수</label>
+              <input type="number" required value={clicks} onChange={e => setClicks(e.target.value)} className="w-full px-3 py-2 border border-orange-300 rounded focus:outline-none focus:ring-2 focus:ring-orange-400" />
+            </div>
+            <div className="flex-1">
+              <label className="block text-sm font-medium text-orange-900 mb-1">클릭률(%)</label>
+              <input type="number" step="0.01" required value={ctr} onChange={e => setCtr(e.target.value)} className="w-full px-3 py-2 border border-orange-300 rounded focus:outline-none focus:ring-2 focus:ring-orange-400" />
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <div className="flex-1">
+              <label className="block text-sm font-medium text-orange-900 mb-1">총 지출(원)</label>
+              <input type="number" required value={cost} onChange={e => setCost(e.target.value)} className="w-full px-3 py-2 border border-orange-300 rounded focus:outline-none focus:ring-2 focus:ring-orange-400" />
+            </div>
+            <div className="flex-1">
+              <label className="block text-sm font-medium text-orange-900 mb-1">클릭당 지출(원)</label>
+              <input type="number" required value={cpc} onChange={e => setCpc(e.target.value)} className="w-full px-3 py-2 border border-orange-300 rounded focus:outline-none focus:ring-2 focus:ring-orange-400" />
+            </div>
+          </div>
+          <button type="submit" disabled={karrotLoading} className="mt-2 px-6 py-2 bg-orange-600 text-white rounded-lg font-semibold hover:bg-orange-700 transition disabled:opacity-50">
+            {karrotLoading ? '저장 중...' : '저장하기'}
+          </button>
+        </form>
       </div>
 
       {/* Connected Accounts Summary */}

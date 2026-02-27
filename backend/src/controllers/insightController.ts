@@ -1,5 +1,8 @@
 import { Request, Response } from 'express';
 import pool from '../config/database';
+import { AIAnalysisService } from '../services/ai/aiAnalysisService';
+
+const aiAnalysisService = new AIAnalysisService();
 
 interface AuthRequest extends Request {
   user?: {
@@ -349,16 +352,32 @@ export const getRecommendations = async (req: Request, res: Response) => {
       });
     }
     
+    // 정렬
+    const sorted = recommendations.sort((a, b) => {
+      const priority: Record<string, number> = { high: 3, medium: 2, low: 1 };
+      return (priority[b.priority] || 0) - (priority[a.priority] || 0);
+    });
+
+    // 각 추천에 AI 70자 이유 추가 (병렬)
+    const enriched = await Promise.all(
+      sorted.map(async (rec) => {
+        const aiReason = await aiAnalysisService.analyzeRecommendation({
+          type: rec.type,
+          campaignName: rec.campaign_name,
+          platform: rec.platform,
+          reason: rec.reason,
+        });
+        return { ...rec, aiReason };
+      })
+    );
+
     res.json({
       generated_at: new Date().toISOString(),
       analysis_period: {
         start: startDate.toISOString().split('T')[0],
         end: endDate.toISOString().split('T')[0],
       },
-      recommendations: recommendations.sort((a, b) => {
-        const priority: Record<string, number> = { high: 3, medium: 2, low: 1 };
-        return (priority[b.priority] || 0) - (priority[a.priority] || 0);
-      }),
+      recommendations: enriched,
       summary: {
         total_campaigns: campaigns.rows.length,
         high_performers: topPerformers.length,

@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuthStore } from '@/store/authStore';
+import { authAPI } from '@/lib/api'; // 추가: API 호출을 위한 임포트
 
 export default function AuthCallbackPage() {
   const [searchParams] = useSearchParams();
@@ -9,7 +10,6 @@ export default function AuthCallbackPage() {
 
   useEffect(() => {
     const token = searchParams.get('token');
-    const name = searchParams.get('name');
     const error = searchParams.get('error');
 
     if (error) {
@@ -19,16 +19,26 @@ export default function AuthCallbackPage() {
       return;
     }
 
-    if (token && name) {
-      // 사용자 정보 설정
-      const user = {
-        id: 0, // OAuth 로그인 시 임시 ID
-        name: decodeURIComponent(name),
-        email: '', // 백엔드에서 이메일도 전달하면 추가
-      };
+    if (token) {
+      // 1. 임시로 스토어에 토큰만 저장 (인터셉터가 API 요청 시 사용하게 함)
+      // 이름 등의 가짜 정보 대신, 실제 DB에서 유저 정보를 가져와야 provider(로그인 방식)가 반영됩니다.
+      localStorage.setItem('token', token);
       
-      setAuth(user, token);
-      navigate('/dashboard');
+      authAPI.getMe()
+        .then((response) => {
+          if (response.data && response.data.user) {
+            // 가져온 진짜 사용자 정보와 토큰을 스토어에 저장
+            setAuth(response.data.user, token);
+            navigate('/dashboard');
+          } else {
+            throw new Error('사용자 정보가 응답에 없습니다.');
+          }
+        })
+        .catch((err) => {
+          console.error('소셜 사용자 정보 조회 실패:', err);
+          alert('사용자 정보를 가져오는데 실패했습니다.');
+          navigate('/login');
+        });
     } else {
       navigate('/login');
     }
