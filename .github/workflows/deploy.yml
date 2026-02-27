@@ -203,7 +203,7 @@ jobs:
             ENVEOF
 
             # ========== 4. 의존성 설치 & 빌드 ==========
-            npm ci --production=false
+            npm install --include=dev --no-audit --no-fund
             npx tsc
 
             # ========== 5. PM2 시작/재시작 ==========
