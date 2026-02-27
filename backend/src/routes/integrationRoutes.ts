@@ -4,7 +4,6 @@ import path from 'path';
 import {
   getAuthUrl,
   handleOAuthCallback,
-  syncCampaigns,
   syncMetrics,
   syncAllMetrics,
   disconnectAccount,
@@ -47,7 +46,7 @@ router.get('/callback/:platform', handleOAuthCallback);
 router.post('/connect/:platform', authenticate, connectPlatform);
 
 // 데이터 동기화 (인증 필요)
-router.post('/sync/campaigns/:accountId', authenticate, syncCampaigns);
+// router.post('/sync/campaigns/:accountId', authenticate, syncCampaigns); // 제거: syncCampaigns 미존재
 router.post('/sync/metrics/:campaignId', authenticate, syncMetrics);
 router.post('/sync/all', authenticate, syncAllMetrics);
 
