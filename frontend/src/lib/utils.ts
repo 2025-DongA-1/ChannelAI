@@ -24,23 +24,19 @@ export function formatCompactNumber(num: number | string): string {
   
   // 조 단위 (1조 이상)
   if (absNum >= 1_000_000_000_000) {
-    return (numValue / 1_000_000_000_000).toFixed(1) + '조';
+    return (numValue / 1_000_000_000_000).toFixed(1).replace(/\.0$/, '') + '조';
   } 
   // 억 단위 (1억 이상)
   else if (absNum >= 100_000_000) {
-    return (numValue / 100_000_000).toFixed(1) + '억';
+    return (numValue / 100_000_000).toFixed(1).replace(/\.0$/, '') + '억';
   } 
   // 만 단위 (1만 이상)
   else if (absNum >= 10_000) {
-    return (numValue / 10_000).toFixed(1) + '만';
+    return (numValue / 10_000).toFixed(1).replace(/\.0$/, '') + '만';
   } 
-  // 천 단위 (1천 이상)
-  else if (absNum >= 1_000) {
-    return (numValue / 1_000).toFixed(1) + 'K';
-  }
   
-  // 1000 미만은 그대로 표시 (소수점 없이)
-  return Math.round(numValue).toLocaleString('ko-KR');
+  // 1만 미만은 K 대신 그냥 천 단위 콤마 찍어서 표시!
+  return new Intl.NumberFormat('ko-KR').format(numValue);
 }
 
 export function formatCurrency(amount: number, currency: string = 'KRW'): string {
@@ -127,4 +123,58 @@ export function calculateCTR(clicks: number, impressions: number): number {
 
 export function calculateCPC(cost: number, clicks: number): number {
   return clicks > 0 ? cost / clicks : 0;
+}
+
+// 기간 계산 함수
+export function getComparisonText(startDate: string, endDate: string): string {
+  if (!startDate || !endDate) return ''; // '전체' 기간일 때는 빈 문자열 반환
+
+  const start = new Date(startDate);
+  const end = new Date(endDate);
+
+  // 선택한 기간이 총 며칠인지 계산 (종료일 포함이므로 +1)
+  const diffTime = Math.abs(end.getTime() - start.getTime());
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+
+  // 직전 기간의 끝나는 날 = 선택한 시작일의 하루 전
+  const prevEnd = new Date(start.getTime() - 24 * 60 * 60 * 1000);
+  // 직전 기간의 시작일 = 직전 종료일에서 (기간-1)만큼 뺀 날짜
+  const prevStart = new Date(prevEnd.getTime() - (diffDays - 1) * 24 * 60 * 60 * 1000);
+
+  // 날짜를 YYYY.MM.DD 형식으로 예쁘게 바꿔주는 내부 함수
+  const formatDt = (date: Date) => {
+    return `${date.getFullYear()}.${String(date.getMonth() + 1).padStart(2, '0')}.${String(date.getDate()).padStart(2, '0')}`;
+  };
+
+  return `직전 동기간 (${formatDt(prevStart)} ~ ${formatDt(prevEnd)}) 대비`;
+}
+
+// 1. 이전 날짜 계산기 (서버에 요청할 YYYY-MM-DD 형식으로 만들어줘요)
+export function getPreviousDateRange(startDate: string, endDate: string) {
+  if (!startDate || !endDate) return null;
+
+  const start = new Date(startDate);
+  const end = new Date(endDate);
+
+  const diffTime = Math.abs(end.getTime() - start.getTime());
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+
+  const prevEnd = new Date(start.getTime() - 24 * 60 * 60 * 1000);
+  const prevStart = new Date(prevEnd.getTime() - (diffDays - 1) * 24 * 60 * 60 * 1000);
+
+  const formatDt = (date: Date) => {
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+  };
+
+  return {
+    startDate: formatDt(prevStart),
+    endDate: formatDt(prevEnd)
+  };
+}
+
+// 2. 퍼센트 계산기 (현재 값과 이전 값을 넣으면 %를 뱉어내요)
+export function calculateChangeRate(current?: number, previous?: number): number | undefined {
+  if (current === undefined || previous === undefined) return undefined;
+  if (previous === 0) return current > 0 ? 100 : 0; // 예전 데이터가 0일 때 에러 안 나게 방어!
+  return Number((((current - previous) / previous) * 100).toFixed(1));
 }

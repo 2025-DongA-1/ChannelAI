@@ -50,11 +50,11 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
               </Link>
             </div>
             <div className="flex items-center space-x-4">
-              <a href="/dashboard" className="text-gray-700 hover:text-gray-900">대시보드</a>
-              <a href="/campaigns" className="text-gray-700 hover:text-gray-900">캠페인 & 예산</a>
-              <a href="/integration" className="text-gray-700 hover:text-gray-900">연동</a>
-              <a href="/analysis" className="text-gray-700 hover:text-gray-900">AI 예산 분석</a>
-              <a href="/insights" className="text-gray-700 hover:text-gray-900">인사이트</a>
+              <Link to="/dashboard" className="text-gray-700 hover:text-gray-900">대시보드</Link>
+              <Link to="/campaigns" className="text-gray-700 hover:text-gray-900">캠페인 & 예산</Link>
+              <Link to="/integration" className="text-gray-700 hover:text-gray-900">연동</Link>
+              <Link to="/analysis" className="text-gray-700 hover:text-gray-900">AI 예산 분석</Link>
+              <Link to="/insights" className="text-gray-700 hover:text-gray-900">인사이트</Link>
               <div className="flex items-center space-x-2 ml-4 pl-4 border-l">
                 <Link to="/me" className="text-sm text-gray-600 hover:text-gray-900 cursor-pointer font-medium">
                   {user?.name || user?.email?.split('@')[0] || '사용자'}
