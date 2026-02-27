@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useAuthStore } from '../store/authStore';
 import { integrationAPI } from '../lib/api';
-import { FileSpreadsheet, Plus, Download, Database, Trash2, Edit2, AlertCircle, RefreshCw, Brain, Mail } from 'lucide-react';
+import { FileSpreadsheet, Plus, Download, Database, Trash2, AlertCircle, RefreshCw, Brain, Mail } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 interface AdData {
@@ -244,11 +244,14 @@ const DummyDataPage: React.FC = () => {
     });
   };
 
+  // 사용하지 않은 함수라 일단 주석처리   
+  /*
   const handleDelete = (id: string) => {
     if (confirm('삭제하시겠습니까?')) {
         setData(data.filter(item => item.id !== id));
     }
   };
+  */
 
   const clearData = () => {
     if (confirm('모든 데이터를 삭제하시겠습니까?')) {
