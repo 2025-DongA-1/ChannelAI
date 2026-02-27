@@ -56,7 +56,7 @@ const DummyDataPage: React.FC = () => {
     // 👇 365를 30(1달)로 가볍게 줄여줍니다!
     startDate: new Date(new Date().getTime() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
     endDate: new Date().toISOString().split('T')[0],
-    count: 3,
+    count: 1,
   });
 
   const generateId = () => Math.random().toString(36).substr(2, 9);
