@@ -7,6 +7,13 @@ from scipy.optimize import linprog
 import os
 from datetime import datetime
 
+
+# [추가] Windows(팀원) 환경에서 한글 깨짐 방지를 위한 입출력 강제 UTF-8 설정
+if sys.stdout.encoding.lower() != 'utf-8':
+    sys.stdout.reconfigure(encoding='utf-8')
+if sys.stderr.encoding.lower() != 'utf-8':
+    sys.stderr.reconfigure(encoding='utf-8')
+
 # ==========================================
 # ★ [여기를 추가해주세요] 윈도우 이모지 에러 방지 코드
 # ==========================================
@@ -340,12 +347,17 @@ def main():
 
     # [AI 모델 로드 및 예측]
     try:
-        model = xgb.XGBRegressor()
+        # 변경 1: 껍데기(XGBRegressor)를 버리고 코어 엔진(Booster) 사용
+        model = xgb.Booster()
         script_dir = os.path.dirname(os.path.abspath(__file__))
         model_path = os.path.join(script_dir, 'optimal_budget_xgb_model.json')
 
         model.load_model(model_path)
-        predicted_roas = model.predict(X)
+        
+        # 변경 2: DataFrame을 XGBoost 전용 규격(DMatrix)으로 포장. 
+        # 이 과정을 거쳐야 컬럼명(이름표)이 절대 떨어져 나가지 않습니다.
+        dtest = xgb.DMatrix(X)
+        predicted_roas = model.predict(dtest)
 
         # ✅ 예측값 클리핑: 비현실 튐 방지
         CLIP_MIN = 50.0
