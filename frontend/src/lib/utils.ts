@@ -148,3 +148,33 @@ export function getComparisonText(startDate: string, endDate: string): string {
 
   return `직전 동기간 (${formatDt(prevStart)} ~ ${formatDt(prevEnd)}) 대비`;
 }
+
+// 1. 이전 날짜 계산기 (서버에 요청할 YYYY-MM-DD 형식으로 만들어줘요)
+export function getPreviousDateRange(startDate: string, endDate: string) {
+  if (!startDate || !endDate) return null;
+
+  const start = new Date(startDate);
+  const end = new Date(endDate);
+
+  const diffTime = Math.abs(end.getTime() - start.getTime());
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+
+  const prevEnd = new Date(start.getTime() - 24 * 60 * 60 * 1000);
+  const prevStart = new Date(prevEnd.getTime() - (diffDays - 1) * 24 * 60 * 60 * 1000);
+
+  const formatDt = (date: Date) => {
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+  };
+
+  return {
+    startDate: formatDt(prevStart),
+    endDate: formatDt(prevEnd)
+  };
+}
+
+// 2. 퍼센트 계산기 (현재 값과 이전 값을 넣으면 %를 뱉어내요)
+export function calculateChangeRate(current?: number, previous?: number): number | undefined {
+  if (current === undefined || previous === undefined) return undefined;
+  if (previous === 0) return current > 0 ? 100 : 0; // 예전 데이터가 0일 때 에러 안 나게 방어!
+  return Number((((current - previous) / previous) * 100).toFixed(1));
+}

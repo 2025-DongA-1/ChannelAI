@@ -21,8 +21,14 @@ interface AdData {
   leads: number;
 }
 
-const MEDIA_LIST = ['카카오', '네이버_NOSP', '구글 AC', '구글_YT', '페이스북', '애플_SA', '네이버_GFA', '몰로코'];
-const CAMPAIGN_NAMES = ['bizboard_0_Launch', 'NaverNOSP_0_Launch', 'ACInstall_0_Launch_iOS', 'SDC_0_Launch', 'MAIA_0_Launch_AOS', 'SearchAds_0_Launch'];
+const MEDIA_LIST = ['google', 'meta', 'naver', 'karrot'];
+const CAMPAIGN_NAMES = [
+  '[봄맞이] 신상 프로모션_구매유도', 
+  '[신규가입] 첫달 무료 이벤트_앱설치', 
+  '[인지도] 브랜드 캠페인_웹방문', 
+  '[시즌오프] 재고소진_리타겟팅', 
+  '[지역광고] 오프라인 매장 홍보'
+];
 
 const DummyDataPage: React.FC = () => {
   const [data, setData] = useState<AdData[]>([]);
@@ -47,15 +53,15 @@ const DummyDataPage: React.FC = () => {
 
   // Dummy generation config
   const [genConfig, setGenConfig] = useState({
-    startDate: new Date(new Date().getTime() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+    // 👇 365를 30(1달)로 가볍게 줄여줍니다!
+    startDate: new Date(new Date().getTime() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
     endDate: new Date().toISOString().split('T')[0],
-    count: 10,
+    count: 3,
   });
 
   const generateId = () => Math.random().toString(36).substr(2, 9);
 
   const handleGenerateDummy = () => {
-    const newItems: AdData[] = [];
     const { startDate, endDate, count } = genConfig;
     
     const start = new Date(startDate).getTime();
@@ -64,29 +70,49 @@ const DummyDataPage: React.FC = () => {
 
     if (range < 0) return alert('시작일이 종료일보다 늦을 수 없습니다.');
 
-    for (let i = 0; i < count; i++) {
-        const randomTime = start + Math.random() * range;
-        const randomDate = new Date(randomTime);
-        const dateStr = randomDate.toISOString().split('T')[0];
-        const days = ['일', '월', '화', '수', '목', '금', '토'];
-        
+    const campaigns = Array.from({ length: count }).map((_, i) => ({
+      campaignName: `${CAMPAIGN_NAMES[Math.floor(Math.random() * CAMPAIGN_NAMES.length)]}_${i + 1}`,
+      media: MEDIA_LIST[Math.floor(Math.random() * MEDIA_LIST.length)],
+      group: `AD_GROUP_${i + 1}`,
+      baseCost: Math.floor(Math.random() * 250000) + 50000, 
+      creative: `소재_${['A', 'B', 'C'][Math.floor(Math.random() * 3)]}`,
+    }));
+
+    const newItems: AdData[] = [];
+    const days = ['일', '월', '화', '수', '목', '금', '토'];
+
+    for (let time = start; time <= end; time += 24 * 60 * 60 * 1000) {
+      const currentDate = new Date(time);
+      const dateStr = currentDate.toISOString().split('T')[0];
+      const monthStr = (currentDate.getMonth() + 1).toString();
+      const dayOfWeekStr = days[currentDate.getDay()];
+
+      campaigns.forEach(camp => {
+        const dailyCost = Math.floor(camp.baseCost * (0.8 + Math.random() * 0.4));
+        const dailyImpressions = Math.floor(dailyCost / (15 + Math.random() * 10)); 
+        const dailyClicks = Math.floor(dailyImpressions * (0.01 + Math.random() * 0.04)); 
+        const dailyConversions = Math.floor(dailyClicks * (0.05 + Math.random() * 0.1)); 
+
         newItems.push({
-            id: generateId(),
-            date: dateStr,
-            month: (randomDate.getMonth() + 1).toString(),
-            dayOfWeek: days[randomDate.getDay()],
-            media: MEDIA_LIST[Math.floor(Math.random() * MEDIA_LIST.length)],
-            campaign: CAMPAIGN_NAMES[Math.floor(Math.random() * CAMPAIGN_NAMES.length)],
-            group: 'Dummy Group ' + (data.length + i + 1),
-            creative: 'Creative_' + Math.floor(Math.random() * 10),
-            cost: Math.floor(Math.random() * 1000000),
-            impressions: Math.floor(Math.random() * 50000),
-            clicks: Math.floor(Math.random() * 1000),
-            views: Math.floor(Math.random() * 500),
-            installs: Math.floor(Math.random() * 50),
-            leads: Math.floor(Math.random() * 10),
+          id: generateId(),
+          date: dateStr,
+          month: monthStr,
+          dayOfWeek: dayOfWeekStr,
+          media: camp.media,
+          campaign: camp.campaignName,
+          group: camp.group,
+          creative: camp.creative,
+          cost: dailyCost,
+          impressions: dailyImpressions,
+          clicks: dailyClicks,
+          views: Math.floor(dailyImpressions * 0.4),
+          installs: Math.floor(dailyConversions * 0.7),
+          leads: Math.floor(dailyConversions * 0.3),
         });
+      });
     }
+
+    newItems.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
     setData([...newItems, ...data]);
   };
 
@@ -230,6 +256,41 @@ const DummyDataPage: React.FC = () => {
     }
   };
 
+  // 👇 요기에 합치기 계산 로직 추가! 👇
+  const getCampaignSummary = () => {
+    const summaryMap = new Map();
+    data.forEach(item => {
+      if (!summaryMap.has(item.campaign)) {
+        summaryMap.set(item.campaign, {
+          campaign: item.campaign,
+          media: item.media,
+          group: item.group,
+          startDate: item.date,
+          endDate: item.date,
+          cost: 0,
+          impressions: 0,
+          clicks: 0,
+          installs: 0,
+          leads: 0,
+        });
+      }
+      const summary = summaryMap.get(item.campaign);
+      // 비용과 성과를 하나로 다 더해줍니다!
+      summary.cost += item.cost;
+      summary.impressions += item.impressions;
+      summary.clicks += item.clicks;
+      summary.installs += item.installs;
+      summary.leads += item.leads;
+      // 시작일과 종료일을 찾아줍니다!
+      if (item.date < summary.startDate) summary.startDate = item.date;
+      if (item.date > summary.endDate) summary.endDate = item.date;
+    });
+    return Array.from(summaryMap.values());
+  };
+
+  const aggregatedData = getCampaignSummary();
+  // 👆 추가 완료 👆
+
   return (
     <div className="p-6 bg-gray-50 min-h-screen">
       <div className="max-w-7xl mx-auto space-y-6">
@@ -319,7 +380,7 @@ const DummyDataPage: React.FC = () => {
                     />
                 </div>
                 <div className="space-y-1">
-                    <label className="text-xs font-bold text-gray-500 uppercase">생성 개수</label>
+                    <label className="text-xs font-bold text-gray-500 uppercase">생성할 캠페인 수</label>
                     <input 
                         type="number" 
                         value={genConfig.count}
@@ -344,26 +405,28 @@ const DummyDataPage: React.FC = () => {
             <table className="w-full text-sm text-left">
               <thead className="bg-gray-50 text-gray-600 font-semibold border-b">
                 <tr>
-                  <th className="px-6 py-4">날짜</th>
+                  {/* 👇 제목들이 캠페인 요약에 맞게 바뀌었어요! */}
+                  <th className="px-6 py-4">진행 기간</th>
                   <th className="px-6 py-4">매체</th>
                   <th className="px-6 py-4">캠페인 / 그룹</th>
-                  <th className="px-6 py-4 text-right">비용</th>
-                  <th className="px-6 py-4 text-right">노출/클릭</th>
-                  <th className="px-6 py-4 text-right">전환(설치/잠재)</th>
-                  <th className="px-6 py-4 text-center">작업</th>
+                  <th className="px-6 py-4 text-right">총 비용</th>
+                  <th className="px-6 py-4 text-right">총 노출/클릭</th>
+                  <th className="px-6 py-4 text-right">총 전환(설치/잠재)</th>
+                  <th className="px-6 py-4 text-center">캠페인 삭제</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {data.length > 0 ? (
-                  data.map((item) => (
-                    <tr key={item.id} className="hover:bg-gray-50 transition">
+                {aggregatedData.length > 0 ? (
+                  // 👇 data 대신 위에서 합쳐둔 aggregatedData를 씁니다!
+                  aggregatedData.map((item: any, index: number) => (
+                    <tr key={index} className="hover:bg-gray-50 transition">
                       <td className="px-6 py-4">
-                        <div className="font-medium text-gray-900">{item.date}</div>
-                        <div className="text-xs text-gray-400">{item.month}월 {item.dayOfWeek}요일</div>
+                        <div className="font-medium text-gray-900">{item.startDate}</div>
+                        <div className="text-xs text-gray-500">~ {item.endDate}</div>
                       </td>
                       <td className="px-6 py-4">
                         <span className="px-2 py-1 rounded-full text-[10px] font-bold bg-blue-50 text-blue-600 border border-blue-100">
-                          {item.media}
+                          {item.media.toUpperCase()}
                         </span>
                       </td>
                       <td className="px-6 py-4">
@@ -374,28 +437,24 @@ const DummyDataPage: React.FC = () => {
                         ₩{item.cost.toLocaleString()}
                       </td>
                       <td className="px-6 py-4 text-right">
-                        <div className="text-gray-900">{item.impressions.toLocaleString()} UI</div>
-                        <div className="text-xs text-gray-500">{item.clicks.toLocaleString()} CLK</div>
+                        <div className="text-gray-900">{item.impressions.toLocaleString()} 노출</div>
+                        <div className="text-xs text-gray-500">{item.clicks.toLocaleString()} 클릭</div>
                       </td>
                       <td className="px-6 py-4 text-right">
-                        <div className="text-blue-600 font-bold">{item.installs.toLocaleString()}</div>
-                        <div className="text-xs text-gray-500">{item.leads.toLocaleString()} leads</div>
+                        <div className="text-blue-600 font-bold">{item.installs.toLocaleString()} 설치</div>
+                        <div className="text-xs text-gray-500">{item.leads.toLocaleString()} 잠재</div>
                       </td>
                       <td className="px-6 py-4 text-center">
                         <div className="flex justify-center gap-1">
                             <button 
                                 onClick={() => {
-                                    setEditingRow(item);
-                                    setFormData(item);
-                                    setIsModalOpen(true);
+                                    if (confirm(`'${item.campaign}' 캠페인의 모든 일자 데이터를 삭제하시겠습니까?`)) {
+                                        // 캠페인 단위로 묶여있으니, 삭제할 때 해당 캠페인 이름의 데이터를 통째로 지워줍니다!
+                                        setData(data.filter(d => d.campaign !== item.campaign));
+                                    }
                                 }}
-                                className="p-1.5 text-gray-400 hover:text-blue-600 rounded-lg transition"
-                            >
-                                <Edit2 size={16} />
-                            </button>
-                            <button 
-                                onClick={() => handleDelete(item.id)}
                                 className="p-1.5 text-gray-400 hover:text-red-600 rounded-lg transition"
+                                title="캠페인 삭제"
                             >
                                 <Trash2 size={16} />
                             </button>
