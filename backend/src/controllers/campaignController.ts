@@ -305,7 +305,7 @@ export const getCampaignMetrics = async (req: Request, res: Response) => {
   try {
     const userId = (req as AuthRequest).user?.id;
     const { id } = req.params;
-    const { start_date, end_date, limit = 30 } = req.query;
+    const { start_date, end_date, limit = 1000 } = req.query;
     
     // 권한 확인
     const authCheck = await client.query(
@@ -339,7 +339,7 @@ export const getCampaignMetrics = async (req: Request, res: Response) => {
     }
     
     query += ` ORDER BY metric_date DESC LIMIT ?`;
-    params.push(Number(limit));
+    params.push(Number(limit) > 0 ? Number(limit) : 1000);
     
     const result = await client.query(query, params);
     
