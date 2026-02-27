@@ -356,7 +356,8 @@ def main():
         
         # 변경 2: DataFrame을 XGBoost 전용 규격(DMatrix)으로 포장. 
         # 이 과정을 거쳐야 컬럼명(이름표)이 절대 떨어져 나가지 않습니다.
-        dtest = xgb.DMatrix(X)
+        # X의 알맹이(values)만 빼고, 이름표(feature_names)를 수동으로 강제 조립함 (절대 분실 안됨)
+        dtest = xgb.DMatrix(X.values, feature_names=model_columns)
         predicted_roas = model.predict(dtest)
 
         # ✅ 예측값 클리핑: 비현실 튐 방지
