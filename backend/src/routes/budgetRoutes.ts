@@ -4,6 +4,7 @@ import {
   getBudgetByPlatform,
   getBudgetByCampaign,
   updateCampaignBudget,
+  updateTotalBudget, // 👈 이 줄을 추가합니다.
 } from '../controllers/budgetController';
 import { authenticate } from '../middlewares/auth';
 
@@ -11,6 +12,9 @@ const router = Router();
 
 // 예산 요약
 router.get('/summary', authenticate, getBudgetSummary);
+
+// 👇 전체 예산 설정 저장 (이 줄을 새롭게 추가하세요!)
+router.post('/settings', authenticate, updateTotalBudget); 
 
 // 플랫폼별 예산
 router.get('/by-platform', authenticate, getBudgetByPlatform);
