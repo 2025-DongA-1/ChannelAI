@@ -61,6 +61,7 @@ export default function IntegrationPage() {
   const [ctr, setCtr] = useState('');
   const [cost, setCost] = useState('');
   const [cpc, setCpc] = useState('');
+  const [revenue, setRevenue] = useState('');
 
   const queryClient = useQueryClient();
   const [syncing, setSyncing] = useState<string | null>(null);
@@ -468,6 +469,7 @@ export default function IntegrationPage() {
                           <th className="px-2 py-1">노출</th>
                           <th className="px-2 py-1">클릭</th>
                           <th className="px-2 py-1">비용</th>
+                          <th className="px-2 py-1">수입/매출</th>
                           <th className="px-2 py-1">액션</th>
                         </tr>
                       </thead>
@@ -493,6 +495,9 @@ export default function IntegrationPage() {
                                 <td className="px-2 py-1 text-right">
                                   <input type="number" className="w-20 border rounded px-1" value={editForm.cost ?? c.metrics?.cost ?? ''} onChange={e => setEditForm((f: any) => ({ ...f, cost: e.target.value }))} />
                                 </td>
+                                <td className="px-2 py-1 text-right">
+                                  <input type="number" className="w-20 border rounded px-1" value={editForm.revenue ?? c.metrics?.revenue ?? ''} onChange={e => setEditForm((f: any) => ({ ...f, revenue: e.target.value }))} placeholder="선택 입력" />
+                                </td>
                                 <td className="px-2 py-1">
                                   <button className="px-2 py-1 text-green-600 hover:underline mr-2" onClick={() => {
                                     updateKarrotManualMutation.mutate({
@@ -507,6 +512,7 @@ export default function IntegrationPage() {
                                         clicks: Number(editForm.clicks ?? c.metrics?.clicks ?? 0),
                                         ctr: c.metrics?.ctr ?? 0,
                                         cost: Number(editForm.cost ?? c.metrics?.cost ?? 0),
+                                        revenue: Number(editForm.revenue ?? c.metrics?.revenue ?? 0),
                                         cpc: c.metrics?.cpc ?? 0,
                                       },
                                     });
@@ -521,6 +527,7 @@ export default function IntegrationPage() {
                                 <td className="px-2 py-1 text-right">{c.metrics?.impressions ?? '-'}</td>
                                 <td className="px-2 py-1 text-right">{c.metrics?.clicks ?? '-'}</td>
                                 <td className="px-2 py-1 text-right">{c.metrics?.cost ? c.metrics.cost.toLocaleString() : '-'}</td>
+                                <td className="px-2 py-1 text-right">{c.metrics?.revenue ? c.metrics.revenue.toLocaleString() : '-'}</td>
                                 <td className="px-2 py-1">
                                   <button
                                     className="px-2 py-1 text-blue-600 hover:underline mr-2"
@@ -533,6 +540,7 @@ export default function IntegrationPage() {
                                         impressions: c.metrics?.impressions ?? '',
                                         clicks: c.metrics?.clicks ?? '',
                                         cost: c.metrics?.cost ?? '',
+                                        revenue: c.metrics?.revenue ?? '',
                                       });
                                     }}
                                   >수정</button>
@@ -593,6 +601,10 @@ export default function IntegrationPage() {
             <div className="flex-1">
               <label className="block text-sm font-medium text-orange-900 mb-1">총 지출(원)</label>
               <input type="number" required value={cost} onChange={e => setCost(e.target.value)} className="w-full px-3 py-2 border border-orange-300 rounded focus:outline-none focus:ring-2 focus:ring-orange-400" />
+            </div>
+            <div className="flex-1">
+              <label className="block text-sm font-medium text-orange-900 mb-1">총 수입/매출(원)</label>
+              <input type="number" value={revenue} onChange={e => setRevenue(e.target.value)} className="w-full px-3 py-2 border border-orange-300 rounded focus:outline-none focus:ring-2 focus:ring-orange-400" placeholder="선택 입력" />
             </div>
             <div className="flex-1">
               <label className="block text-sm font-medium text-orange-900 mb-1">클릭당 지출(원)</label>

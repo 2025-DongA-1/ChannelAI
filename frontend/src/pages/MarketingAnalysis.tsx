@@ -463,8 +463,42 @@ function MarketingAnalysis() {
                   ) : "분석 중입니다..."}
                 </div>
 
-                <div style={{ marginTop: '40px', paddingTop: '20px', borderTop: '1px dashed #ced4da', fontSize: '1rem', color: '#868e96', textAlign: 'right' }}>
-                  * 이 분석은 연동된 광고 계정의 실시간 데이터를 기반으로 XGBoost 예측 모델과 선형 계획법 알고리즘을 기반으로 작성되었습니다 *
+                {/* ★ 가독성과 전문성을 높인 하단 안내 영역 ★ */}
+                <div style={{ marginTop: '35px', paddingTop: '25px', borderTop: '1px solid #E9ECEF' }}>
+                  <div style={{ 
+                    backgroundColor: '#ffffff', 
+                    border: '1px solid #dee2e6', 
+                    padding: '24px', 
+                    borderRadius: '12px', 
+                    display: 'flex',
+                    gap: '16px',
+                    alignItems: 'flex-start'
+                  }}>
+                    <div style={{ fontSize: '1.4rem', marginTop: '2px' }}>⚠️</div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', width: '100%' }}>
+                      
+                      {/* 1. 분석 모델 안내 */}
+                      <div style={{ fontSize: '0.85rem', color: '#868e96', letterSpacing: '-0.3px' }}>
+                        본 분석은 연동된 광고 실시간 데이터를 바탕으로 <strong style={{color: '#495057'}}>XGBoost 예측 모델</strong>과 <strong style={{color: '#495057'}}>선형 계획법 알고리즘</strong>을 통해 산출되었습니다.
+                      </div>
+
+                      {/* 2. 법적 면책 조항 (가독성 개선) */}
+                      <div style={{ 
+                        fontSize: '0.95rem', 
+                        color: '#495057', 
+                        lineHeight: '1.7', 
+                        wordBreak: 'keep-all',
+                        borderTop: '1px dashed #eee',
+                        paddingTop: '12px'
+                      }}>
+                        <strong style={{ color: '#2D3436', display: 'block', marginBottom: '4px' }}>[면책 조항 및 분석 한계 안내]</strong>
+                        • 위 결과는 AI 모델이 도출한 <strong>'예측값'</strong>이며, 미래의 실제 매출이나 광고 수익률을 보장하지 않습니다.<br />
+                        • 시장 상황 및 외부 요인에 따라 실제 결과는 다를 수 있으므로 <strong style={{ color: '#2D3436' }}>참고용 보조 지표</strong>로만 활용하시기 바랍니다.<br />
+                        • 최종적인 예산 집행 및 광고 운영에 대한 모든 책임은 사용자에게 있습니다.
+                      </div>
+
+                    </div>
+                  </div>
                 </div>
               </div>
 
