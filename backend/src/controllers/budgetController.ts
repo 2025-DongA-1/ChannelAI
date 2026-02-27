@@ -11,52 +11,52 @@ export const getBudgetSummary = async (req: AuthRequest, res: Response) => {
     const userId = req.user?.id;
     const { startDate, endDate } = req.query;
 
-    let dateFilter = '';
-    const queryParams: any[] = [userId];
+    // 1. budget_settings 테이블에서 전체 목표 예산 정보를 가져옵니다.
+    const settingsResult = await pool.query(
+      'SELECT total_budget, daily_budget FROM budget_settings WHERE user_id = ? LIMIT 1',
+      [userId]
+    );
+    const userSettings = settingsResult.rows[0] || { total_budget: 0, daily_budget: 0 };
 
-    if (startDate && endDate) {
-      dateFilter = `AND cm.metric_date >= ? AND cm.metric_date <= ?`;
-      queryParams.push(startDate, endDate);
-    }
-
-    // 전체 예산 및 지출 현황
-    const summaryQuery = `
-      SELECT 
-        COALESCE(SUM(c.daily_budget), 0) as total_daily_budget,
-        COALESCE(SUM(c.total_budget), 0) as total_budget,
-        COALESCE(SUM(cm.cost), 0) as total_spent,
-        SUM(CASE WHEN c.status = 'active' THEN 1 ELSE 0 END) as active_campaigns
-      FROM campaigns c
-      LEFT JOIN marketing_accounts ma ON c.marketing_account_id = ma.id
-      LEFT JOIN campaign_metrics cm ON c.id = cm.campaign_id
+    // 2. 실제 지출 금액(spent)은 중복 방지를 위해 별도로 합산합니다.
+    let spentQuery = `
+      SELECT COALESCE(SUM(cm.cost), 0) as total_spent
+      FROM campaign_metrics cm
+      JOIN campaigns c ON cm.campaign_id = c.id
+      JOIN marketing_accounts ma ON c.marketing_account_id = ma.id
       WHERE ma.user_id = ?
-        ${dateFilter}
     `;
+    const spentParams: any[] = [userId];
+    if (startDate && endDate) {
+      spentQuery += ` AND cm.metric_date >= ? AND cm.metric_date <= ?`;
+      spentParams.push(startDate, endDate);
+    }
+    const spentResult = await pool.query(spentQuery, spentParams);
 
-    const summaryResult = await pool.query(summaryQuery, queryParams);
-    const summary = summaryResult.rows[0];
+    // 3. 활성 캠페인 수 조회
+    const activeResult = await pool.query(
+      `SELECT COUNT(*) as count FROM campaigns c
+      JOIN marketing_accounts ma ON c.marketing_account_id = ma.id
+      WHERE ma.user_id = ? AND c.status = 'active'`,
+      [userId]
+    );
 
-    const totalBudget = parseFloat(summary.total_budget) || 0;
-    const totalSpent = parseFloat(summary.total_spent) || 0;
-    const remaining = totalBudget - totalSpent;
-    const utilizationRate = totalBudget > 0 ? (totalSpent / totalBudget) * 100 : 0;
+    const totalBudget = parseFloat(userSettings.total_budget);
+    const totalSpent = parseFloat(spentResult.rows[0].total_spent);
 
     res.json({
       summary: {
-        totalBudget,
-        totalSpent,
-        remaining,
-        utilizationRate: parseFloat(utilizationRate.toFixed(2)),
-        dailyBudget: parseFloat(summary.total_daily_budget) || 0,
-        activeCampaigns: parseInt(summary.active_campaigns),
+        totalBudget: totalBudget, // 👈 budget_settings 테이블 값을 사용하여 3.1억 버그 해결!
+        totalSpent: totalSpent,
+        remaining: totalBudget - totalSpent,
+        utilizationRate: totalBudget > 0 ? parseFloat(((totalSpent / totalBudget) * 100).toFixed(2)) : 0,
+        dailyBudget: parseFloat(userSettings.daily_budget) || 0,
+        activeCampaigns: parseInt(activeResult.rows[0].count),
       },
     });
   } catch (error) {
-    console.error('예산 요약 조회 오류:', error);
-    res.status(500).json({
-      error: '예산 요약을 조회하는 중 오류가 발생했습니다.',
-      details: error instanceof Error ? error.message : '알 수 없는 오류',
-    });
+    console.error('Budget Summary Error:', error);
+    res.status(500).json({ error: '예산 요약 조회 중 오류가 발생했습니다.' });
   }
 };
 
@@ -240,5 +240,27 @@ export const updateCampaignBudget = async (req: AuthRequest, res: Response) => {
       error: '예산을 수정하는 중 오류가 발생했습니다.',
       details: error instanceof Error ? error.message : '알 수 없는 오류',
     });
+  }
+};
+
+// 전체 목표 예산을 budget_settings 테이블에 저장하는 기능 추가
+export const updateTotalBudget = async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    const { totalBudget } = req.body;
+
+    // 데이터가 있으면 업데이트, 없으면 삽입합니다.
+    const query = `
+      INSERT INTO budget_settings (user_id, total_budget)
+      VALUES (?, ?)
+      ON DUPLICATE KEY UPDATE total_budget = VALUES(total_budget)
+    `;
+    
+    await pool.query(query, [userId, totalBudget]);
+
+    res.json({ success: true, message: '전체 예산이 성공적으로 저장되었습니다.' });
+  } catch (error) {
+    console.error('Update Total Budget Error:', error);
+    res.status(500).json({ error: '전체 예산 저장 중 오류가 발생했습니다.' });
   }
 };
