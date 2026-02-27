@@ -237,7 +237,8 @@ export const integrationAPI = {
 // 💰 예산 관련 API 함수 모음
 export const budgetAPI = {
   // 예산 요약 정보 조회 (시작일, 종료일 필터 가능)
-  updateTotalBudget: (data: { totalBudget: number }) => 
+  // 전체 예산(totalBudget)과 일일 예산(dailyBudget)을 모두 전송하도록 수정합니다.
+  updateTotalBudget: (data: { totalBudget: number; dailyBudget: number }) => 
     api.post('/budget/settings', data),
   getSummary: (params?: { startDate?: string; endDate?: string }) =>
     api.get('/budget/summary', { params }),

@@ -25,13 +25,18 @@ export default function CampaignsPage() {
 
   const [isTotalBudgetModalOpen, setIsTotalBudgetModalOpen] = useState(false);
   const [newTotalBudget, setNewTotalBudget] = useState('');
+  // 🌟 [변수 정의 추가] 일일 예산을 관리할 새로운 상태 변수를 선언합니다.
+  const [newDailyBudget, setNewDailyBudget] = useState('');
 
   const updateTotalBudgetMutation = useMutation({
-    mutationFn: (amount: number) => budgetAPI.updateTotalBudget({ totalBudget: amount }),
+    // 🌟 [수정] 객체 형태로 totalBudget과 dailyBudget을 모두 전송합니다.
+    mutationFn: (data: { totalBudget: number; dailyBudget: number }) => 
+      budgetAPI.updateTotalBudget(data),
     onSuccess: () => {
+      // 성공 시 대시보드 요약 쿼리를 무효화하여 화면을 최신화합니다.
       queryClient.invalidateQueries({ queryKey: ['budget-summary'] });
       setIsTotalBudgetModalOpen(false);
-      alert('전체 예산이 성공적으로 설정되었습니다! 💰');
+      alert('전체 및 일일 예산 설정이 업데이트되었습니다! 💰');
     },
     onError: () => alert('예산 설정에 실패했습니다. 다시 시도해 주세요.'),
   });
@@ -257,7 +262,17 @@ export default function CampaignsPage() {
         <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
           <div className="flex items-center justify-between mb-2">
             <p className="text-sm text-gray-500">일일 예산</p>
-            <DollarSign className="w-5 h-5 text-purple-500" />
+            {/* 🌟 [수정 버튼 추가] 클릭 시 전체 예산과 일일 예산 값을 모달 상태에 미리 채워넣습니다. */}
+            <button 
+              onClick={() => {
+                setNewTotalBudget(String(summary?.totalBudget || 0));
+                setNewDailyBudget(String(summary?.dailyBudget || 0));
+                setIsTotalBudgetModalOpen(true);
+              }}
+              className="p-1 hover:bg-purple-50 rounded-full transition"
+            >
+              <Edit className="w-4 h-4 text-purple-500" />
+            </button>
           </div>
           <p className="text-2xl font-bold text-gray-900">{formatCurrency(summary?.dailyBudget || 0)}</p>
           <p className="text-sm text-gray-500 mt-1">활성 {summary?.activeCampaigns || 0}개</p>
@@ -498,15 +513,29 @@ export default function CampaignsPage() {
               설정된 금액을 기준으로 소진율이 계산됩니다.
             </p>
             
-            <div className="mb-6">
-              <label className="block text-sm font-medium text-gray-700 mb-2">목표 금액 (원)</label>
-              <input
-                type="number"
-                value={newTotalBudget}
-                onChange={(e) => setNewTotalBudget(e.target.value)}
-                placeholder="예: 10000000"
-                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-lg font-semibold"
-              />
+            <div className="space-y-4 mb-6">
+              {/* 전체 예산 입력창 */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">전체 목표 금액 (원)</label>
+                <input
+                  type="number"
+                  value={newTotalBudget}
+                  onChange={(e) => setNewTotalBudget(e.target.value)}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-lg font-semibold"
+                />
+              </div>
+              
+              {/* 🌟 [일일 예산 입력창 추가] */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">일일 목표 예산 (원)</label>
+                <input
+                  type="number"
+                  value={newDailyBudget}
+                  onChange={(e) => setNewDailyBudget(e.target.value)}
+                  placeholder="하루 소진 권장 금액"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-lg font-semibold"
+                />
+              </div>
             </div>
 
             <div className="flex gap-3">
@@ -517,7 +546,11 @@ export default function CampaignsPage() {
                 취소
               </button>
               <button
-                onClick={() => updateTotalBudgetMutation.mutate(Number(newTotalBudget))}
+                // 🌟 [저장 로직 수정] 두 개의 상태값을 객체로 묶어서 Mutation을 실행합니다.
+                onClick={() => updateTotalBudgetMutation.mutate({ 
+                  totalBudget: Number(newTotalBudget), 
+                  dailyBudget: Number(newDailyBudget) 
+                })}
                 disabled={updateTotalBudgetMutation.isPending}
                 className="flex-1 py-3 bg-blue-600 text-white rounded-xl font-medium hover:bg-blue-700 transition disabled:opacity-50"
               >

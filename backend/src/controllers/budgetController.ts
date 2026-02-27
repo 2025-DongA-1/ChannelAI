@@ -243,24 +243,41 @@ export const updateCampaignBudget = async (req: AuthRequest, res: Response) => {
   }
 };
 
-// 전체 목표 예산을 budget_settings 테이블에 저장하는 기능 추가
+/**
+ * 사용자별 전체 예산 및 일일 예산 설정 저장/수정
+ * POST /api/v1/budget/settings
+ */
 export const updateTotalBudget = async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user?.id;
-    const { totalBudget } = req.body;
+    // 프론트엔드에서 보낼 객체 구조에 맞춰 두 값을 모두 받습니다.
+    const { totalBudget, dailyBudget } = req.body;
 
-    // 데이터가 있으면 업데이트, 없으면 삽입합니다.
+    // 입력값을 숫자로 강제 변환하여 데이터 형식을 보장합니다.
+    const numTotalBudget = parseFloat(totalBudget) || 0;
+    const numDailyBudget = parseFloat(dailyBudget) || 0;
+
+    // MySQL Workbench에서 설정한 user_id UNIQUE 제약 조건을 활용합니다.
+    // 중복된 user_id가 들어오면 UPDATE 문이 실행됩니다.
     const query = `
-      INSERT INTO budget_settings (user_id, total_budget)
-      VALUES (?, ?)
-      ON DUPLICATE KEY UPDATE total_budget = VALUES(total_budget)
+      INSERT INTO budget_settings (user_id, total_budget, daily_budget)
+      VALUES (?, ?, ?)
+      ON DUPLICATE KEY UPDATE 
+        total_budget = VALUES(total_budget),
+        daily_budget = VALUES(daily_budget)
     `;
     
-    await pool.query(query, [userId, totalBudget]);
+    await pool.query(query, [userId, numTotalBudget, numDailyBudget]);
 
-    res.json({ success: true, message: '전체 예산이 성공적으로 저장되었습니다.' });
+    res.json({ 
+      success: true, 
+      message: '예산 설정이 성공적으로 저장 및 업데이트되었습니다.' 
+    });
   } catch (error) {
     console.error('Update Total Budget Error:', error);
-    res.status(500).json({ error: '전체 예산 저장 중 오류가 발생했습니다.' });
+    res.status(500).json({ 
+      error: '예산 설정을 저장하는 중 오류가 발생했습니다.',
+      details: error instanceof Error ? error.message : 'DB 에러'
+    });
   }
 };
