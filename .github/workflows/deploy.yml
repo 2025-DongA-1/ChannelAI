@@ -58,7 +58,7 @@ jobs:
   # WAS 서버 배포 (수동 트리거에서만 실행)
   # ============================================
   deploy-was:
-    needs: [build, deploy-web]
+    needs: [build]
     runs-on: ubuntu-latest
     if: >
       github.event_name == 'workflow_dispatch' &&
