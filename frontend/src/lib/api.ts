@@ -195,6 +195,7 @@ export const integrationAPI = {
     ctr: number;
     cost: number;
     cpc: number;
+    revenue?: number;
   }) => api.post('/integration/karrot/manual', data),
 
   // 🥕 당근마켓 수동 입력 캠페인 삭제
@@ -213,6 +214,7 @@ export const integrationAPI = {
     ctr: number;
     cost: number;
     cpc: number;
+    revenue?: number;
   }) => api.put(`/integration/karrot/manual/${campaignId}`, data),
 
   // 📤 CSV 파일 업로드 (File 객체 필요)
