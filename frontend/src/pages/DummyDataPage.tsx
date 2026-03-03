@@ -319,7 +319,6 @@ const DummyDataPage: React.FC = () => {
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
-<<<<<<< HEAD
             <Link 
               to="/data-management"
               className="px-4 py-2 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-xl font-bold hover:bg-indigo-100 transition flex items-center gap-2"
@@ -333,10 +332,7 @@ const DummyDataPage: React.FC = () => {
             >
               <Plus size={18} />
               수기 입력
-=======
-            <button onClick={() => setIsModalOpen(true)} className="px-4 py-2 bg-white text-gray-700 border border-gray-200 rounded-xl font-medium hover:bg-gray-50 transition flex items-center gap-2">
-              <Plus size={18} /> 수기 입력
->>>>>>> 84eb9feb9c7bc7455054f797ba2e2675eac3be2c
+
             </button>
             <button onClick={handleSaveToDB} disabled={isSaving || data.length === 0} className={`px-4 py-2 text-white rounded-xl font-medium transition flex items-center gap-2 ${isSaving ? 'bg-blue-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700 shadow-md'}`}>
               {isSaving ? <RefreshCw className="animate-spin" size={18} /> : <Database size={18} />}
