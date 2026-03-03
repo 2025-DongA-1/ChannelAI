@@ -37,7 +37,7 @@ export class MetaAdsService implements IAdService {
       client_id: this.appId,
       redirect_uri: redirectUri,
       state,
-      scope: 'ads_read',
+      scope: 'ads_read,ads_management,pages_read_engagement',
       response_type: 'code'
     });
 
@@ -219,21 +219,23 @@ export class MetaAdsService implements IAdService {
 
     let metrics: AdMetrics[] = [];
 
-    // 1. 캠페인 insights API 시도
-    try {
-      const response = await axios.get(
-        `${this.baseUrl}/${this.apiVersion}/${campaignId}/insights`,
-        {
-          params: {
-            access_token: accessToken,
-            time_range: JSON.stringify({ since: startDate, until: endDate }),
-            time_increment: 1,
-            fields: 'impressions,clicks,spend',
-            level: 'campaign',
-            limit: 500
-          }
+    // 1. 캠페인 insights API 시도 (campaignId가 있을 때만)
+    if (campaignId && campaignId.trim() !== '') {
+      try {
+        const params: any = {
+          access_token: accessToken,
+          time_increment: 1,
+          fields: 'impressions,clicks,spend',
+          level: 'campaign',
+          limit: 500
+        };
+        if (startDate && endDate) {
+          params.time_range = JSON.stringify({ since: startDate, until: endDate });
         }
-      );
+        const response = await axios.get(
+          `${this.baseUrl}/${this.apiVersion}/${campaignId}/insights`,
+          { params }
+        );
       if (response.data.error) {
         console.error('[Meta Ads][DEBUG] insights API error:', JSON.stringify(response.data.error, null, 2));
       }
@@ -256,21 +258,23 @@ export class MetaAdsService implements IAdService {
     } catch (error: any) {
       console.error('[Meta Ads] 캠페인 insights API 오류:', error?.response?.data || error.message);
     }
+    } // campaignId 존재 여부 if 닫기
 
     // 2. 광고 계정 insights API
     try {
+      const params: any = {
+        access_token: accessToken,
+        time_increment: 1,
+        fields: 'impressions,clicks,spend',
+        level: 'account',
+        limit: 500
+      };
+      if (startDate && endDate) {
+        params.time_range = JSON.stringify({ since: startDate, until: endDate });
+      }
       const response = await axios.get(
         `${this.baseUrl}/${this.apiVersion}/${accountId}/insights`,
-        {
-          params: {
-            access_token: accessToken,
-            time_range: JSON.stringify({ since: startDate, until: endDate }),
-            time_increment: 1,
-            fields: 'impressions,clicks,spend',
-            level: 'account',
-            limit: 500
-          }
-        }
+        { params }
       );
       if (response.data.error) {
         console.error('[Meta Ads][DEBUG] account insights API error:', JSON.stringify(response.data.error, null, 2));

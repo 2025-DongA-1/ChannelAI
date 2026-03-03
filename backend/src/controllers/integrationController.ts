@@ -645,13 +645,15 @@ export const syncMetrics = async (req: AuthRequest, res: Response) => {
 export const syncAllMetrics = async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user?.id;
-    const { startDate, endDate, platform } = req.body;
+    const { startDate: rawStartDate, endDate: rawEndDate, platform } = req.body;
+
+    // startDate, endDate가 빈 문자열이면 전체 기간 조회 (최대 36개월 전~오늘)
+    const now = new Date();
+    const defaultStart = new Date(now.getFullYear() - 3, now.getMonth(), 1).toISOString().split('T')[0];
+    const startDate = rawStartDate || defaultStart;
+    const endDate = rawEndDate || now.toISOString().split('T')[0];
 
     console.log('[Sync All] 동기화 시작:', { userId, startDate, endDate, platform });
-
-    if (!startDate || !endDate) {
-      return res.status(400).json({ error: '시작일과 종료일을 지정해주세요.' });
-    }
 
     // 1. 먼저 계정 정보 조회
     let accountQuery = 'SELECT * FROM marketing_accounts WHERE user_id = ?';

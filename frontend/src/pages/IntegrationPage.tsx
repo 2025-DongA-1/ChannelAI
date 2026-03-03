@@ -122,9 +122,8 @@ export default function IntegrationPage() {
   const syncAllMutation = useMutation({
     mutationFn: async (platform: string) => {
       setSyncing(platform);
-      const endDate = new Date().toISOString().split('T')[0];
-      const startDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-      await integrationAPI.syncAll({ startDate, endDate, platform });
+      // 전체 기간 동기화: startDate, endDate를 빈 문자열로 전달
+      await integrationAPI.syncAll({ startDate: '', endDate: '', platform });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['accounts'] });
