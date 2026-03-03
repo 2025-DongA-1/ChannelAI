@@ -12,6 +12,7 @@ import InsightsPage from './pages/InsightsPage';
 import PrivacyPolicyPage from './pages/PrivacyPolicyPage';
 import TermsOfServicePage from './pages/TermsOfServicePage';
 import DummyDataPage from './pages/DummyDataPage';
+import DataManagementPage from './pages/DataManagementPage';
 import MyPage from './pages/MyPage';
 import AdvancedModelTestPage from './pages/AdvancedModelTestPage';
 import EmailReportPage from './pages/EmailReportPage';
@@ -185,6 +186,18 @@ function App() {
               <PrivateRoute>
                 <Layout>
                   <DummyDataPage />
+                </Layout>
+              </PrivateRoute>
+            }
+          />
+
+          {/* ★ [추가] 원본 데이터 관리 페이지 라우트 */}
+          <Route
+            path="/data-management"
+            element={
+              <PrivateRoute>
+                <Layout>
+                  <DataManagementPage />
                 </Layout>
               </PrivateRoute>
             }

@@ -16,6 +16,7 @@ import budgetRoutes from './routes/budgetRoutes';
 import insightRoutes from './routes/insightRoutes';
 import aiRoutes from './routes/aiRoutes';
 import reportRoutes from './routes/reportRoutes';
+import metricRoutes from './routes/metricRoutes';
 import { spawn } from 'child_process';
 import path from 'path';
 
@@ -139,6 +140,7 @@ app.use('/api/v1/budget', budgetRoutes);
 app.use('/api/v1/insights', insightRoutes);
 app.use('/api/v1/ai', aiRoutes);
 app.use('/api/v1/report', reportRoutes);   // 리포트 이메일 발송 API
+app.use('/api/v1/metrics', metricRoutes);  // 로우 데이터/메트릭 관리 API
 
 app.get('/api/v1', (req: Request, res: Response) => {
   res.json({ 
@@ -152,6 +154,7 @@ app.get('/api/v1', (req: Request, res: Response) => {
       budget: '/api/v1/budget',
       insights: '/api/v1/insights',
       ai: '/api/v1/ai',
+      metrics: '/api/v1/metrics',
     }
   });
 });

@@ -22,6 +22,7 @@ export const getCampaigns = async (req: Request, res: Response) => {
       FROM campaigns c
       JOIN marketing_accounts ma ON c.marketing_account_id = ma.id
       WHERE ma.user_id = ?
+        AND EXISTS (SELECT 1 FROM campaign_metrics WHERE campaign_id = c.id)
     `;
     
     const params: any[] = [userId];
@@ -47,6 +48,7 @@ export const getCampaigns = async (req: Request, res: Response) => {
       FROM campaigns c
       JOIN marketing_accounts ma ON c.marketing_account_id = ma.id
       WHERE ma.user_id = ?
+        AND EXISTS (SELECT 1 FROM campaign_metrics WHERE campaign_id = c.id)
     `;
     
     const countParams: any[] = [userId];

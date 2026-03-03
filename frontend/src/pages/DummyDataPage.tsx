@@ -314,6 +314,13 @@ const DummyDataPage: React.FC = () => {
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
+            <Link 
+              to="/data-management"
+              className="px-4 py-2 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-xl font-bold hover:bg-indigo-100 transition flex items-center gap-2"
+            >
+              <Database size={18} />
+              DB 데이터 관리
+            </Link>
             <button 
               onClick={() => setIsModalOpen(true)}
               className="px-4 py-2 bg-white text-gray-700 border border-gray-200 rounded-xl font-medium hover:bg-gray-50 transition flex items-center gap-2"

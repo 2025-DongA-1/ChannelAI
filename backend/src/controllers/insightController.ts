@@ -171,7 +171,7 @@ export const getComparison = async (req: Request, res: Response) => {
         SUM(CASE WHEN cm.cost > 0 THEN cm.revenue / cm.cost ELSE 0 END) as total_roas
       FROM marketing_accounts ma
       JOIN campaigns c ON c.marketing_account_id = ma.id
-      LEFT JOIN campaign_metrics cm ON cm.campaign_id = c.id
+      JOIN campaign_metrics cm ON cm.campaign_id = c.id
         AND cm.metric_date BETWEEN ? AND ?
       WHERE ma.user_id = ?
       GROUP BY ma.channel_code

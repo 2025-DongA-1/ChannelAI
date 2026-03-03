@@ -78,8 +78,8 @@ export const analyzeAndRecommend = async (req: AuthRequest, res: Response) => {
         CASE WHEN SUM(cm.conversions) > 0 
           THEN ROUND(SUM(cm.cost) / SUM(cm.conversions), 2) ELSE 0 END as cpa
       FROM marketing_accounts ma
-      LEFT JOIN campaigns c ON c.marketing_account_id = ma.id AND c.status = 'active'
-      LEFT JOIN campaign_metrics cm ON cm.campaign_id = c.id 
+      JOIN campaigns c ON c.marketing_account_id = ma.id AND c.status = 'active'
+      JOIN campaign_metrics cm ON cm.campaign_id = c.id 
         AND cm.metric_date >= ? AND cm.metric_date <= ?
       WHERE ma.user_id = ?
       GROUP BY ma.channel_code
@@ -229,8 +229,10 @@ export const getAdvancedMetrics = async (req: AuthRequest, res: Response) => {
       ? `AND cm.metric_date >= ? AND cm.metric_date <= ?`
       : '';
 
-    // 날짜 파라미터 배열 구성 (날짜 필터가 있을 때만 값 추가)
-    const queryParams: any[] = startDate && endDate ? [startDate, endDate] : [];
+    // 파라미터 배열: userId 항상 포함, 날짜는 있을 때만 추가
+    const queryParams: any[] = startDate && endDate
+      ? [userId, startDate, endDate]
+      : [userId];
 
     const rawMetricsQuery = `
       SELECT 
@@ -241,6 +243,7 @@ export const getAdvancedMetrics = async (req: AuthRequest, res: Response) => {
       FROM campaigns c
       JOIN marketing_accounts ma ON c.marketing_account_id = ma.id
       JOIN campaign_metrics cm ON c.id = cm.campaign_id
+      WHERE ma.user_id = ?
       ${dateFilter}
       GROUP BY ma.channel_code, c.campaign_name
     `;
@@ -531,6 +534,7 @@ export const getMLRealtime = async (req: AuthRequest, res: Response) => {
       `--db=${process.env.DB_NAME}`,
       `--user=${process.env.DB_USER}`,
       `--password=${process.env.DB_PASSWORD}`,
+      `--user_id=${userId}`,
     ];
 
     // 날짜 필터가 있을 때만 인수 추가

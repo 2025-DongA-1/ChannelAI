@@ -37,6 +37,7 @@ parser.add_argument('--user',     required=True)
 parser.add_argument('--password', required=True)
 parser.add_argument('--start',    default=None)  # 시작일 필터 (선택)
 parser.add_argument('--end',      default=None)  # 종료일 필터 (선택)
+parser.add_argument('--user_id',  type=int, required=True)  # 사용자 ID (필수)
 args = parser.parse_args()
 
 try:
@@ -82,9 +83,10 @@ try:
         FROM campaign_metrics cm
         JOIN campaigns c           ON cm.campaign_id = c.id
         JOIN marketing_accounts ma ON c.marketing_account_id = ma.id
-        WHERE 1=1 {date_filter}
+        WHERE ma.user_id = %s {date_filter}
     """
-    df = pd.read_sql(query, conn, params=date_params if date_params else None)
+    params = [args.user_id] + date_params
+    df = pd.read_sql(query, conn, params=params if params else None)
     conn.close()
 except Exception as e:
     print(json.dumps({"error": f"DB 연결 실패: {str(e)}"}))

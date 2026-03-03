@@ -281,3 +281,18 @@ export const insightsAPI = {
   getRecommendations: () =>
     api.get('/insights/recommendations'),
 };
+
+// 📊 원본 메트릭 데이터 조회 및 관리 API
+export const metricAPI = {
+  // 전체 메트릭 조회
+  getAllMetrics: () => api.get('/metrics'),
+  
+  // 메트릭 수정
+  updateMetric: (id: number, data: any) => api.put(`/metrics/${id}`, data),
+  
+  // 메트릭 삭제
+  deleteMetric: (id: number) => api.delete(`/metrics/${id}`),
+
+  // 다수 메트릭 일괄 삭제
+  deleteBulkMetrics: (ids: number[]) => api.post('/metrics/bulk-delete', { ids }),
+};
