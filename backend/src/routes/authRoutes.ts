@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { register, login, getMe, checkEmail } from '../controllers/authController';
+import { register, login, getMe, checkEmail, updateProfile, changePassword } from '../controllers/authController';
 import {
   getKakaoAuthUrl,
   handleKakaoCallback,
@@ -25,6 +25,12 @@ router.post('/login', login);
 
 // 내 정보 조회 (인증 필요)
 router.get('/me', authenticate, getMe);
+
+// 프로필 수정 (이름, 이메일, 회사명, 사업자번호, 전화번호)
+router.put('/me', authenticate, updateProfile);
+
+// 비밀번호 변경
+router.put('/me/password', authenticate, changePassword);
 
 // 소셜 로그인 - 카카오
 router.get('/kakao', getKakaoAuthUrl);

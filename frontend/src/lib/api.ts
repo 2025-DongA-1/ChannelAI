@@ -85,6 +85,19 @@ export const authAPI = {
   connectNaver: () => api.get('/auth/naver', { headers: { Authorization: '' } }),
   // 구글 계정 연동 요청
   connectGoogle: () => api.get('/auth/google', { headers: { Authorization: '' } }),
+
+  // ✏️ 프로필 수정 (이름, 이메일, 회사명, 사업자번호, 전화번호)
+  updateProfile: (data: {
+    name?: string;
+    email?: string;
+    company_name?: string;
+    business_number?: string;
+    phone_number?: string;
+  }) => api.put('/auth/me', data),
+
+  // 🔑 비밀번호 변경
+  changePassword: (data: { currentPassword: string; newPassword: string }) =>
+    api.put('/auth/me/password', data),
 };
 
 // 📊 대시보드 관련 API 함수 모음

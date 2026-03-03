@@ -225,7 +225,7 @@ export class MetaAdsService implements IAdService {
         const params: any = {
           access_token: accessToken,
           time_increment: 1,
-          fields: 'impressions,clicks,spend',
+          fields: 'impressions,clicks,spend,actions,action_values,purchase_roas',
           level: 'campaign',
           limit: 500
         };
@@ -242,18 +242,25 @@ export class MetaAdsService implements IAdService {
       const results = response.data.data || [];
       if (results.length > 0) {
         console.log(`[Meta Ads] 캠페인 insights ${results.length}개 row 수신`);
-        metrics = metrics.concat(results.map((row: any) => ({
-          campaignId,
-          date: row.date_start || startDate,
-          impressions: parseInt(row.impressions || '0'),
-          clicks: parseInt(row.clicks || '0'),
-          conversions: 0,
-          cost: parseFloat(row.spend || '0'),
-          revenue: 0,
-          ctr: 0,
-          cpc: 0,
-          roas: 0
-        })));
+        metrics = metrics.concat(results.map((row: any) => {
+          const impressions = parseInt(row.impressions || '0');
+          const clicks = parseInt(row.clicks || '0');
+          const spend = parseFloat(row.spend || '0');
+          const conversions = this.extractConversions(row.actions);
+          const revenue = this.extractRevenue(row.actions, row.purchase_roas);
+          return {
+            campaignId,
+            date: row.date_start || startDate,
+            impressions,
+            clicks,
+            conversions,
+            cost: spend,
+            revenue,
+            ctr: impressions > 0 ? parseFloat(((clicks / impressions) * 100).toFixed(4)) : 0,
+            cpc: clicks > 0 ? parseFloat((spend / clicks).toFixed(2)) : 0,
+            roas: spend > 0 && revenue > 0 ? parseFloat((revenue / spend).toFixed(4)) : 0
+          };
+        }));
       }
     } catch (error: any) {
       console.error('[Meta Ads] 캠페인 insights API 오류:', error?.response?.data || error.message);
@@ -265,7 +272,7 @@ export class MetaAdsService implements IAdService {
       const params: any = {
         access_token: accessToken,
         time_increment: 1,
-        fields: 'impressions,clicks,spend',
+        fields: 'impressions,clicks,spend,actions,action_values,purchase_roas',
         level: 'account',
         limit: 500
       };
@@ -282,18 +289,25 @@ export class MetaAdsService implements IAdService {
       const results = response.data.data || [];
       if (results.length > 0) {
         console.log(`[Meta Ads] 광고 계정 insights ${results.length}개 row 수신`);
-        metrics = metrics.concat(results.map((row: any) => ({
-          campaignId: `meta_account_${accountId}`,
-          date: row.date_start || startDate,
-          impressions: parseInt(row.impressions || '0'),
-          clicks: parseInt(row.clicks || '0'),
-          conversions: 0,
-          cost: parseFloat(row.spend || '0'),
-          revenue: 0,
-          ctr: 0,
-          cpc: 0,
-          roas: 0
-        })));
+        metrics = metrics.concat(results.map((row: any) => {
+          const impressions = parseInt(row.impressions || '0');
+          const clicks = parseInt(row.clicks || '0');
+          const spend = parseFloat(row.spend || '0');
+          const conversions = this.extractConversions(row.actions);
+          const revenue = this.extractRevenue(row.actions, row.purchase_roas);
+          return {
+            campaignId: `meta_account_${accountId}`,
+            date: row.date_start || startDate,
+            impressions,
+            clicks,
+            conversions,
+            cost: spend,
+            revenue,
+            ctr: impressions > 0 ? parseFloat(((clicks / impressions) * 100).toFixed(4)) : 0,
+            cpc: clicks > 0 ? parseFloat((spend / clicks).toFixed(2)) : 0,
+            roas: spend > 0 && revenue > 0 ? parseFloat((revenue / spend).toFixed(4)) : 0
+          };
+        }));
       }
     } catch (error: any) {
       console.error('[Meta Ads] 광고 계정 insights API 오류:', error?.response?.data || error.message);

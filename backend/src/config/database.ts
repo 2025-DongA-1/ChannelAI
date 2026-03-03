@@ -14,7 +14,7 @@ const mysqlPool = mysql.createPool({
   waitForConnections: true,
   connectionLimit: 10,       // 외부 DB 부하 방지를 위해 10개로 제한
   queueLimit: 0,
-  connectTimeout: 10000,     // 연결 시도 최대 10초, 초과 시 에러 반환 (무한 대기 방지)
+  connectTimeout: 30000,     // 연결 시도 최대 30초 (외부 DB 지연 감안, 원래 10초였으나 늘림)
   enableKeepAlive: true,     // 유휴 연결에 keepAlive 패킷을 보내 끊긴 연결 감지
   keepAliveInitialDelay: 10000, // 10초 이상 유휴 상태면 keepAlive 시작
 });

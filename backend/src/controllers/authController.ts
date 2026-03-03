@@ -235,3 +235,135 @@ export const getMe = async (req: Request, res: Response) => {
     });
   }
 };
+
+// ──────────────────────────────────────────────────────────────
+// 프로필 수정 (이름, 이메일, 회사명, 사업자번호, 전화번호)
+// PUT /api/v1/auth/me
+// ──────────────────────────────────────────────────────────────
+export const updateProfile = async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).user.id;
+    const { name, email, company_name, business_number, phone_number } = req.body;
+
+    // 이메일 변경 요청이 있는 경우 중복 체크
+    if (email) {
+      const currentUser = await pool.query('SELECT email FROM users WHERE id = ?', [userId]);
+      const currentEmail = currentUser.rows[0]?.email;
+
+      if (email !== currentEmail) {
+        const existing = await pool.query(
+          'SELECT id FROM users WHERE email = ? AND id != ?',
+          [email, userId]
+        );
+        if (existing.rows.length > 0) {
+          return res.status(409).json({
+            error: 'EMAIL_EXISTS',
+            message: '이미 사용 중인 이메일입니다.',
+          });
+        }
+        // 이메일 업데이트
+        await pool.query('UPDATE users SET email = ? WHERE id = ?', [email, userId]);
+      }
+    }
+
+    // user_profiles 업데이트 (없으면 생성)
+    await pool.query(
+      `INSERT INTO user_profiles (user_id, name, company_name, business_number, phone_number)
+       VALUES (?, ?, ?, ?, ?)
+       ON DUPLICATE KEY UPDATE
+         name = COALESCE(?, name),
+         company_name = COALESCE(?, company_name),
+         business_number = COALESCE(?, business_number),
+         phone_number = COALESCE(?, phone_number)`,
+      [userId, name, company_name, business_number, phone_number,
+       name, company_name, business_number, phone_number]
+    );
+
+    // 최신 정보 조회해서 반환
+    const result = await pool.query(
+      `SELECT u.id, u.email, u.role, u.provider,
+              up.name, up.company_name, up.business_number, up.plan, up.phone_number
+       FROM users u
+       LEFT JOIN user_profiles up ON up.user_id = u.id
+       WHERE u.id = ?`,
+      [userId]
+    );
+
+    return res.json({
+      message: '프로필이 수정되었습니다.',
+      user: result.rows[0],
+    });
+  } catch (error) {
+    console.error('UpdateProfile error:', error);
+    return res.status(500).json({
+      error: 'SERVER_ERROR',
+      message: '프로필 수정 중 오류가 발생했습니다.',
+    });
+  }
+};
+
+// ──────────────────────────────────────────────────────────────
+// 비밀번호 변경
+// PUT /api/v1/auth/me/password
+// ──────────────────────────────────────────────────────────────
+export const changePassword = async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).user.id;
+    const { currentPassword, newPassword } = req.body;
+
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({
+        error: 'INVALID_INPUT',
+        message: '현재 비밀번호와 새 비밀번호를 모두 입력해주세요.',
+      });
+    }
+
+    if (newPassword.length < 6) {
+      return res.status(400).json({
+        error: 'INVALID_INPUT',
+        message: '새 비밀번호는 6자 이상이어야 합니다.',
+      });
+    }
+
+    const result = await pool.query(
+      'SELECT password_hash FROM users WHERE id = ?',
+      [userId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'USER_NOT_FOUND', message: '사용자를 찾을 수 없습니다.' });
+    }
+
+    const user = result.rows[0];
+
+    // 소셜 로그인 계정은 비밀번호 없음
+    if (!user.password_hash || user.password_hash.startsWith('KAKAO:') ||
+        user.password_hash.startsWith('NAVER:') || user.password_hash.startsWith('GOOGLE:')) {
+      return res.status(400).json({
+        error: 'SOCIAL_ACCOUNT',
+        message: '소셜 로그인 계정은 비밀번호를 변경할 수 없습니다.',
+      });
+    }
+
+    // 현재 비밀번호 확인
+    const isMatch = await bcrypt.compare(currentPassword, user.password_hash);
+    if (!isMatch) {
+      return res.status(401).json({
+        error: 'WRONG_PASSWORD',
+        message: '현재 비밀번호가 올바르지 않습니다.',
+      });
+    }
+
+    // 새 비밀번호 해싱 후 저장
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    await pool.query('UPDATE users SET password_hash = ? WHERE id = ?', [hashedPassword, userId]);
+
+    return res.json({ message: '비밀번호가 변경되었습니다.' });
+  } catch (error) {
+    console.error('ChangePassword error:', error);
+    return res.status(500).json({
+      error: 'SERVER_ERROR',
+      message: '비밀번호 변경 중 오류가 발생했습니다.',
+    });
+  }
+};
