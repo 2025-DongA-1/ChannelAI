@@ -4,6 +4,7 @@ import { integrationAPI } from '../lib/api';
 import { FileSpreadsheet, Plus, Download, Database, Trash2, AlertCircle, RefreshCw, Brain, Mail } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
+// 🌟 1. DB의 상세 메트릭 컬럼들을 모두 포함하도록 인터페이스 확장!
 interface AdData {
   id: string;
   date: string;
@@ -16,9 +17,15 @@ interface AdData {
   cost: number;
   impressions: number;
   clicks: number;
-  views: number;
-  installs: number;
-  leads: number;
+  conversions: number;
+  revenue: number;
+  ctr: number;
+  cpc: number;
+  cpm: number;
+  cvr: number;
+  cpa: number;
+  roas: number;
+  roi: number;
 }
 
 const MEDIA_LIST = ['google', 'meta', 'naver', 'karrot'];
@@ -39,30 +46,28 @@ const DummyDataPage: React.FC = () => {
   
   const token = useAuthStore((state) => state.token);
   
-  // New row form state
   const [formData, setFormData] = useState<Partial<AdData>>({
     date: new Date().toISOString().split('T')[0],
-    media: '카카오',
+    media: 'meta',
     cost: 0,
     impressions: 0,
     clicks: 0,
-    views: 0,
-    installs: 0,
-    leads: 0,
+    conversions: 0,
+    revenue: 0,
   });
 
-  // Dummy generation config
+  // 🌟 2. 플랫폼 선택 기능 추가!
   const [genConfig, setGenConfig] = useState({
-    // 👇 365를 30(1달)로 가볍게 줄여줍니다!
     startDate: new Date(new Date().getTime() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
     endDate: new Date().toISOString().split('T')[0],
-    count: 1,
+    count: 3,
+    platform: 'all', // 'all' 또는 특정 매체 이름
   });
 
   const generateId = () => Math.random().toString(36).substr(2, 9);
 
   const handleGenerateDummy = () => {
-    const { startDate, endDate, count } = genConfig;
+    const { startDate, endDate, count, platform } = genConfig;
     
     const start = new Date(startDate).getTime();
     const end = new Date(endDate).getTime();
@@ -70,12 +75,19 @@ const DummyDataPage: React.FC = () => {
 
     if (range < 0) return alert('시작일이 종료일보다 늦을 수 없습니다.');
 
+    // 🌟 3. 선택한 플랫폼만 필터링해서 사용
+    const availablePlatforms = platform === 'all' ? MEDIA_LIST : [platform];
+
     const campaigns = Array.from({ length: count }).map((_, i) => ({
       campaignName: `${CAMPAIGN_NAMES[Math.floor(Math.random() * CAMPAIGN_NAMES.length)]}_${i + 1}`,
-      media: MEDIA_LIST[Math.floor(Math.random() * MEDIA_LIST.length)],
+      media: availablePlatforms[Math.floor(Math.random() * availablePlatforms.length)],
       group: `AD_GROUP_${i + 1}`,
-      baseCost: Math.floor(Math.random() * 250000) + 50000, 
       creative: `소재_${['A', 'B', 'C'][Math.floor(Math.random() * 3)]}`,
+      baseCost: Math.floor(Math.random() * 250000) + 50000, 
+      baseCpm: Math.floor(Math.random() * 15000) + 5000, 
+      baseCtr: 0.01 + Math.random() * 0.04, 
+      baseCvr: 0.02 + Math.random() * 0.08, 
+      baseAov: Math.floor(Math.random() * 70000) + 30000, 
     }));
 
     const newItems: AdData[] = [];
@@ -89,9 +101,25 @@ const DummyDataPage: React.FC = () => {
 
       campaigns.forEach(camp => {
         const dailyCost = Math.floor(camp.baseCost * (0.8 + Math.random() * 0.4));
-        const dailyImpressions = Math.floor(dailyCost / (15 + Math.random() * 10)); 
-        const dailyClicks = Math.floor(dailyImpressions * (0.01 + Math.random() * 0.04)); 
-        const dailyConversions = Math.floor(dailyClicks * (0.05 + Math.random() * 0.1)); 
+        const dailyCpm = camp.baseCpm * (0.9 + Math.random() * 0.2);
+        const dailyCtr = camp.baseCtr * (0.9 + Math.random() * 0.2);
+        const dailyCvr = camp.baseCvr * (0.9 + Math.random() * 0.2);
+        const dailyAov = camp.baseAov * (0.9 + Math.random() * 0.2);
+
+        // 기본 메트릭 계산
+        const dailyImpressions = Math.floor((dailyCost / dailyCpm) * 1000); 
+        const dailyClicks = Math.floor(dailyImpressions * dailyCtr); 
+        const dailyConversions = Math.floor(dailyClicks * dailyCvr); 
+        const dailyRevenue = Math.floor(dailyConversions * dailyAov); 
+
+        // 🌟 4. DB에 들어갈 0.00을 채우기 위해 비율 및 단가 지표 완벽 계산!
+        const ctr = dailyImpressions > 0 ? (dailyClicks / dailyImpressions) * 100 : 0;
+        const cpc = dailyClicks > 0 ? dailyCost / dailyClicks : 0;
+        const cpm = dailyImpressions > 0 ? (dailyCost / dailyImpressions) * 1000 : 0;
+        const cvr = dailyClicks > 0 ? (dailyConversions / dailyClicks) * 100 : 0;
+        const cpa = dailyConversions > 0 ? dailyCost / dailyConversions : 0;
+        const roas = dailyCost > 0 ? (dailyRevenue / dailyCost) * 100 : 0;
+        const roi = dailyCost > 0 ? ((dailyRevenue - dailyCost) / dailyCost) * 100 : 0;
 
         newItems.push({
           id: generateId(),
@@ -105,9 +133,9 @@ const DummyDataPage: React.FC = () => {
           cost: dailyCost,
           impressions: dailyImpressions,
           clicks: dailyClicks,
-          views: Math.floor(dailyImpressions * 0.4),
-          installs: Math.floor(dailyConversions * 0.7),
-          leads: Math.floor(dailyConversions * 0.3),
+          conversions: dailyConversions,
+          revenue: dailyRevenue,
+          ctr, cpc, cpm, cvr, cpa, roas, roi
         });
       });
     }
@@ -117,7 +145,8 @@ const DummyDataPage: React.FC = () => {
   };
 
   const getCsvString = () => {
-    const headers = ['날짜', '월', '요일', '매체', '캠페인', '그룹', '소재', '비용', '노출', '클릭', '조회', '설치', '잠재고객'];
+    // 🌟 5. 백엔드가 이름으로 매핑할 수 있도록 DB 컬럼명을 그대로 CSV 헤더에 노출합니다!
+    const headers = ['날짜', '월', '요일', '매체', '캠페인', '그룹', '소재', 'cost', 'impressions', 'clicks', 'conversions', 'revenue', 'ctr', 'cpc', 'cpm', 'conversion_rate', 'cpa', 'roas', 'roi'];
     const csvRows = [headers.join(',')];
 
     data.forEach((item: AdData) => {
@@ -132,9 +161,15 @@ const DummyDataPage: React.FC = () => {
             item.cost,
             item.impressions,
             item.clicks,
-            item.views,
-            item.installs,
-            item.leads
+            item.conversions,
+            item.revenue,
+            item.ctr.toFixed(2),
+            item.cpc.toFixed(2),
+            item.cpm.toFixed(2),
+            item.cvr.toFixed(2), // DB의 conversion_rate 에 매핑
+            item.cpa.toFixed(2),
+            item.roas.toFixed(2),
+            item.roi.toFixed(2)
         ];
         csvRows.push(row.join(','));
     });
@@ -155,13 +190,11 @@ const DummyDataPage: React.FC = () => {
     document.body.removeChild(link);
   };
 
-  const handleExportDB = async () => {
+  const handleExportDB = async () => { /* 기존 코드 유지 */
     if (!token) return alert('로그인이 필요합니다.');
-    
     setIsExportingDB(true);
     try {
         const response = await integrationAPI.exportCSV();
-        // blob response processing
         const blob = new Blob([response.data], { type: 'text/csv;charset=utf-8;' });
         const url = window.URL.createObjectURL(blob);
         const link = document.createElement('a');
@@ -178,7 +211,7 @@ const DummyDataPage: React.FC = () => {
     }
   };
 
-  const handleSaveToDB = async () => {
+  const handleSaveToDB = async () => { /* 기존 코드 유지 */
     if (data.length === 0) return alert('저장할 데이터가 없습니다.');
     if (!token) return alert('로그인이 필요합니다.');
     if (!confirm(`${data.length}건의 데이터를 DB에 저장하시겠습니까?`)) return;
@@ -190,7 +223,6 @@ const DummyDataPage: React.FC = () => {
         const file = new File([blob], 'dummy_upload.csv', { type: 'text/csv' });
         
         const response = await integrationAPI.uploadCSV(file);
-
         if (response.data.success) {
             alert(`✅ 성공: ${response.data.message}`);
         }
@@ -207,6 +239,12 @@ const DummyDataPage: React.FC = () => {
     const dateObj = new Date(formData.date || '');
     const days = ['일', '월', '화', '수', '목', '금', '토'];
     
+    const cost = Number(formData.cost) || 0;
+    const impressions = Number(formData.impressions) || 0;
+    const clicks = Number(formData.clicks) || 0;
+    const conversions = Number(formData.conversions) || 0;
+    const revenue = Number(formData.revenue) || 0;
+
     const newRow: AdData = {
         id: editingRow ? editingRow.id : generateId(),
         date: formData.date || '',
@@ -216,12 +254,15 @@ const DummyDataPage: React.FC = () => {
         campaign: formData.campaign || '',
         group: formData.group || '',
         creative: formData.creative || '',
-        cost: Number(formData.cost) || 0,
-        impressions: Number(formData.impressions) || 0,
-        clicks: Number(formData.clicks) || 0,
-        views: Number(formData.views) || 0,
-        installs: Number(formData.installs) || 0,
-        leads: Number(formData.leads) || 0,
+        cost, impressions, clicks, conversions, revenue,
+        // 수기 입력 시에도 비율 지표를 자동 계산해줍니다!
+        ctr: impressions > 0 ? (clicks / impressions) * 100 : 0,
+        cpc: clicks > 0 ? cost / clicks : 0,
+        cpm: impressions > 0 ? (cost / impressions) * 1000 : 0,
+        cvr: clicks > 0 ? (conversions / clicks) * 100 : 0,
+        cpa: conversions > 0 ? cost / conversions : 0,
+        roas: cost > 0 ? (revenue / cost) * 100 : 0,
+        roi: cost > 0 ? ((revenue - cost) / cost) * 100 : 0,
     };
 
     if (editingRow) {
@@ -232,59 +273,28 @@ const DummyDataPage: React.FC = () => {
     
     setIsModalOpen(false);
     setEditingRow(null);
-    setFormData({
-        date: new Date().toISOString().split('T')[0],
-        media: '카카오',
-        cost: 0,
-        impressions: 0,
-        clicks: 0,
-        views: 0,
-        installs: 0,
-        leads: 0,
-    });
+    setFormData({ date: new Date().toISOString().split('T')[0], media: 'meta', cost: 0, impressions: 0, clicks: 0, conversions: 0, revenue: 0 });
   };
 
-  // 사용하지 않은 함수라 일단 주석처리   
-  /*
-  const handleDelete = (id: string) => {
-    if (confirm('삭제하시겠습니까?')) {
-        setData(data.filter(item => item.id !== id));
-    }
-  };
-  */
+  const clearData = () => { if (confirm('모든 데이터를 삭제하시겠습니까?')) setData([]); };
 
-  const clearData = () => {
-    if (confirm('모든 데이터를 삭제하시겠습니까?')) {
-        setData([]);
-    }
-  };
-
-  // 👇 요기에 합치기 계산 로직 추가! 👇
   const getCampaignSummary = () => {
     const summaryMap = new Map();
     data.forEach(item => {
       if (!summaryMap.has(item.campaign)) {
         summaryMap.set(item.campaign, {
-          campaign: item.campaign,
-          media: item.media,
-          group: item.group,
-          startDate: item.date,
-          endDate: item.date,
-          cost: 0,
-          impressions: 0,
-          clicks: 0,
-          installs: 0,
-          leads: 0,
+          campaign: item.campaign, media: item.media, group: item.group,
+          startDate: item.date, endDate: item.date,
+          cost: 0, impressions: 0, clicks: 0, conversions: 0, revenue: 0,
         });
       }
       const summary = summaryMap.get(item.campaign);
-      // 비용과 성과를 하나로 다 더해줍니다!
       summary.cost += item.cost;
       summary.impressions += item.impressions;
       summary.clicks += item.clicks;
-      summary.installs += item.installs;
-      summary.leads += item.leads;
-      // 시작일과 종료일을 찾아줍니다!
+      summary.conversions += item.conversions;
+      summary.revenue += item.revenue;
+      
       if (item.date < summary.startDate) summary.startDate = item.date;
       if (item.date > summary.endDate) summary.endDate = item.date;
     });
@@ -292,7 +302,6 @@ const DummyDataPage: React.FC = () => {
   };
 
   const aggregatedData = getCampaignSummary();
-  // 👆 추가 완료 👆
 
   return (
     <div className="p-6 bg-gray-50 min-h-screen">
@@ -307,13 +316,10 @@ const DummyDataPage: React.FC = () => {
                 <Brain size={18} />
                 AI 고급 모델 평가 지표 보기
               </Link>
-              <Link to="/email-report" className="inline-flex items-center gap-2 px-4 py-2 bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 rounded-xl font-bold transition">
-                <Mail size={18} />
-                이메일 리포트 설정
-              </Link>
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
+<<<<<<< HEAD
             <Link 
               to="/data-management"
               className="px-4 py-2 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-xl font-bold hover:bg-indigo-100 transition flex items-center gap-2"
@@ -327,40 +333,16 @@ const DummyDataPage: React.FC = () => {
             >
               <Plus size={18} />
               수기 입력
+=======
+            <button onClick={() => setIsModalOpen(true)} className="px-4 py-2 bg-white text-gray-700 border border-gray-200 rounded-xl font-medium hover:bg-gray-50 transition flex items-center gap-2">
+              <Plus size={18} /> 수기 입력
+>>>>>>> 84eb9feb9c7bc7455054f797ba2e2675eac3be2c
             </button>
-            <button 
-              onClick={handleExportCSV}
-              className="px-4 py-2 bg-white text-gray-700 border border-gray-200 rounded-xl font-medium hover:bg-gray-50 transition flex items-center gap-2"
-            >
-              <Download size={18} />
-              작성데이터 다운로드
-            </button>
-            <button 
-              onClick={handleExportDB}
-              disabled={isExportingDB}
-              className={`px-4 py-2 border border-blue-200 rounded-xl font-medium transition flex items-center gap-2 ${
-                isExportingDB ? 'bg-blue-50 text-blue-400 cursor-not-allowed' : 'bg-blue-50 text-blue-700 hover:bg-blue-100 shadow-sm'
-              }`}
-            >
-              <Database size={18} />
-              {isExportingDB ? '추출 중...' : 'DB 성과 다운로드'}
-            </button>
-            <button 
-              onClick={handleSaveToDB}
-              disabled={isSaving || data.length === 0}
-              className={`px-4 py-2 text-white rounded-xl font-medium transition flex items-center gap-2 ${
-                isSaving ? 'bg-blue-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700 shadow-md'
-              }`}
-            >
+            <button onClick={handleSaveToDB} disabled={isSaving || data.length === 0} className={`px-4 py-2 text-white rounded-xl font-medium transition flex items-center gap-2 ${isSaving ? 'bg-blue-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700 shadow-md'}`}>
               {isSaving ? <RefreshCw className="animate-spin" size={18} /> : <Database size={18} />}
               {isSaving ? '저장 중...' : 'DB에 직접 저장'}
             </button>
-            <button 
-              onClick={clearData}
-              className="px-4 py-2 bg-red-50 text-red-600 rounded-xl font-medium hover:bg-red-100 transition"
-            >
-              전체 비우기
-            </button>
+            <button onClick={clearData} className="px-4 py-2 bg-red-50 text-red-600 rounded-xl font-medium hover:bg-red-100 transition">전체 비우기</button>
           </div>
         </div>
 
@@ -370,41 +352,33 @@ const DummyDataPage: React.FC = () => {
                 <FileSpreadsheet className="text-blue-600" size={24} />
                 랜덤 데이터 생성 설정
             </h2>
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+            <div className="grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
+                {/* 🌟 플랫폼 선택 드롭다운 추가 */}
+                <div className="space-y-1">
+                    <label className="text-xs font-bold text-gray-500 uppercase">매체 선택</label>
+                    <select 
+                        value={genConfig.platform}
+                        onChange={(e) => setGenConfig({...genConfig, platform: e.target.value})}
+                        className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                    >
+                        <option value="all">전체 (랜덤 배정)</option>
+                        {MEDIA_LIST.map(m => <option key={m} value={m}>{m.toUpperCase()}</option>)}
+                    </select>
+                </div>
                 <div className="space-y-1">
                     <label className="text-xs font-bold text-gray-500 uppercase">시작일</label>
-                    <input 
-                        type="date" 
-                        value={genConfig.startDate}
-                        onChange={(e) => setGenConfig({...genConfig, startDate: e.target.value})}
-                        className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-                    />
+                    <input type="date" value={genConfig.startDate} onChange={(e) => setGenConfig({...genConfig, startDate: e.target.value})} className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
                 </div>
                 <div className="space-y-1">
                     <label className="text-xs font-bold text-gray-500 uppercase">종료일</label>
-                    <input 
-                        type="date" 
-                        value={genConfig.endDate}
-                        onChange={(e) => setGenConfig({...genConfig, endDate: e.target.value})}
-                        className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-                    />
+                    <input type="date" value={genConfig.endDate} onChange={(e) => setGenConfig({...genConfig, endDate: e.target.value})} className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
                 </div>
                 <div className="space-y-1">
-                    <label className="text-xs font-bold text-gray-500 uppercase">생성할 캠페인 수</label>
-                    <input 
-                        type="number" 
-                        value={genConfig.count}
-                        onChange={(e) => setGenConfig({...genConfig, count: parseInt(e.target.value) || 0})}
-                        className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-                        min="1"
-                        max="1000"
-                    />
+                    <label className="text-xs font-bold text-gray-500 uppercase">캠페인 수</label>
+                    <input type="number" value={genConfig.count} onChange={(e) => setGenConfig({...genConfig, count: parseInt(e.target.value) || 0})} className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" min="1" max="1000" />
                 </div>
-                <button 
-                  onClick={handleGenerateDummy}
-                  className="px-6 py-2.5 bg-blue-50 text-blue-600 border border-blue-200 rounded-xl font-bold hover:bg-blue-100 transition whitespace-nowrap"
-                >
-                  랜덤 데이터 생성하기
+                <button onClick={handleGenerateDummy} className="px-6 py-2 bg-blue-50 text-blue-600 border border-blue-200 rounded-xl font-bold hover:bg-blue-100 transition whitespace-nowrap h-[42px]">
+                  랜덤 생성
                 </button>
             </div>
         </div>
@@ -415,63 +389,54 @@ const DummyDataPage: React.FC = () => {
             <table className="w-full text-sm text-left">
               <thead className="bg-gray-50 text-gray-600 font-semibold border-b">
                 <tr>
-                  {/* 👇 제목들이 캠페인 요약에 맞게 바뀌었어요! */}
                   <th className="px-6 py-4">진행 기간</th>
                   <th className="px-6 py-4">매체</th>
                   <th className="px-6 py-4">캠페인 / 그룹</th>
-                  <th className="px-6 py-4 text-right">총 비용</th>
-                  <th className="px-6 py-4 text-right">총 노출/클릭</th>
-                  <th className="px-6 py-4 text-right">총 전환(설치/잠재)</th>
+                  <th className="px-6 py-4 text-right">총 비용 / 수익</th>
+                  <th className="px-6 py-4 text-right">총 노출 / 클릭</th>
+                  <th className="px-6 py-4 text-right">총 전환수</th>
                   <th className="px-6 py-4 text-center">캠페인 삭제</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {aggregatedData.length > 0 ? (
-                  // 👇 data 대신 위에서 합쳐둔 aggregatedData를 씁니다!
-                  aggregatedData.map((item: any, index: number) => (
-                    <tr key={index} className="hover:bg-gray-50 transition">
-                      <td className="px-6 py-4">
-                        <div className="font-medium text-gray-900">{item.startDate}</div>
-                        <div className="text-xs text-gray-500">~ {item.endDate}</div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <span className="px-2 py-1 rounded-full text-[10px] font-bold bg-blue-50 text-blue-600 border border-blue-100">
-                          {item.media.toUpperCase()}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="text-gray-900 font-medium truncate max-w-[200px]">{item.campaign}</div>
-                        <div className="text-xs text-gray-500 truncate max-w-[200px]">{item.group}</div>
-                      </td>
-                      <td className="px-6 py-4 text-right font-medium text-gray-900">
-                        ₩{item.cost.toLocaleString()}
-                      </td>
-                      <td className="px-6 py-4 text-right">
-                        <div className="text-gray-900">{item.impressions.toLocaleString()} 노출</div>
-                        <div className="text-xs text-gray-500">{item.clicks.toLocaleString()} 클릭</div>
-                      </td>
-                      <td className="px-6 py-4 text-right">
-                        <div className="text-blue-600 font-bold">{item.installs.toLocaleString()} 설치</div>
-                        <div className="text-xs text-gray-500">{item.leads.toLocaleString()} 잠재</div>
-                      </td>
-                      <td className="px-6 py-4 text-center">
-                        <div className="flex justify-center gap-1">
-                            <button 
-                                onClick={() => {
-                                    if (confirm(`'${item.campaign}' 캠페인의 모든 일자 데이터를 삭제하시겠습니까?`)) {
-                                        // 캠페인 단위로 묶여있으니, 삭제할 때 해당 캠페인 이름의 데이터를 통째로 지워줍니다!
-                                        setData(data.filter(d => d.campaign !== item.campaign));
-                                    }
-                                }}
-                                className="p-1.5 text-gray-400 hover:text-red-600 rounded-lg transition"
-                                title="캠페인 삭제"
-                            >
-                                <Trash2 size={16} />
-                            </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))
+                  aggregatedData.map((item: any, index: number) => {
+                    const roas = item.cost > 0 ? ((item.revenue / item.cost) * 100).toFixed(0) : 0;
+                    return (
+                      <tr key={index} className="hover:bg-gray-50 transition">
+                        <td className="px-6 py-4">
+                          <div className="font-medium text-gray-900">{item.startDate}</div>
+                          <div className="text-xs text-gray-500">~ {item.endDate}</div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <span className="px-2 py-1 rounded-full text-[10px] font-bold bg-blue-50 text-blue-600 border border-blue-100">
+                            {item.media.toUpperCase()}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="text-gray-900 font-medium truncate max-w-[200px]">{item.campaign}</div>
+                          <div className="text-xs text-gray-500 truncate max-w-[200px]">{item.group}</div>
+                        </td>
+                        <td className="px-6 py-4 text-right">
+                          <div className="font-medium text-gray-900">비용: ₩{item.cost.toLocaleString()}</div>
+                          <div className="text-blue-600 font-bold">수익: ₩{item.revenue.toLocaleString()}</div>
+                          <div className="text-xs text-green-600 font-semibold mt-1">ROAS: {roas}%</div>
+                        </td>
+                        <td className="px-6 py-4 text-right">
+                          <div className="text-gray-900">{item.impressions.toLocaleString()} 노출</div>
+                          <div className="text-xs text-gray-500">{item.clicks.toLocaleString()} 클릭</div>
+                        </td>
+                        <td className="px-6 py-4 text-right">
+                          <div className="text-purple-600 font-bold">{item.conversions.toLocaleString()}회</div>
+                        </td>
+                        <td className="px-6 py-4 text-center">
+                          <button onClick={() => { if (confirm(`삭제하시겠습니까?`)) setData(data.filter(d => d.campaign !== item.campaign)); }} className="p-1.5 text-gray-400 hover:text-red-600 rounded-lg transition">
+                              <Trash2 size={16} />
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })
                 ) : (
                   <tr>
                     <td colSpan={7} className="px-6 py-12 text-center text-gray-400">
@@ -488,132 +453,6 @@ const DummyDataPage: React.FC = () => {
           </div>
         </div>
       </div>
-
-      {/* Manual Input Modal */}
-      {isModalOpen && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl overflow-hidden">
-            <div className="px-6 py-5 border-b flex justify-between items-center">
-              <h2 className="text-xl font-bold text-gray-900">
-                {editingRow ? '데이터 수정' : '데이터 직접 입력'}
-              </h2>
-              <button 
-                onClick={() => {
-                    setIsModalOpen(false);
-                    setEditingRow(null);
-                }}
-                className="p-2 text-gray-400 hover:bg-gray-100 rounded-full transition"
-              >
-                <Plus size={24} className="rotate-45" />
-              </button>
-            </div>
-            
-            <form onSubmit={handleAddSubmit} className="p-6 space-y-5">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-gray-400 uppercase">날짜</label>
-                  <input 
-                    type="date" 
-                    value={formData.date}
-                    onChange={(e) => setFormData({...formData, date: e.target.value})}
-                    className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none transition"
-                    required
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-gray-400 uppercase">매체</label>
-                  <select 
-                    value={formData.media}
-                    onChange={(e) => setFormData({...formData, media: e.target.value})}
-                    className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none transition"
-                  >
-                    {MEDIA_LIST.map(m => <option key={m} value={m}>{m}</option>)}
-                  </select>
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-gray-400 uppercase">캠페인명</label>
-                  <input 
-                    type="text" 
-                    value={formData.campaign}
-                    onChange={(e) => setFormData({...formData, campaign: e.target.value})}
-                    className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none transition"
-                    placeholder="캠페인 이름"
-                    required
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-gray-400 uppercase">광고그룹</label>
-                  <input 
-                    type="text" 
-                    value={formData.group}
-                    onChange={(e) => setFormData({...formData, group: e.target.value})}
-                    className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none transition"
-                    placeholder="그룹 이름"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-gray-400 uppercase">비용</label>
-                  <input 
-                    type="number" 
-                    value={formData.cost}
-                    onChange={(e) => setFormData({...formData, cost: parseInt(e.target.value)})}
-                    className="w-full px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-gray-400 uppercase">노출수</label>
-                  <input 
-                    type="number" 
-                    value={formData.impressions}
-                    onChange={(e) => setFormData({...formData, impressions: parseInt(e.target.value)})}
-                    className="w-full px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-gray-400 uppercase">클릭수</label>
-                  <input 
-                    type="number" 
-                    value={formData.clicks}
-                    onChange={(e) => setFormData({...formData, clicks: parseInt(e.target.value)})}
-                    className="w-full px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-gray-400 uppercase">설치수</label>
-                  <input 
-                    type="number" 
-                    value={formData.installs}
-                    onChange={(e) => setFormData({...formData, installs: parseInt(e.target.value)})}
-                    className="w-full px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition"
-                  />
-                </div>
-              </div>
-
-              <div className="pt-4 flex gap-3">
-                <button 
-                  type="submit"
-                  className="flex-1 py-4 bg-blue-600 text-white font-bold rounded-2xl hover:bg-blue-700 shadow-lg shadow-blue-100 transition"
-                >
-                  {editingRow ? '수정 완료' : '추가하기'}
-                </button>
-                <button 
-                  type="button"
-                  onClick={() => {
-                      setIsModalOpen(false);
-                      setEditingRow(null);
-                  }}
-                  className="px-8 py-4 bg-gray-100 text-gray-500 font-bold rounded-2xl hover:bg-gray-200 transition"
-                >
-                  취소
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

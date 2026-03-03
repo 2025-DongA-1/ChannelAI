@@ -1099,7 +1099,14 @@ export const uploadCSV = async (req: AuthRequest, res: Response) => {
         const clicks = parseNumber(getVal(['클릭', 'clicks']));
         const spend = parseNumber(getVal(['비용', 'spend', 'cost', '집행금액']));
         const conversions = parseNumber(getVal(['설치', 'conversions', '전환', 'installs']));
-        const sales = parseNumber(getVal(['매출', 'sales', 'revenue']));
+        const sales = parseNumber(getVal(['매출', 'sales', 'revenue', '수익']));
+        const ctr = parseNumber(getVal(['ctr']));
+        const cpc = parseNumber(getVal(['cpc']));
+        const cpm = parseNumber(getVal(['cpm']));
+        const conversion_rate = parseNumber(getVal(['conversion_rate', 'cvr']));
+        const cpa = parseNumber(getVal(['cpa']));
+        const roas = parseNumber(getVal(['roas']));
+        const roi = parseNumber(getVal(['roi']));
 
         // 0. 채널 정보 보장
         try {
@@ -1154,15 +1161,28 @@ export const uploadCSV = async (req: AuthRequest, res: Response) => {
         const formattedDate = rawDate.replace(/[\.\/]/g, '-');
 
         await pool.query(`
-            INSERT INTO campaign_metrics (campaign_id, metric_date, impressions, clicks, cost, conversions, revenue)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO campaign_metrics (
+                campaign_id, metric_date, impressions, clicks, cost, conversions, revenue,
+                ctr, cpc, cpm, conversion_rate, cpa, roas, roi
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON DUPLICATE KEY UPDATE 
                 impressions = VALUES(impressions),
                 clicks = VALUES(clicks),
                 cost = VALUES(cost),
                 conversions = VALUES(conversions),
-                revenue = VALUES(revenue)
-        `, [campaignId, formattedDate, impressions, clicks, spend, conversions, sales]);
+                revenue = VALUES(revenue),
+                ctr = VALUES(ctr),
+                cpc = VALUES(cpc),
+                cpm = VALUES(cpm),
+                conversion_rate = VALUES(conversion_rate),
+                cpa = VALUES(cpa),
+                roas = VALUES(roas),
+                roi = VALUES(roi)
+        `, [
+            campaignId, formattedDate, impressions, clicks, spend, conversions, sales,
+            ctr, cpc, cpm, conversion_rate, cpa, roas, roi
+        ]);
 
         processedCount++;
     }
