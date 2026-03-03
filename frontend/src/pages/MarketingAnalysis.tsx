@@ -40,13 +40,22 @@ interface AnalysisResult {
 
 function MarketingAnalysis() {
   // state 타입 정의
-  const [budget, setBudget] = useState<number | string>(500000);
+  const [budget, setBudget] = useState<number | string>('');
   const [period, setPeriod] = useState<number>(7);
   const [result, setResult] = useState<AnalysisResult | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
   const [mounted, setMounted] = useState<boolean>(false);
   // 꺾은선 그래프 하이라이팅 - 마우스가 어디 선에 올라가있었는지 기억하는 공간
   const [hoveredLine, setHoveredLine] = useState<string | null>(null);
+  // 숫자에만 반응하고 콤마를 찍어주는 함수
+  const handleBudgetChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const rawValue = e.target.value.replace(/[^0-9]/g, ''); // 문자가 들어오면 무시하고 숫자만 추출
+    if (!rawValue) {
+      setBudget('');
+      return;
+    }
+    setBudget(Number(rawValue).toLocaleString()); // 숫자에 콤마(,)를 붙여서 상태 업데이트
+  };
   const { data: dbData} = useQuery({
     queryKey: ['ai-analysis-data'], // 고유한 이름표
     queryFn: () => dashboardAPI.getChannelPerformance(), // 대시보드와 같은 API 호출
@@ -58,6 +67,14 @@ function MarketingAnalysis() {
 
   // API 요청 함수
   const getRecommendation = async (periodOverride?: number) => {
+
+    // ✅ [추가] 사용자가 예산을 안 적고 버튼을 눌렀을 때 튕겨내는 방어막
+    const cleanBudget = Number(budget.toString().replace(/,/g, ''));
+    if (cleanBudget <= 0) {
+      alert("최적화할 하루 광고비(예산)를 먼저 입력해주세요! 💸");
+      return; // 여기서 멈추고 서버로 넘어가지 않음
+    }
+
     console.log("[사용자 로그] '분석 실행'버튼 클릭");
     setLoading(true);
 
@@ -122,8 +139,10 @@ function MarketingAnalysis() {
       console.log("✅ AI로 보내는 최종 데이터 :", features);
 
       // 백엔드 요청
+      const cleanBudget = Number(budget.toString().replace(/,/g, ''));
+      
       const response = await axios.post('http://localhost:5000/api/v1/ai/recommend', {
-        total_budget: Number(budget),
+        total_budget: cleanBudget,
         features: features,
         history_data : dailyData,
         duration : currentDuration
@@ -152,10 +171,10 @@ function MarketingAnalysis() {
   ].filter(item => item.value > 0) : []; // 0원인 항목은 차트에서 제외
 
   const barData = result ? [
-    { name: '네이버', roas: result.predicted_roas[0] },
-    { name: '메타', roas: result.predicted_roas[1] },
-    { name: '구글', roas: result.predicted_roas[2] },
-    { name: '당근', roas: result.predicted_roas[3] }
+    { name: '네이버', roas: result.predicted_roas[0], color: '#2DB400' },
+    { name: '메타', roas: result.predicted_roas[1], color: '#1877F2' },
+    { name: '구글', roas: result.predicted_roas[2], color: '#EA4335' },
+    { name: '당근', roas: result.predicted_roas[3], color: '#FF6F0F' }
   ] : [];
   
   // DB 데이터(realPerformance)가 없으면 빈 배열로 처리
@@ -211,10 +230,10 @@ function MarketingAnalysis() {
           
           <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
              <input
-              type="number"
+              type="text" 
               value={budget}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setBudget(e.target.value)}
-              placeholder="예: 500000"
+              onChange={handleBudgetChange}
+              placeholder="예: 500,000"
               style={{ 
                 width: '220px', 
                 padding: '14px 40px 14px 20px', 
@@ -421,9 +440,9 @@ function MarketingAnalysis() {
                             <Tooltip formatter={(value: any) => [`${value}%`, '예측 ROAS']} cursor={{ fill: '#f8f9fa' }} contentStyle={{ borderRadius: '10px', border: 'none' }} />
                             <Bar dataKey="roas" barSize={30} radius={[0, 10, 10, 0]}>
                               <LabelList dataKey="roas" position="right" formatter={(v: any) => `${v}%`} style={{ fontSize: '13px', fontWeight: 'bold', fill: '#333' }} />
-                              {barData.map((_, index) => (
-                                <Cell key={`cell-${index}`} fill={pieData[index].color} />
-                              ))}
+                              {barData.map((entry, index) => (
+                              <Cell key={`cell-${index}`} fill={entry.color} />
+                            ))}
                             </Bar>
                           </BarChart>
                         </ResponsiveContainer>
