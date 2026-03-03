@@ -150,7 +150,7 @@ def build_pro_report(
         "네이버": "네이버",
         "메타": "인스타그램/페이스북",
         "구글": "구글/유튜브",
-        "당근": "당근마켓"
+        "당근": "당근"
     }
     channel_display = [channel_names_kr.get(n, n) for n in channel_names]
 
