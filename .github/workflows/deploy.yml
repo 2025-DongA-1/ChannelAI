@@ -115,6 +115,25 @@ jobs:
           command_timeout: 10m
           script: |
             set -e
+            # ========== 0. socat 설치 ==========
+            if ! command -v socat &> /dev/null; then
+              apt-get install -y socat
+            fi
+            if [ ! -f /etc/systemd/system/socat-db.service ]; then
+              cat > /etc/systemd/system/socat-db.service << 'SOCATEOF'
+            [Unit]
+            Description=Socat DB Proxy
+            After=network.target
+            [Service]
+            ExecStart=/usr/bin/socat TCP-LISTEN:3307,fork TCP:${{ secrets.DB_EXTERNAL_HOST }}:${{ secrets.DB_EXTERNAL_PORT }}
+            Restart=always
+            [Install]
+            WantedBy=multi-user.target
+            SOCATEOF
+              systemctl daemon-reload
+              systemctl enable socat-db
+              systemctl start socat-db
+            fi
 
             # ========== 1. Node.js 설치/업그레이드 ==========
             NODE_MAJOR=$(node -v 2>/dev/null | cut -d'.' -f1 | tr -d 'v' || echo "0")
@@ -134,7 +153,7 @@ jobs:
             cd /opt/marketing-platform/backend
 
             # ========== 3. 환경변수 설정 (.env 로컬과 동일 구조) ==========
-            cat > .env << 'ENVEOF'
+            cat > .env << ENVEOF
             PORT=3000
             # --- External DB ---
             DB_HOST=${{ secrets.DB_HOST }}
@@ -142,6 +161,10 @@ jobs:
             DB_NAME=${{ secrets.DB_NAME }}
             DB_USER=${{ secrets.DB_USER }}
             DB_PASSWORD=${{ secrets.DB_PASSWORD }}
+            
+            # 프록시 설정
+            # HTTPS_PROXY=${{ secrets.WEB_PROXY_URL }}
+            # HTTP_PROXY=${{ secrets.WEB_PROXY_URL }}
 
             # --- Local DB (비활성화 - 서버는 외부DB 사용) ---
             #DB_HOST=localhost
@@ -200,6 +223,11 @@ jobs:
             REDIS_HOST=127.0.0.1
             REDIS_PORT=6379
             REDIS_PASSWORD=
+
+            # Proxy
+            HTTPS_PROXY=${{ secrets.WEB_PROXY_URL }}
+            HTTP_PROXY=${{ secrets.WEB_PROXY_URL }}
+
             ENVEOF
 
             # ========== 4. 의존성 설치 & 빌드 ==========
@@ -269,4 +297,9 @@ jobs:
           key: ${{ secrets.WEB_SSH_KEY }}
           port: 22
           script: |
+            if ! dpkg -l | grep -q squid; then
+              apt-get install -y squid
+              systemctl enable squid
+              systemctl start squid
+            fi
             sudo nginx -t && sudo systemctl reload nginx
