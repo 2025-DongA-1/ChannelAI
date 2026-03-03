@@ -1,0 +1,175 @@
+[Sync All] 동기화 시작: {
+  userId: 3,
+  startDate: '2023-02-28',
+  endDate: '2026-03-03',
+  platform: 'meta'
+}
+[Sync All] 계정 조회 완료: 1 개
+[Sync All] meta 캠페인 가져오는 중...
+[Meta Ads] 캠페인 조회, accountId: act_1375363560724684   
+[Meta Ads] 1개 캠페인 발견
+[Sync All] 1개 캠페인 발견
+[Meta Ads] 메트릭 조회: {
+  accountId: 'act_1375363560724684',
+  campaignId: '120240351005140749',
+  startDate: '2023-02-28',
+  endDate: '2026-03-03'
+}
+[Meta Ads] 캠페인 insights 12개 row 수신
+[Meta Ads] 광고 계정 insights 12개 row 수신
+[Sync All] NKLE 판매 캠페인: 24개 메트릭 가져옴
+[Meta Ads] 메트릭 조회: {
+  accountId: 'act_1375363560724684',
+  campaignId: '',
+  startDate: '2023-02-28',
+  endDate: '2026-03-03'
+}
+[Meta Ads] 광고 계정 insights 12개 row 수신
+[Sync All][DEBUG] 광고 계정 insights 반환값: [
+  {
+    "campaignId": "meta_account_act_1375363560724684",    
+    "date": "2025-12-17",
+    "impressions": 1251,
+    "clicks": 43,
+    "conversions": 0,
+    "cost": 7964,
+    "revenue": 0,
+    "ctr": 0,
+    "cpc": 0,
+    "roas": 0
+  },
+  {
+    "campaignId": "meta_account_act_1375363560724684",    
+    "date": "2025-12-18",
+    "impressions": 962,
+    "clicks": 143,
+    "conversions": 0,
+    "cost": 5648,
+    "revenue": 0,
+    "ctr": 0,
+    "cpc": 0,
+    "roas": 0
+  },
+  {
+    "campaignId": "meta_account_act_1375363560724684",    
+    "date": "2025-12-19",
+    "impressions": 12,
+    "clicks": 0,
+    "conversions": 0,
+    "cost": 23,
+    "revenue": 0,
+    "ctr": 0,
+    "cpc": 0,
+    "roas": 0
+  },
+  {
+    "campaignId": "meta_account_act_1375363560724684",    
+    "date": "2025-12-22",
+    "impressions": 214,
+    "clicks": 0,
+    "conversions": 0,
+    "cost": 813,
+    "revenue": 0,
+    "ctr": 0,
+    "cpc": 0,
+    "roas": 0
+  },
+  {
+    "campaignId": "meta_account_act_1375363560724684",    
+    "date": "2025-12-23",
+    "impressions": 272,
+    "clicks": 2,
+    "conversions": 0,
+    "cost": 2100,
+    "revenue": 0,
+    "ctr": 0,
+    "cpc": 0,
+    "roas": 0
+  },
+  {
+    "campaignId": "meta_account_act_1375363560724684",    
+    "date": "2025-12-24",
+    "impressions": 611,
+    "clicks": 3,
+    "conversions": 0,
+    "cost": 4178,
+    "revenue": 0,
+    "ctr": 0,
+    "cpc": 0,
+    "roas": 0
+  },
+  {
+    "campaignId": "meta_account_act_1375363560724684",    
+    "date": "2025-12-25",
+    "impressions": 437,
+    "clicks": 5,
+    "conversions": 0,
+    "cost": 3252,
+    "revenue": 0,
+    "ctr": 0,
+    "cpc": 0,
+    "roas": 0
+  },
+  {
+    "campaignId": "meta_account_act_1375363560724684",    
+    "date": "2025-12-26",
+    "impressions": 713,
+    "clicks": 2,
+    "conversions": 0,
+    "cost": 3673,
+    "revenue": 0,
+    "ctr": 0,
+    "cpc": 0,
+    "roas": 0
+  },
+  {
+    "campaignId": "meta_account_act_1375363560724684",    
+    "date": "2025-12-27",
+    "impressions": 372,
+    "clicks": 2,
+    "conversions": 0,
+    "cost": 2391,
+    "revenue": 0,
+    "ctr": 0,
+    "cpc": 0,
+    "roas": 0
+  },
+  {
+    "campaignId": "meta_account_act_1375363560724684",    
+    "date": "2025-12-28",
+    "impressions": 376,
+    "clicks": 7,
+    "conversions": 0,
+    "cost": 3056,
+    "revenue": 0,
+    "ctr": 0,
+    "cpc": 0,
+    "roas": 0
+  },
+  {
+    "campaignId": "meta_account_act_1375363560724684",    
+    "date": "2025-12-29",
+    "impressions": 223,
+    "clicks": 0,
+    "conversions": 0,
+    "cost": 1181,
+    "revenue": 0,
+    "ctr": 0,
+    "cpc": 0,
+    "roas": 0
+  },
+  {
+    "campaignId": "meta_account_act_1375363560724684",    
+    "date": "2025-12-30",
+    "impressions": 1,
+    "clicks": 0,
+    "conversions": 0,
+    "cost": 4,
+    "revenue": 0,
+    "ctr": 0,
+    "cpc": 0,
+    "roas": 0
+  }
+]
+[Sync All] meta 완료: 캠페인 1, 메트릭 24
+[Sync All] 동기화 완료: { totalCampaigns: 1, totalMetrics: 36 }
