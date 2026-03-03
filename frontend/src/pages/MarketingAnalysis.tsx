@@ -45,6 +45,8 @@ function MarketingAnalysis() {
   const [result, setResult] = useState<AnalysisResult | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
   const [mounted, setMounted] = useState<boolean>(false);
+  // 꺾은선 그래프 하이라이팅 - 마우스가 어디 선에 올라가있었는지 기억하는 공간
+  const [hoveredLine, setHoveredLine] = useState<string | null>(null);
   const { data: dbData} = useQuery({
     queryKey: ['ai-analysis-data'], // 고유한 이름표
     queryFn: () => dashboardAPI.getChannelPerformance(), // 대시보드와 같은 API 호출
@@ -68,11 +70,11 @@ function MarketingAnalysis() {
       for (let i = days; i > 0; i--){
         const trend = 1.0 - (i * 0.01);
         dailyData.push({
-          day: `${i}일 전`,
-          Naver: Math.floor((300 + Math.random() * 50) * trend),
-          Meta: Math.floor((200 + Math.random() * 50) * trend),
-          Google: Math.floor((250 + Math.random() * 50) * trend),
-          Karrot: Math.floor((350 + Math.random() * 50) * trend),
+          day: `${i}일차`,
+          Naver: Math.floor((350 + Math.random() * 50) * trend),
+          Meta: Math.floor((220 + Math.random() * 50) * trend),
+          Google: Math.floor((280 + Math.random() * 50) * trend),
+          Karrot: Math.floor((300 + Math.random() * 50) * trend),
         });
       }
 
@@ -88,15 +90,22 @@ function MarketingAnalysis() {
       console.log("🔥 DB 원본 데이터:", dbList);
 
       features = targetPlatforms.map(pName => {
-        // ★ [수정] 다시 심플해진 로직!
-        // 이제 DB에도 'karrot'으로 들어오니까 복잡한 비교 필요 없음
-        const match = dbList.find((item: any) => 
+
+
+        // 1. [핵심] find(1개만 찾기) 대신 filter(모두 찾기)를 사용합니다.
+        const matchedItems = dbList.filter((item: any) => 
           item.platform.toLowerCase().includes(pName)
         );
         
-        // 데이터가 있으면 쓰고, 없으면 0
-        const cost = match ? match.metrics.cost : 0;
-        const roas = match ? match.metrics.roas : 0;
+        // 2. 비용(Cost)은 찾은 데이터들의 값을 모두 더합니다 (합산)
+        const totalCost = matchedItems.reduce((sum: number, item: any) => 
+          sum + (item.metrics?.cost || 0), 0
+        );
+        
+        // 3. ROAS는 합치면 수익률이 뻥튀기되므로 '평균'을 냅니다
+        const avgRoas = matchedItems.length > 0 
+          ? matchedItems.reduce((sum: number, item: any) => sum + (item.metrics?.roas || 0), 0) / matchedItems.length
+          : 0;
         
         return {
           "채널명_Naver": pName === 'naver' ? 1 : 0,
@@ -104,13 +113,13 @@ function MarketingAnalysis() {
           "채널명_Google": pName === 'google' ? 1 : 0,
           "채널명_Karrot": pName === 'karrot' ? 1 : 0, 
           
-          "비용": Number(cost),
-          "ROAS": Number(roas),
+          "비용": Number(totalCost),
+          "ROAS": Number(avgRoas),
           "trend_score": trendScore
         };
       });
       
-      console.log("✅ AI로 보내는 최종 데이터(4개 고정):", features);
+      console.log("✅ AI로 보내는 최종 데이터 :", features);
 
       // 백엔드 요청
       const response = await axios.post('http://localhost:5000/api/v1/ai/recommend', {
@@ -140,7 +149,7 @@ function MarketingAnalysis() {
     { name: '메타', value: result.allocated_budget[1], color: '#1877F2' },
     { name: '구글', value: result.allocated_budget[2], color: '#EA4335' },
     { name: '당근', value: result.allocated_budget[3], color: '#FF6F0F' }
-  ] : [];
+  ].filter(item => item.value > 0) : []; // 0원인 항목은 차트에서 제외
 
   const barData = result ? [
     { name: '네이버', roas: result.predicted_roas[0] },
@@ -288,12 +297,14 @@ function MarketingAnalysis() {
                 </div>
               </div>
 
-              {/* 과거 추세 그래프 */}
-              <div style={{ backgroundColor: 'white', padding: '35px', borderRadius: '20px', boxShadow: '0 10px 30px rgba(0,0,0,0.05)' }}>
+              {/* ★ [복구됨] 꺾은선 그래프를 감싸는 하얀색 배경 박스 시작 */}
+              <div style={{ backgroundColor: 'white', padding: '35px', borderRadius: '20px', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', marginTop: '20px' }}>
+                
+                {/* 꺾은선 그래프 상단 타이틀 영역 */}
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                  {/* 왼쪽: 제목과 버튼 */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-                    <h3 style={{ fontSize: '1.3rem', margin: 0, color: '#333' }}>📉 성과 시뮬레이션</h3>
-                    
+                    <h3 style={{ fontSize: '1.3rem', margin: 0, color: '#333' }}>📉 AI 매체별 성과 예측 시뮬레이션</h3>
                     <div style={{ display: 'flex', backgroundColor: '#f1f3f5', borderRadius: '20px', padding: '4px' }}>
                       <button 
                         onClick={() => handlePeriodChange(7)}
@@ -305,7 +316,7 @@ function MarketingAnalysis() {
                           transition: 'all 0.2s'
                         }}
                       >
-                        최근 7일
+                        7일 시뮬레이션
                       </button>
                       <button 
                         onClick={() => handlePeriodChange(30)}
@@ -317,13 +328,17 @@ function MarketingAnalysis() {
                           transition: 'all 0.2s'
                         }}
                       >
-                        최근 30일
+                        30일 시뮬레이션
                       </button>
                     </div>
                   </div>
                   
-                  <span style={{ fontSize: '0.9rem', color: '#aaa' }}>* 업종 평균 데이터 기반</span>
+                  {/* 오른쪽 텅 빈 공간에 뱃지 형태로 Tip */}
+                  <div style={{ fontSize: '0.85rem', color: '#0984e3', backgroundColor: '#e3f2fd', padding: '6px 14px', borderRadius: '20px', fontWeight: 'bold' }}>
+                    💡 Tip. 선이나 매체명에 마우스를 올려보세요!
+                  </div>
                 </div>
+
                 <div style={{ width: '100%', height: 320, position: 'relative' }}>
                   {mounted && (
                     <ResponsiveContainer width="100%" height="100%" minWidth={10} minHeight={10} debounce={50}>
@@ -332,16 +347,28 @@ function MarketingAnalysis() {
                         <XAxis dataKey="day" tick={{ fontSize: 12, fill: '#888' }} axisLine={false} tickLine={false} dy={10} />
                         <YAxis tick={{ fontSize: 12, fill: '#888' }} axisLine={false} tickLine={false} />
                         <Tooltip contentStyle={{ borderRadius: '10px', border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.1)' }} />
-                        <Legend iconType="circle" wrapperStyle={{ paddingTop: '20px' }} />
-                        <Line type="monotone" dataKey="Naver" name="네이버" stroke="#2DB400" strokeWidth={3} dot={{ r: 4 }} activeDot={{ r: 6 }} />
-                        <Line type="monotone" dataKey="Meta" name="인스타그램" stroke="#1877F2" strokeWidth={3} dot={{ r: 4 }} />
-                        <Line type="monotone" dataKey="Google" name="구글" stroke="#EA4335" strokeWidth={3} dot={{ r: 4 }} />
-                        <Line type="monotone" dataKey="Karrot" name="당근" stroke="#FF6F0F" strokeWidth={3} dot={{ r: 4 }} />
+                        <Legend 
+                          iconType="circle" 
+                          wrapperStyle={{ paddingTop: '20px', cursor: 'pointer' }}
+                          onMouseEnter={(e: any) => setHoveredLine(e.dataKey as string)}
+                          onMouseLeave={() => setHoveredLine(null)}
+                        />
+                        <Line type="monotone" dataKey="Naver" name="네이버" stroke="#2DB400" strokeWidth={3} dot={{ r: 4 }} activeDot={{ r: 6 }} strokeOpacity={hoveredLine && hoveredLine !== 'Naver' ? 0.15 : 1} />
+                        <Line type="monotone" dataKey="Meta" name="인스타그램" stroke="#1877F2" strokeWidth={3} dot={{ r: 4 }} strokeOpacity={hoveredLine && hoveredLine !== 'Meta' ? 0.15 : 1} />
+                        <Line type="monotone" dataKey="Google" name="구글" stroke="#EA4335" strokeWidth={3} dot={{ r: 4 }} strokeOpacity={hoveredLine && hoveredLine !== 'Google' ? 0.15 : 1} />
+                        <Line type="monotone" dataKey="Karrot" name="당근" stroke="#FF6F0F" strokeWidth={3} dot={{ r: 4 }} strokeOpacity={hoveredLine && hoveredLine !== 'Karrot' ? 0.15 : 1} />
                       </LineChart>
                     </ResponsiveContainer>
                   )}
                 </div>
-              </div>
+                
+                <div style={{ textAlign: 'right', marginTop: '5px', paddingRight: '15px' }}>
+                  <span style={{ fontSize: '0.85rem', color: '#7c7c7c' }}>
+                    * 본 그래프는 현재 시장 트렌드를 반영하여 AI가 가상으로 시뮬레이션한 예측 흐름입니다.
+                  </span>
+                </div>
+
+              </div> 
 
               {/* 예산 비중 & 매체 효율 */}
               <div style={{ 
@@ -431,34 +458,76 @@ function MarketingAnalysis() {
                 }}>
                   {result.ai_report ? (
                     result.ai_report.split('\n').map((line, index) => {
-                      if (line.includes('📢') || line.includes('✅')) {
+                      
+                      // 1. [핵심 요약] 🎯 기호가 있는 줄: 제목은 독립된 줄로, 내용은 그 아래로!
+                      if (line.includes('🎯')) {
+                        const parts = line.split(':');
+                        const titlePart = parts[0]; // 콜론(:)을 빼버려서 더 깔끔한 대제목으로 만듭니다.
+                        const descPart = parts.slice(1).join(':').trim(); // 앞의 불필요한 공백 제거
+
                         return (
-                          <div key={index} style={{ fontWeight: 'bold', fontSize: '1.4rem', color: '#333', marginTop: index > 0 ? '30px' : '0', marginBottom: '15px' }}>
+                          <div key={index} style={{ marginTop: index > 0 ? '45px' : '0', marginBottom: '15px', lineHeight: '1.6' }}>
+                            {/* ✅ 대제목 영역 (한 줄을 혼자 다 쓰도록 div 적용, 아래 여백 추가) */}
+                            <div style={{ fontWeight: '900', fontSize: '1.4rem', color: '#2D3436', marginBottom: '10px' }}>
+                              {titlePart}
+                            </div>
+                            
+                            {/* ✅ 상세 내용 영역 (제목 밑으로 자연스럽게 떨어짐) */}
+                            <div style={{ fontSize: '1.2rem', color: '#636e72', paddingLeft: '35px' }}>
+                              {descPart.split('**').map((part, i) => 
+                                i % 2 === 1 ? <span key={i} style={{ fontWeight: 'bold', color: '#2D3436' }}>{part}</span> : part
+                              )}
+                            </div>
+                          </div>
+                        );
+                      }
+                      
+                      // 2. [소제목들] 📢, ✅, 🔍 기호가 있는 줄: 크고 굵게 (회색 선 삭제 완료)
+                      else if (line.includes('📢') || line.includes('✅') || line.includes('🔍')) {
+                        return (
+                          <div key={index} style={{ 
+                            fontWeight: '900', 
+                            fontSize: '1.4rem', 
+                            color: '#2D3436', 
+                            marginTop: index > 0 ? '45px' : '0', 
+                            marginBottom: '15px'
+                          }}>
                             {line}
                           </div>
                         );
                       }
+                      
+                      // 3. [매체 이름] • 기호가 있는 줄: ✔ 아이콘으로 바꾸고 노란색 하이라이트
                       else if (line.trim().startsWith('•')) {
                         return (
-                          <div key={index} style={{ paddingLeft: '15px', marginBottom: '10px', display: 'flex' }}>
-                            <span style={{ marginRight: '10px', color: '#0984e3' }}>✔</span>
-                            <span>
+                          <div key={index} style={{ 
+                            paddingLeft: '15px', 
+                            marginBottom: '15px', 
+                            marginTop: '35px', 
+                            display: 'flex',
+                            alignItems: 'center'
+                          }}>
+                            <span style={{ marginRight: '10px', color: '#0984e3', fontSize: '1.2rem' }}>✔</span>
+                            <span style={{ fontSize: '1.15rem' }}>
                               {line.replace('•', '').split('**').map((part, i) => 
-                                i % 2 === 1 ? <span key={i} style={{ fontWeight: 'bold', color: '#000', backgroundColor: '#fff5ce' }}>{part}</span> : part
+                                i % 2 === 1 ? <span key={i} style={{ fontWeight: '900', color: '#2D3436', backgroundColor: '#fff5ce', padding: '2px 6px', borderRadius: '4px' }}>{part}</span> : part
                               )}
                             </span>
                           </div>
                         );
                       }
+                      
+                      // 4. [일반 설명글] - 기호로 시작하는 데이터 근거 등: 폰트 사이즈 줄이고 ** 적용
                       else {
                         return (
-                          <div key={index}>
+                          <div key={index} style={{ marginBottom: '6px', paddingLeft: '35px', fontSize: '1.2rem', color: '#636e72', lineHeight: '1.6' }}>
                             {line.split('**').map((part, i) => 
-                               i % 2 === 1 ? <span key={i} style={{ fontWeight: 'bold', color: '#000' }}>{part}</span> : part
+                               i % 2 === 1 ? <span key={i} style={{ fontWeight: 'bold', color: '#2D3436' }}>{part}</span> : part
                             )}
                           </div>
                         );
                       }
+                      
                     })
                   ) : "분석 중입니다..."}
                 </div>

@@ -30,15 +30,21 @@ def generate_realistic_data(n_samples=5000):
         # 2. 트렌드 점수 (30 ~ 100점)
         trend_score = np.random.randint(30, 100)
         
-        # 3. [논리] 수확 체감 법칙 (로그 함수)
-        efficiency_curve = np.log1p(cost) * 0.4 
+        # 3. [논리] 수확 체감 법칙 (상용 로그 활용 영점 조절)
+        # cost가 10,000원이면 log10(1) = 0 이므로 패널티 0
+        # cost가 100,000원이면 log10(10) = 1 이므로 패널티 발생
+        # cost가 1,000,000원이면 log10(100) = 2 이므로 패널티 가중
+        # 최소예산(1만원)을 쓸 때는 패널티 = 0, 예산기 커질수록 패널티 증가
+        penalty_factor = np.log10(cost / 10000.0) * 0.5
         
         # 4. [논리] 트렌드 영향력
         trend_impact = (trend_score - 50) * 0.05 
         
         # 이 광고의 '진짜 실력' (True Value)
+        # 패널티를 빼는 방향(-)으로 적용(음수가 되지 않도록 최소 0.5보장)
+        # 
         base_roas = base_roas_map[channel]
-        true_value = (base_roas + efficiency_curve * 0.1) + trend_impact
+        true_value = max(0.5, base_roas - penalty_factor + trend_impact)
         
         # ---------------------------------------------------------------
         # ★ [핵심] 과거(힌트)와 미래(정답)에 서로 다른 노이즈(0.3) 추가
