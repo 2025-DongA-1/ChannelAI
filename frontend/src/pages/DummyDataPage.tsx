@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useAuthStore } from '../store/authStore';
 import { integrationAPI } from '../lib/api';
-import { FileSpreadsheet, Plus, Download, Database, Trash2, AlertCircle, RefreshCw, Brain, Mail } from 'lucide-react';
+import { FileSpreadsheet, Plus, Download, Database, Trash2, AlertCircle, RefreshCw, Brain } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 // 🌟 1. DB의 상세 메트릭 컬럼들을 모두 포함하도록 인터페이스 확장!
@@ -42,7 +42,6 @@ const DummyDataPage: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingRow, setEditingRow] = useState<AdData | null>(null);
   const [isSaving, setIsSaving] = useState(false);
-  const [isExportingDB, setIsExportingDB] = useState(false);
   
   const token = useAuthStore((state) => state.token);
   
@@ -190,26 +189,6 @@ const DummyDataPage: React.FC = () => {
     document.body.removeChild(link);
   };
 
-  const handleExportDB = async () => { /* 기존 코드 유지 */
-    if (!token) return alert('로그인이 필요합니다.');
-    setIsExportingDB(true);
-    try {
-        const response = await integrationAPI.exportCSV();
-        const blob = new Blob([response.data], { type: 'text/csv;charset=utf-8;' });
-        const url = window.URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.setAttribute('download', `channel_ai_db_export_${new Date().getTime()}.csv`);
-        document.body.appendChild(link);
-        link.click();
-        link.remove();
-    } catch (err: any) {
-        console.error(err);
-        alert('DB 데이터 추출에 실패했습니다.');
-    } finally {
-        setIsExportingDB(false);
-    }
-  };
 
   const handleSaveToDB = async () => { /* 기존 코드 유지 */
     if (data.length === 0) return alert('저장할 데이터가 없습니다.');
@@ -332,7 +311,10 @@ const DummyDataPage: React.FC = () => {
             >
               <Plus size={18} />
               수기 입력
-
+            </button>
+            <button onClick={handleExportCSV} disabled={data.length === 0} className="px-4 py-2 bg-green-50 text-green-700 border border-green-200 rounded-xl font-medium hover:bg-green-100 transition flex items-center gap-2 disabled:opacity-50">
+              <Download size={18} />
+              CSV 내보내기
             </button>
             <button onClick={handleSaveToDB} disabled={isSaving || data.length === 0} className={`px-4 py-2 text-white rounded-xl font-medium transition flex items-center gap-2 ${isSaving ? 'bg-blue-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700 shadow-md'}`}>
               {isSaving ? <RefreshCw className="animate-spin" size={18} /> : <Database size={18} />}
@@ -449,6 +431,57 @@ const DummyDataPage: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* 수기 입력 모달 */}
+      {isModalOpen && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl">
+            <div className="p-6 border-b">
+              <h3 className="text-xl font-bold text-gray-900">{editingRow ? '데이터 수정' : '수기 데이터 입력'}</h3>
+            </div>
+            <form onSubmit={handleAddSubmit} className="p-6 grid grid-cols-2 gap-4">
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-gray-500 uppercase">날짜 *</label>
+                <input type="date" value={formData.date || ''} onChange={e => setFormData({...formData, date: e.target.value})} className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" required />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-gray-500 uppercase">매체 *</label>
+                <select value={formData.media || 'meta'} onChange={e => setFormData({...formData, media: e.target.value})} className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
+                  {MEDIA_LIST.map(m => <option key={m} value={m}>{m.toUpperCase()}</option>)}
+                </select>
+              </div>
+              <div className="col-span-2 space-y-1">
+                <label className="text-xs font-bold text-gray-500 uppercase">캠페인명 *</label>
+                <input type="text" value={formData.campaign || ''} onChange={e => setFormData({...formData, campaign: e.target.value})} className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" placeholder="캠페인 이름" required />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-gray-500 uppercase">비용 (원)</label>
+                <input type="number" value={formData.cost || 0} onChange={e => setFormData({...formData, cost: Number(e.target.value)})} className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" min="0" />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-gray-500 uppercase">매출 (원)</label>
+                <input type="number" value={formData.revenue || 0} onChange={e => setFormData({...formData, revenue: Number(e.target.value)})} className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" min="0" />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-gray-500 uppercase">노출수</label>
+                <input type="number" value={formData.impressions || 0} onChange={e => setFormData({...formData, impressions: Number(e.target.value)})} className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" min="0" />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-gray-500 uppercase">클릭수</label>
+                <input type="number" value={formData.clicks || 0} onChange={e => setFormData({...formData, clicks: Number(e.target.value)})} className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" min="0" />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-gray-500 uppercase">전환수</label>
+                <input type="number" value={formData.conversions || 0} onChange={e => setFormData({...formData, conversions: Number(e.target.value)})} className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" min="0" />
+              </div>
+              <div className="col-span-2 flex justify-end gap-3 pt-4 border-t">
+                <button type="button" onClick={() => { setIsModalOpen(false); setEditingRow(null); }} className="px-4 py-2 bg-gray-100 text-gray-700 rounded-xl font-medium hover:bg-gray-200 transition">취소</button>
+                <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded-xl font-medium hover:bg-blue-700 transition">{editingRow ? '수정 완료' : '추가'}</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
