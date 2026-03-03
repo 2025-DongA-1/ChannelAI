@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useAuthStore } from '../store/authStore';
 import { integrationAPI } from '../lib/api';
-import { FileSpreadsheet, Plus, Download, Database, Trash2, AlertCircle, RefreshCw, Brain } from 'lucide-react';
+import { FileSpreadsheet, Plus, Download, Database, Trash2, AlertCircle, RefreshCw, Brain, Mail } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 // 🌟 1. DB의 상세 메트릭 컬럼들을 모두 포함하도록 인터페이스 확장!
@@ -294,6 +294,10 @@ const DummyDataPage: React.FC = () => {
               <Link to="/advanced-model-test" className="inline-flex items-center gap-2 px-4 py-2 bg-purple-50 text-purple-700 border border-purple-200 hover:bg-purple-100 rounded-xl font-bold transition">
                 <Brain size={18} />
                 AI 고급 모델 평가 지표 보기
+              </Link>
+              <Link to="/email-report" className="inline-flex items-center gap-2 px-4 py-2 bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 rounded-xl font-bold transition">
+                <Mail size={18} />
+                일일 리포트 설정
               </Link>
             </div>
           </div>
