@@ -46,28 +46,29 @@ class NumpyEncoder(json.JSONEncoder):
 def generate_past_history(predicted_roas, duration=7):
     history = []
 
-    # 과거 (duration-1)일부터 1일 전까지 반복
-    for i in range(duration - 1, 0, -1):
-        day_label = f"{i}일 전"
+    # 4개 매체별로 각기 다른 베이스라인 변동성 생성 (랜덤)
+    volatility = [np.random.uniform(0.85, 1.15) for _ in range(4)]
+    
+    # 1일차부터 duration(7일 or 30일)일차까지 미래로 전진
+    for step in range(1, duration + 1):
+        day_label = f"{step}일차"
 
-        # 트렌드 시뮬레이션
-        trend_factor = 1.0 - (i * 0.015)
-        if trend_factor < 0.6:
-            trend_factor = 0.6
+        # 노이즈를 10% 내외로 흔들어서 현실느낌 반영
+        daily_noise = np.random.uniform(0.92, 1.08)
 
         row = {"day": day_label}
 
-        # predicted_roas 순서: [Naver, Meta, Google, Karrot]
-        row["Naver"] = round(float(predicted_roas[0] * trend_factor * np.random.uniform(0.9, 1.1)), 2)
-        row["Meta"] = round(float(predicted_roas[1] * trend_factor * np.random.uniform(0.9, 1.1)), 2)
-        row["Google"] = round(float(predicted_roas[2] * trend_factor * np.random.uniform(0.9, 1.1)), 2)
-        row["Karrot"] = round(float(predicted_roas[3] * trend_factor * np.random.uniform(0.9, 1.1)), 2)
+        # 각 매체별로 독립적인 흔들림 적용
+        row["Naver"] = round(float(predicted_roas[0] * volatility[0] * daily_noise * np.random.uniform(0.95, 1.05)), 2)
+        row["Meta"] = round(float(predicted_roas[1] * volatility[1] * daily_noise * np.random.uniform(0.95, 1.05)), 2)
+        row["Google"] = round(float(predicted_roas[2] * volatility[2] * daily_noise * np.random.uniform(0.95, 1.05)), 2)
+        row["Karrot"] = round(float(predicted_roas[3] * volatility[3] * daily_noise * np.random.uniform(0.95, 1.05)), 2)
 
         history.append(row)
 
     # 마지막으로 '오늘(예측)' 데이터 추가
     history.append({
-        "day": "오늘(예측)",
+        "day": "D-Day",
         "Naver": round(float(predicted_roas[0]), 2),
         "Meta": round(float(predicted_roas[1]), 2),
         "Google": round(float(predicted_roas[2]), 2),
@@ -181,9 +182,13 @@ def build_pro_report(
     max_per = int(total_budget * max_ratio_default)
 
     # 채널별 “진단 문장” 만들기
+    
+    # 2등 매체의 이름을 변수로 추출
+    second_best_name = channel_display[top2]
+    
     lines = []
-    lines.append(f"📢 Executive Summary: **{best_name}** 중심으로 예산을 재배치해 **예상 매출을 극대화**하는 전략이 최적입니다. (Top2 대비 ROAS 차이: **{gap_vs_2nd:.1f}%p**)")
-
+    lines.append(f"🎯 사장님을 위한 AI 핵심 요약: 현재 가장 효율이 좋은 **{best_name}**에 예산을 집중하여 **매출을 극대화**하는 것을 추천합니다.")
+    lines.append(f"2순위 추천 매체인 **{second_best_name}**보다 예상 수익률이 **{gap_vs_2nd:.1f}%p** 더 높기 때문입니다.")
     lines.append("")
     lines.append("🔍 매체별 정밀 진단 (현상 → 데이터 근거 → 전략 → 기대효과)")
 
@@ -294,7 +299,9 @@ def main():
     processed_data = []
 
     for item in features_list:
-        cost = item.get('비용', 100000)
+        # 사용자가 입력한 총 예산의 평균치를 미래의 가상비용으로 투입
+        # 총 예산이 커질수록 AI가 패널티는 강하게 먹임 -> train_model_v2.py와 동일하게
+        cost = float(total_budget) / 4.0
         current_roas = item.get('ROAS', 200)
 
         # React에서 보내준 'trend_score' 받기 (없으면 기본값 50)
@@ -337,7 +344,7 @@ def main():
     # 컬럼 순서 강제 맞춤 (학습때와 동일하게)
     try:
         X = df[model_columns]
-    except Exception as e:
+    except KeyError as e:
         log(json.dumps({
             "error": f"입력 컬럼이 모델과 맞지 않습니다: {str(e)}",
             "expected_columns": model_columns,
@@ -377,9 +384,23 @@ def main():
         A_eq = [[1] * n]
         b_eq = [float(total_budget)]
 
-        # ✅ 총예산에 따라 infeasible 방지용 bounds 자동 생성
-        MIN_BUDGET_DEFAULT = 30000
-        MAX_RATIO_DEFAULT = 0.6
+        # ★ [수정됨] 예산 규모에 따른 '다이나믹 제약 조건' (시각적 다이나믹함 확보)
+        # =========================================================
+        budget_num = float(total_budget)
+        
+        if budget_num <= 300000:
+            # [소액 예산] 최소 보장 없음, 1등에게 최대 60% 몰아주기 (집중 전략)
+            MIN_BUDGET_DEFAULT = 0
+            MAX_RATIO_DEFAULT = 0.60
+        elif budget_num <= 1000000:
+            # [중급 예산] 최소 5% 보장, 최대 45% 제한 (점진적 분산)
+            MIN_BUDGET_DEFAULT = budget_num * 0.05
+            MAX_RATIO_DEFAULT = 0.45
+        else:
+            # [고액 예산] 최소 15% 강제 보장, 최대 35% 제한 (완벽한 포트폴리오 분산)
+            MIN_BUDGET_DEFAULT = budget_num * 0.15
+            MAX_RATIO_DEFAULT = 0.35
+        
         bounds = build_safe_bounds(
             n,
             total_budget,
