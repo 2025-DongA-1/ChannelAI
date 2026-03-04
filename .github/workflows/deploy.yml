@@ -135,6 +135,14 @@ jobs:
               systemctl start socat-db
             fi
 
+            # ========== Python 패키지 설치 ==========
+            if ! python3 -c "import pandas" 2>/dev/null; then
+              apt-get install -y python3-pip
+              pip3 install pandas numpy scikit-learn pymysql xgboost \
+                --proxy http://10.10.10.6:3128 \
+                --break-system-packages
+            fi
+
             # ========== 1. Node.js 설치/업그레이드 ==========
             NODE_MAJOR=$(node -v 2>/dev/null | cut -d'.' -f1 | tr -d 'v' || echo "0")
             if [ "$NODE_MAJOR" -lt 20 ]; then
