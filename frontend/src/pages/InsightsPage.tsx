@@ -243,6 +243,18 @@ export default function InsightsPage() {
               <Line yAxisId="left" type="monotone" dataKey="conversions" stroke="#8B5CF6" name="전환수" strokeWidth={2} />
             </LineChart>
           </ResponsiveContainer>
+          
+          {/* 💡 [추가됨] 초보자를 위한 데이터 상세 해석 박스 */}
+          <div className="mt-4 p-4 bg-indigo-50 rounded-lg border border-indigo-100 flex items-start gap-3">
+            <Lightbulb className="w-5 h-5 text-indigo-600 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="font-semibold text-indigo-900 text-sm mb-1">💡 데이터 돋보기: 성과 추세 읽는 법</p>
+              <p className="text-sm text-indigo-800 leading-relaxed">
+                파란색 선(노출수) 대비 초록색 선(클릭수)이 함께 올라가고 있다면 타겟팅이 아주 잘 되고 있다는 뜻입니다! 
+                만약 광고비(노란선)는 꾸준히 나가는데 클릭수나 전환수(보라선)가 정체되어 있다면, 사람들의 눈에 익어 '광고 피로도'가 높아진 상태일 수 있으니 새로운 이미지나 문구로 교체해 보는 것을 추천해 드려요.
+              </p>
+            </div>
+          </div>
         </div>
       )}
 
@@ -345,6 +357,22 @@ export default function InsightsPage() {
               </tbody>
             </table>
           </div>
+          
+          {/* 💡 [추가됨] 성과 비교 표 하단 요약 및 해석 */}
+          <div className="bg-blue-50 p-5 border-t border-gray-100">
+            <div className="flex items-start gap-3">
+              <Target className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="font-semibold text-blue-900 text-sm mb-1.5">💡 데이터 돋보기: 어떤 채널이 제일 열일하고 있을까요?</p>
+                <p className="text-sm text-blue-800 leading-relaxed">
+                  위 표에서 가장 중요하게 보셔야 할 숫자는 제일 오른쪽에 있는 <strong className="font-bold">ROAS(광고 수익률)</strong>입니다! 
+                  ROAS가 가장 높은 플랫폼이 현재 사장님의 타겟 고객과 가장 궁합이 잘 맞는 채널이에요. 
+                  반대로 <strong className="font-bold">CTR(클릭률)</strong>은 높은데 ROAS가 1.0x 이하라면, 고객이 광고를 보고 클릭은 많이 하지만 실제 구매나 문의로는 이어지지 않고 있다는 뜻이랍니다. 
+                  효율이 높은 채널에 예산을 조금 더 실어주는 '선택과 집중'을 고려해 보세요!
+                </p>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 
@@ -421,6 +449,24 @@ export default function InsightsPage() {
                         ))}
                       </div>
                     )}
+                    
+                    {/* 💡 [추가됨] 예산 수정 실행 가이드 (Action Guide) */}
+                    <div className="mt-4 pt-3 border-t border-gray-100">
+                      <a 
+                        href={
+                          rec.platform?.toLowerCase() === 'meta' ? 'https://business.facebook.com/' :
+                          rec.platform?.toLowerCase() === 'google' ? 'https://ads.google.com/' :
+                          rec.platform?.toLowerCase() === 'naver' ? 'https://searchad.naver.com/' :
+                          '#'
+                        }
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center text-xs font-semibold text-blue-600 hover:text-blue-800 transition bg-blue-50 px-3 py-1.5 rounded-md hover:bg-blue-100"
+                      >
+                        🛠️ {rec.platform || '광고 매체'} 관리자 센터로 이동해서 예산 수정하기 &rarr;
+                      </a>
+                    </div>
+
                   </div>
                 </div>
               </div>
