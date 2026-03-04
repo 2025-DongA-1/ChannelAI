@@ -47,15 +47,34 @@ function MarketingAnalysis() {
   const [mounted, setMounted] = useState<boolean>(false);
   // 꺾은선 그래프 하이라이팅 - 마우스가 어디 선에 올라가있었는지 기억하는 공간
   const [hoveredLine, setHoveredLine] = useState<string | null>(null);
+  // 예산 상한성 경고 띄울 상태
+  const [budgetWarning, setBudgetWarning] = useState<boolean>(false);
+
+
   // 숫자에만 반응하고 콤마를 찍어주는 함수
   const handleBudgetChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const rawValue = e.target.value.replace(/[^0-9]/g, ''); // 문자가 들어오면 무시하고 숫자만 추출
+    const rawValue = e.target.value.replace(/[^0-9]/g, ''); // 숫자만 추출
+    
+    // 다 지워서 빈칸이 되었을 때의 처리
     if (!rawValue) {
       setBudget('');
+      setBudgetWarning(false); // 경고문도 같이 끕니다
       return;
     }
-    setBudget(Number(rawValue).toLocaleString()); // 숫자에 콤마(,)를 붙여서 상태 업데이트
+
+    let numValue = Number(rawValue);
+    
+    // 200만 원 상한선 방어 로직
+    if (numValue > 2000000) {
+      numValue = 2000000; // 강제로 200만 원으로 깎음
+      setBudgetWarning(true); // 빨간 경고문 켜기
+    } else {
+      setBudgetWarning(false); // 정상 범위면 경고문 끄기
+    }
+
+    setBudget(numValue.toLocaleString()); // 콤마 붙여서 상태 업데이트
   };
+
   const { data: dbData} = useQuery({
     queryKey: ['ai-analysis-data'], // 고유한 이름표
     queryFn: () => dashboardAPI.getChannelPerformance(), // 대시보드와 같은 API 호출
@@ -233,26 +252,36 @@ function MarketingAnalysis() {
             하루 광고비, 얼마를 최적화할까요?
           </span>
           
-          <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-             <input
-              type="text" 
-              value={budget}
-              onChange={handleBudgetChange}
-              placeholder="예: 500,000"
-              style={{ 
-                width: '220px', 
-                padding: '14px 40px 14px 20px', 
-                fontSize: '1.3rem', 
-                fontWeight: 'bold',
-                color: '#2D3436',
-                borderRadius: '12px', 
-                border: '2px solid #dfe6e9',
-                outline: 'none',
-                textAlign: 'right',
-                backgroundColor: '#fdfdfd'
-              }}
-            />
-            <span style={{ position: 'absolute', right: '15px', fontWeight: 'bold', color: '#b2bec3', fontSize: '1rem' }}>원</span>
+          <div style={{ display: 'flex', flexDirection: 'column', position: 'relative' }}>
+            <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+               <input
+                type="text" 
+                value={budget}
+                onChange={handleBudgetChange}
+                placeholder="예: 500,000"
+                style={{ 
+                  width: '220px', 
+                  padding: '14px 40px 14px 20px', 
+                  fontSize: '1.3rem', 
+                  fontWeight: 'bold',
+                  color: '#2D3436',
+                  borderRadius: '12px', 
+                  border: budgetWarning ? '2px solid #ff6b6b' : '2px solid #dfe6e9', // 경고 시 테두리도 빨갛게!
+                  outline: 'none',
+                  textAlign: 'right',
+                  backgroundColor: '#fdfdfd',
+                  transition: 'border-color 0.3s'
+                }}
+              />
+              <span style={{ position: 'absolute', right: '15px', fontWeight: 'bold', color: '#b2bec3', fontSize: '1rem' }}>원</span>
+            </div>
+            
+            {/* 💡 200만 원 초과 시 나타나는 친절한 경고문 (레이아웃 파괴를 막기 위해 absolute 적용) */}
+            {budgetWarning && (
+              <div style={{ position: 'absolute', top: '100%', left: '5px', color: '#ff6b6b', fontSize: '0.85rem', marginTop: '8px', fontWeight: 'bold', whiteSpace: 'nowrap' }}>
+                ※ 최대 2,000,000원까지만 분석할 수 있습니다.
+              </div>
+            )}
           </div>
 
           {/* 프리미엄 버튼 */}

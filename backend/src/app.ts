@@ -104,6 +104,12 @@ app.post('/api/v1/ai/recommend', (req: Request, res: Response) => {
 
   const inputData = req.body;
 
+  // 금액 상한선 설정(200만원)
+  if (inputData.total_budget > 2000000) {
+    return res.status(400).json({
+      error: "맞춤형 AI 분석은 최대 2,000,000원까지만 지원합니다."
+    })
+  }
   // 1. 파이썬 스크립트 경로 찾기
   // process.cwd()는 현재 서버가 실행되는 루트 폴더(backend)를 가리킵니다.
   const pythonScriptPath = path.join(process.cwd(), 'ai', 'predict_budget.py');
