@@ -23,11 +23,21 @@ router.post('/karrot/manual', authenticate, crawlKarrotAdResultManual);
 router.delete('/karrot/manual/:campaignId', authenticate, deleteKarrotManualCampaign);
 router.put('/karrot/manual/:campaignId', authenticate, updateKarrotManualCampaign);
 
-// Multer 설정
-// Multer 설정
+// CSV 파일 임시 저장 폴더 경로
+const UPLOADS_DIR = path.join(process.cwd(), 'uploads');
+
+// ✅ 서버 재시작 시 uploads 폴더가 없으면 자동 생성
+// (폴더가 없으면 multer가 파일 저장에 실패하여 500 에러 발생)
+import fs from 'fs';
+if (!fs.existsSync(UPLOADS_DIR)) {
+  fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+  console.log('[Upload] uploads 폴더 자동 생성 완료:', UPLOADS_DIR);
+}
+
+// Multer 설정 (CSV 파일 업로드용 임시 저장소)
 const storage = multer.diskStorage({
   destination: (req: any, file: any, cb: any) => {
-    cb(null, 'uploads/');
+    cb(null, UPLOADS_DIR); // 절대 경로로 지정하여 안정성 향상
   },
   filename: (req: any, file: any, cb: any) => {
     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
