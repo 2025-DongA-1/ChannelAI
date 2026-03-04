@@ -19,9 +19,25 @@ import reportRoutes from './routes/reportRoutes';
 import metricRoutes from './routes/metricRoutes';
 import { spawn } from 'child_process';
 import path from 'path';
+// AI예산추천 모델 독립 DB연결
+import mysql from 'mysql2/promise'
+
 
 // 환경 변수 로드
 dotenv.config();
+
+// 🛡️ [수정됨] 서버 시작 시 딱 한 번만 생성되는 AI 전용 DB 커넥션 풀
+const aiPool = mysql.createPool({
+  host: process.env.DB_HOST,
+  port: parseInt(process.env.DB_PORT || '3306', 10),
+  user: process.env.DB_USER,
+  password: process.env.DB_PASSWORD,
+  database: process.env.DB_NAME,
+  waitForConnections: true,
+  connectionLimit: 5,
+  queueLimit: 0
+});
+
 
 const app = express();
 const PORT = parseInt(process.env.PORT || '3000', 10);
@@ -121,13 +137,45 @@ app.post('/api/v1/ai/recommend', (req: Request, res: Response) => {
     try {
       // 파이썬 결과를 JSON으로 변환
       const result = JSON.parse(resultString);
+      
+      // ⚡ [핵심 1] 프론트엔드로 3초 만에 결과 먼저 즉시 반환! (기존 코드)
       res.json(result);
+
+      // 💾 [핵심 2] 화면은 이미 넘어갔고, 여기서부터 조용히 비동기 DB 저장을 시작합니다.
+      const bestChannelIndex = result.allocated_budget.indexOf(Math.max(...result.allocated_budget));
+      const channelNames = ["네이버", "메타", "구글", "당근"];
+      const bestChannel = channelNames[bestChannelIndex];
+
+      const query = `
+        INSERT INTO ai_history (budget, best_channel, expected_revenue, full_report) 
+        VALUES (?, ?, ?, ?)
+      `;
+
+      // 사용자 대기 시간을 늘리지 않기 위해 앞에 'await'를 절대 쓰지 않습니다.
+      // 전역에 이미 만들어진 'aiPool'을 가져와서 쿼리만 날립니다.
+      (async () => {
+        try {
+          await aiPool.query(query, [
+            inputData.total_budget, 
+            bestChannel, 
+            result.expected_revenue,
+            JSON.stringify(result)
+          ]);
+          console.log("✅ [플랜be] AI 리포트 독립 DB 저장 완료!");
+        } catch (dbErr) {
+          console.error("❌ [플랜be AI 독립 DB 저장 에러]:", dbErr);
+        }
+      })();
+
     } catch (e) {
       console.error('❌ [Parsing Error]', e);
-      res.status(500).json({ error: "결과 파싱 실패" });
-    }
+      if (!res.headersSent) {
+        res.status(500).json({ error: "결과 파싱 실패" });
+      }
+    } 
   });
 });
+
 // ─────────────────────────────────────────────────────────────
 
 // API 라우트
