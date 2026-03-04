@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { campaignAPI, budgetAPI } from '@/lib/api';
 import { formatCurrency, formatPercent, getStatusColor, getPlatformColor } from '@/lib/utils';
-import { Plus, Search, Filter, RefreshCw, TrendingUp, AlertTriangle, Edit, Check, X, Trash2 } from 'lucide-react';
+import { Plus, Search, Filter, RefreshCw, TrendingUp, AlertTriangle, Edit, Trash2 } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recharts';
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'];
@@ -16,11 +16,6 @@ export default function CampaignsPage() {
   const [dateRange] = useState({
     startDate: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
     endDate: new Date().toISOString().split('T')[0],
-  });
-  const [editingCampaign, setEditingCampaign] = useState<number | null>(null);
-  const [editValues, setEditValues] = useState<{ dailyBudget: string; totalBudget: string }>({
-    dailyBudget: '',
-    totalBudget: '',
   });
 
   const [isTotalBudgetModalOpen, setIsTotalBudgetModalOpen] = useState(false);
@@ -41,7 +36,7 @@ export default function CampaignsPage() {
     onError: () => alert('예산 설정에 실패했습니다. 다시 시도해 주세요.'),
   });
 
-  const { data, isLoading, refetch } = useQuery({
+  const { data, isLoading } = useQuery({
     queryKey: ['campaigns'],
     queryFn: () => campaignAPI.getCampaigns(),
   });
@@ -57,31 +52,21 @@ export default function CampaignsPage() {
     queryFn: () => budgetAPI.getByPlatform({ startDate: dateRange.startDate, endDate: dateRange.endDate }),
   });
 
-  const { data: campaignsData } = useQuery({
-    queryKey: ['budget-campaigns', platformFilter, dateRange.startDate, dateRange.endDate],
-    queryFn: () =>
-      budgetAPI.getByCampaign({
-        platform: platformFilter === 'all' ? undefined : platformFilter,
-        startDate: dateRange.startDate,
-        endDate: dateRange.endDate,
-      }),
-  });
-
-  // 예산 수정
-  const updateMutation = useMutation({
-    mutationFn: ({ id, data }: { id: number; data: any }) => budgetAPI.updateCampaignBudget(id, data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['budget-campaigns'] });
-      queryClient.invalidateQueries({ queryKey: ['budget-summary'] });
-      queryClient.invalidateQueries({ queryKey: ['budget-platforms'] });
-      queryClient.invalidateQueries({ queryKey: ['campaigns'] });
-      setEditingCampaign(null);
-      alert('예산이 수정되었습니다.');
-    },
-    onError: () => {
-      alert('예산 수정에 실패했습니다.');
-    },
-  });
+  // 예산 수정 (현재 미사용 처리됨. 향후 필요 시 주석 해제하여 사용)
+  // const updateMutation = useMutation({
+  //   mutationFn: ({ id, data }: { id: number; data: any }) => budgetAPI.updateCampaignBudget(id, data),
+  //   onSuccess: () => {
+  //     queryClient.invalidateQueries({ queryKey: ['budget-campaigns'] });
+  //     queryClient.invalidateQueries({ queryKey: ['budget-summary'] });
+  //     queryClient.invalidateQueries({ queryKey: ['budget-platforms'] });
+  //     queryClient.invalidateQueries({ queryKey: ['campaigns'] });
+  //     queryClient.invalidateQueries({ queryKey: ['campaigns'] });
+  //     alert('예산이 수정되었습니다.');
+  //   },
+  //   onError: () => {
+  //     alert('예산 수정에 실패했습니다.');
+  //   },
+  // });
 
   // 👇 캠페인 삭제 Mutation 추가!
   const deleteMutation = useMutation({
@@ -109,7 +94,6 @@ export default function CampaignsPage() {
   const campaigns = data?.data?.campaigns || [];
   const summary = summaryData?.data?.summary;
   const platforms = platformsData?.data?.platforms || [];
-  const budgetCampaigns = campaignsData?.data?.campaigns || [];
 
   // 필터링
   const filteredCampaigns = campaigns.filter((campaign: any) => {
@@ -119,40 +103,18 @@ export default function CampaignsPage() {
     return matchesSearch && matchesPlatform && matchesStatus;
   });
 
-  // 차트 데이터
+  // 차트 데이터 (platforms 매핑)
   const chartData = platforms.map((p: any) => ({
     name: p.platform.toUpperCase(),
     value: p.spent,
   }));
 
-  const handleEdit = (campaign: any) => {
-    setEditingCampaign(campaign.id);
-    setEditValues({
-      dailyBudget: campaign.dailyBudget.toString(),
-      totalBudget: campaign.totalBudget.toString(),
-    });
-  };
-
-  const handleSave = (id: number) => {
-    updateMutation.mutate({
-      id,
-      data: {
-        dailyBudget: parseFloat(editValues.dailyBudget),
-        totalBudget: parseFloat(editValues.totalBudget),
-      },
-    });
-  };
-
-  const handleCancel = () => {
-    setEditingCampaign(null);
-    setEditValues({ dailyBudget: '', totalBudget: '' });
-  };
-
-  const getUtilizationColor = (rate: number) => {
-    if (rate >= 90) return 'text-red-600 bg-red-50';
-    if (rate >= 70) return 'text-yellow-600 bg-yellow-50';
-    return 'text-green-600 bg-green-50';
-  };
+  // 예산 소진율에 따른 색상 반환 (원래 미사용 되어 주석 처리)
+  // const getUtilizationColor = (rate: number) => {
+  //   if (rate >= 90) return 'text-red-600 bg-red-50';
+  //   if (rate >= 70) return 'text-yellow-600 bg-yellow-50';
+  //   return 'text-green-600 bg-green-50';
+  // };
 
   return (
     <div className="space-y-6 p-6">

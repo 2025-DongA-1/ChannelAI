@@ -11,8 +11,6 @@ import {
   Target,
   Calendar,
   Edit,
-  Pause,
-  Play,
   Trash2,
   Check,
   X,
@@ -85,11 +83,12 @@ export default function CampaignDetailPage() {
     },
   });
 
-  const handleStatusToggle = () => {
-    if (!campaign) return;
-    const newStatus = campaign.status === 'active' ? 'paused' : 'active';
-    updateMutation.mutate({ status: newStatus });
-  };
+  // 캠페인 상태 변경 기능 (향후 구현 시 사용)
+  // const handleStatusToggle = () => {
+  //   if (!campaign) return;
+  //   const newStatus = campaign.status === 'active' ? 'paused' : 'active';
+  //   updateMutation.mutate({ status: newStatus });
+  // };
 
   const handleDelete = () => {
     if (confirm('정말로 이 캠페인을 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.')) {
