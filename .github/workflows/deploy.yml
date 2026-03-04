@@ -175,8 +175,10 @@ jobs:
 
             # --- Common Config ---
             JWT_SECRET=${{ secrets.JWT_SECRET }}
+            JWT_EXPIRES_IN=7d
             NODE_ENV=production
             FRONTEND_URL=https://channelai.kro.kr
+            BACKEND_URL=https://channelai.kro.kr
             # Python 실행 경로 (서버 환경)
             PYTHON_PATH=/usr/bin/python3
 
@@ -223,6 +225,26 @@ jobs:
             REDIS_HOST=127.0.0.1
             REDIS_PORT=6379
             REDIS_PASSWORD=
+
+            # Meta Ads API
+            META_APP_ID=${{ secrets.META_APP_ID }}
+            META_APP_SECRET=${{ secrets.META_APP_SECRET }}
+            META_REDIRECT_URI=https://channelai.kro.kr/api/v1/integration/callback/meta
+
+            # Naver Ads API
+            NAVER_ADS_CLIENT_ID=${{ secrets.NAVER_ADS_CLIENT_ID }}
+            NAVER_ADS_CLIENT_SECRET=${{ secrets.NAVER_ADS_CLIENT_SECRET }}
+            NAVER_ADS_REDIRECT_URI=https://channelai.kro.kr/api/v1/integration/callback/naver
+            NAVER_CUSTOMER_ID=${{ secrets.NAVER_CUSTOMER_ID }}
+            NAVER_API_KEY=${{ secrets.NAVER_API_KEY }}
+            NAVER_SECRET_KEY=${{ secrets.NAVER_SECRET_KEY }}
+
+            # Google Ads API   ← 여기 추가
+            GOOGLE_ADS_CLIENT_ID=${{ secrets.GOOGLE_CLIENT_ID }}
+            GOOGLE_ADS_CLIENT_SECRET=${{ secrets.GOOGLE_CLIENT_SECRET }}
+            GOOGLE_ADS_REDIRECT_URI=https://channelai.kro.kr/api/v1/integration/callback/google
+            GOOGLE_ADS_DEVELOPER_TOKEN=${{ secrets.GOOGLE_ADS_DEVELOPER_TOKEN }}
+            GOOGLE_ADS_CUSTOMER_ID=${{ secrets.GOOGLE_ADS_CUSTOMER_ID }}
 
             # Proxy
             HTTPS_PROXY=${{ secrets.WEB_PROXY_URL }}
