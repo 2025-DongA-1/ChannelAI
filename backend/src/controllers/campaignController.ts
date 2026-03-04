@@ -15,14 +15,29 @@ export const getCampaigns = async (req: Request, res: Response) => {
     let query = `
       SELECT 
         c.id, c.marketing_account_id, c.external_campaign_id AS campaign_id,
-        c.campaign_name, c.status, c.daily_budget, c.total_budget,
+        c.campaign_name, c.status,
         ma.account_name,
         ma.channel_code AS platform,
-        (SELECT COUNT(*) FROM campaign_metrics WHERE campaign_id = c.id) as metrics_count
+        agg.start_date,
+        agg.end_date,
+        agg.total_cost,
+        agg.total_revenue,
+        agg.total_conversions,
+        agg.total_clicks
       FROM campaigns c
       JOIN marketing_accounts ma ON c.marketing_account_id = ma.id
+      JOIN (
+        SELECT campaign_id,
+               MIN(metric_date) as start_date,
+               MAX(metric_date) as end_date,
+               COALESCE(SUM(cost), 0) as total_cost,
+               COALESCE(SUM(revenue), 0) as total_revenue,
+               COALESCE(SUM(conversions), 0) as total_conversions,
+               COALESCE(SUM(clicks), 0) as total_clicks
+        FROM campaign_metrics
+        GROUP BY campaign_id
+      ) agg ON c.id = agg.campaign_id
       WHERE ma.user_id = ?
-        AND EXISTS (SELECT 1 FROM campaign_metrics WHERE campaign_id = c.id)
     `;
     
     const params: any[] = [userId];

@@ -164,16 +164,24 @@ export default function CampaignsPage() {
         </div>
         <div className="flex gap-3">
           <button
-            onClick={() => refetch()}
+            onClick={() => {
+              queryClient.invalidateQueries({ queryKey: ['campaigns'] });
+              queryClient.invalidateQueries({ queryKey: ['budget-summary'] });
+              queryClient.invalidateQueries({ queryKey: ['budget-platforms'] });
+              queryClient.invalidateQueries({ queryKey: ['budget-campaigns'] });
+            }}
             className="flex items-center px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition"
           >
             <RefreshCw className="w-4 h-4 mr-2" />
             새로고침
           </button>
-          <button className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition">
+          <Link 
+            to="/integration"
+            className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
+          >
             <Plus className="w-5 h-5 mr-2" />
-            캠페인 생성
-          </button>
+            새 캠페인 추가 (연동)
+          </Link>
         </div>
       </div>
 
@@ -372,23 +380,26 @@ export default function CampaignsPage() {
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     플랫폼
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                     상태
                   </th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    일일 예산
+                  <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    진행 기간
                   </th>
                   <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    총 예산
+                    총 집행액
                   </th>
                   <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    집행액
-                  </th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    소진율
+                    총 수익
                   </th>
                   <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                     ROAS
+                  </th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    전환수 (CPA)
+                  </th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    클릭수 (CPC)
                   </th>
                   <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                     액션
@@ -397,8 +408,16 @@ export default function CampaignsPage() {
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
                 {filteredCampaigns.map((campaign: any) => {
-                  // budgetCampaigns에서 예산 정보 찾기
-                  const budgetInfo = budgetCampaigns.find((bc: any) => bc.id === campaign.id) || {};
+                  const roas = campaign.total_cost > 0 ? (campaign.total_revenue / campaign.total_cost) * 100 : 0;
+                  const cpa = campaign.total_conversions > 0 ? campaign.total_cost / campaign.total_conversions : 0;
+                  const cpc = campaign.total_clicks > 0 ? campaign.total_cost / campaign.total_clicks : 0;
+                  
+                  // 날짜 포맷 (예: 26.02.01 ~ 26.02.28)
+                  const formatDateStr = (dateStr: string) => {
+                    if (!dateStr) return '-';
+                    const d = new Date(dateStr);
+                    return `${String(d.getFullYear()).slice(2)}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')}`;
+                  };
                   
                   return (
                     <tr key={campaign.id} className="hover:bg-gray-50 transition">
@@ -410,91 +429,47 @@ export default function CampaignsPage() {
                           {campaign.campaign_name}
                         </Link>
                       </td>
-                      <td className="px-6 py-4">
+                      <td className="px-6 py-4 text-center">
                         <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getPlatformColor(campaign.platform)}`}>
                           {campaign.platform.toUpperCase()}
                         </span>
                       </td>
-                      <td className="px-6 py-4">
+                      <td className="px-6 py-4 text-center">
                         <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(campaign.status)}`}>
                           {campaign.status === 'active' ? '활성' : campaign.status === 'paused' ? '일시정지' : '완료'}
                         </span>
                       </td>
-                      <td className="px-6 py-4 text-sm text-right">
-                        {editingCampaign === campaign.id ? (
-                          <input
-                            type="number"
-                            value={editValues.dailyBudget}
-                            onChange={(e) => setEditValues((prev) => ({ ...prev, dailyBudget: e.target.value }))}
-                            className="w-24 px-2 py-1 text-sm border border-gray-300 rounded text-right"
-                          />
-                        ) : (
-                          formatCurrency(campaign.daily_budget)
-                        )}
+                      <td className="px-6 py-4 text-sm text-center text-gray-500">
+                        {formatDateStr(campaign.start_date)} ~ {formatDateStr(campaign.end_date)}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-right font-medium text-gray-900">
+                        {formatCurrency(campaign.total_cost || 0)}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-right font-bold text-blue-600">
+                        {formatCurrency(campaign.total_revenue || 0)}
                       </td>
                       <td className="px-6 py-4 text-sm text-right">
-                        {editingCampaign === campaign.id ? (
-                          <input
-                            type="number"
-                            value={editValues.totalBudget}
-                            onChange={(e) => setEditValues((prev) => ({ ...prev, totalBudget: e.target.value }))}
-                            className="w-24 px-2 py-1 text-sm border border-gray-300 rounded text-right"
-                          />
-                        ) : (
-                          formatCurrency(campaign.total_budget)
-                        )}
-                      </td>
-                      <td className="px-6 py-4 text-sm text-right text-gray-900">
-                        {formatCurrency(budgetInfo.spent || 0)}
-                      </td>
-                      <td className="px-6 py-4 text-sm text-right">
-                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${getUtilizationColor(budgetInfo.utilizationRate || 0)}`}>
-                          {(budgetInfo.utilizationRate || 0).toFixed(1)}%
+                        <span className={`px-2 py-1 rounded-lg text-xs font-bold ${roas >= 200 ? 'text-green-700 bg-green-50 border border-green-200' : 'text-gray-700'}`}>
+                          {roas > 0 ? `${(roas / 100).toFixed(2)}x` : '-'}
                         </span>
                       </td>
-                      <td className="px-6 py-4 text-sm text-right text-gray-900">
-                        {budgetInfo.roas ? `${budgetInfo.roas.toFixed(2)}x` : '-'}
+                      <td className="px-6 py-4 text-sm text-right text-gray-700">
+                        <div className="font-medium">{campaign.total_conversions || 0}건</div>
+                        <div className="text-xs text-gray-400 mt-0.5">({formatCurrency(cpa)})</div>
+                      </td>
+                      <td className="px-6 py-4 text-sm text-right text-gray-700">
+                        <div className="font-medium">{campaign.total_clicks || 0}회</div>
+                        <div className="text-xs text-gray-400 mt-0.5">({formatCurrency(cpc)})</div>
                       </td>
                       <td className="px-6 py-4 text-center">
-                        {editingCampaign === campaign.id ? (
-                          <div className="flex items-center justify-center gap-2">
-                            <button
-                              onClick={() => handleSave(campaign.id)}
-                              disabled={updateMutation.isPending}
-                              className="p-1 text-green-600 hover:bg-green-50 rounded"
-                              title="저장"
-                            >
-                              <Check className="w-4 h-4" />
-                            </button>
-                            <button
-                              onClick={handleCancel}
-                              className="p-1 text-red-600 hover:bg-red-50 rounded"
-                              title="취소"
-                            >
-                              <X className="w-4 h-4" />
-                            </button>
-                          </div>
-                        ) : (
-                          // 👇 버튼이 두 개가 되니까 div로 예쁘게 묶어줬어요!
-                          <div className="flex items-center justify-center gap-2">
-                            <button
-                              onClick={() => handleEdit({ id: campaign.id, dailyBudget: campaign.daily_budget, totalBudget: campaign.total_budget })}
-                              className="p-1 text-blue-600 hover:bg-blue-50 rounded"
-                              title="예산 수정"
-                            >
-                              <Edit className="w-4 h-4" />
-                            </button>
-                            {/* 👇 삭제 버튼 추가! */}
-                            <button
-                              onClick={() => handleDelete(campaign.id, campaign.campaign_name)}
-                              disabled={deleteMutation.isPending}
-                              className="p-1 text-red-600 hover:bg-red-50 rounded"
-                              title="캠페인 삭제"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          </div>
-                        )}
+                        <button
+                          onClick={() => handleDelete(campaign.id, campaign.campaign_name)}
+                          disabled={deleteMutation.isPending}
+                          className="p-1.5 text-red-500 hover:text-red-700 hover:bg-red-50 rounded transition"
+                          title="캠페인 삭제"
+                        >
+                          <Trash2 className="w-5 h-5" />
+                        </button>
                       </td>
                     </tr>
                   );

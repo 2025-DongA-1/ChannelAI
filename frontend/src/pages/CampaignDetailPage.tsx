@@ -14,6 +14,8 @@ import {
   Pause,
   Play,
   Trash2,
+  Check,
+  X,
 } from 'lucide-react';
 import {
   LineChart,
@@ -35,6 +37,10 @@ export default function CampaignDetailPage() {
     endDate: new Date().toISOString().split('T')[0],
   });
 
+  // 🌟 캠페인 이름 수정 상태 추가
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [editedName, setEditedName] = useState('');
+
   // 캠페인 상세 정보
   const { data: campaignData, isLoading } = useQuery({
     queryKey: ['campaign', id],
@@ -53,13 +59,14 @@ export default function CampaignDetailPage() {
   const campaign = campaignData?.data?.campaign;
   const metrics = metricsData?.data?.metrics || [];
 
-  // 캠페인 상태 변경
+  // 캠페인 정보 변경 (이름 변경)
   const updateMutation = useMutation({
     mutationFn: (data: any) => campaignAPI.updateCampaign(Number(id), data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['campaign', id] });
       queryClient.invalidateQueries({ queryKey: ['campaigns'] });
-      alert('캠페인이 업데이트되었습니다.');
+      setIsEditingName(false); // 🌟 저장 완료 시 수정 모드 종료!
+      alert('캠페인이 성공적으로 업데이트되었습니다.');
     },
     onError: () => {
       alert('캠페인 업데이트에 실패했습니다.');
@@ -171,7 +178,36 @@ export default function CampaignDetailPage() {
             <ArrowLeft className="w-5 h-5" />
           </button>
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">{campaign.campaign_name}</h1>
+            {/* 🌟 이름 수정 모드 조건부 렌더링 */}
+            {isEditingName ? (
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  value={editedName}
+                  onChange={(e) => setEditedName(e.target.value)}
+                  className="text-2xl font-bold text-gray-900 border-b-2 border-blue-500 focus:outline-none px-2 py-1 bg-blue-50 rounded-lg w-80"
+                  autoFocus
+                />
+                <button
+                  onClick={() => updateMutation.mutate({ campaign_name: editedName })}
+                  disabled={updateMutation.isPending || !editedName.trim()}
+                  className="p-1.5 text-green-600 hover:bg-green-100 rounded-lg transition disabled:opacity-50"
+                  title="저장"
+                >
+                  <Check className="w-6 h-6" />
+                </button>
+                <button
+                  onClick={() => setIsEditingName(false)}
+                  className="p-1.5 text-red-600 hover:bg-red-100 rounded-lg transition"
+                  title="취소"
+                >
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+            ) : (
+              <h1 className="text-3xl font-bold text-gray-900">{campaign.campaign_name}</h1>
+            )}
+            
             <div className="flex items-center gap-2 mt-2">
               <span className={`px-3 py-1 rounded-full text-xs font-medium uppercase ${getPlatformColor(campaign.platform)}`}>
                 {campaign.platform}
@@ -183,27 +219,19 @@ export default function CampaignDetailPage() {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <button
-            onClick={handleStatusToggle}
-            disabled={updateMutation.isPending}
-            className="flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition"
+          {/* 🌟 수정 버튼을 '이름 수정'으로 연결 */}
+          <button 
+            onClick={() => {
+              setEditedName(campaign.campaign_name);
+              setIsEditingName(true);
+            }}
+            disabled={isEditingName}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition disabled:opacity-50"
           >
-            {campaign.status === 'active' ? (
-              <>
-                <Pause className="w-4 h-4" />
-                일시정지
-              </>
-            ) : (
-              <>
-                <Play className="w-4 h-4" />
-                재개
-              </>
-            )}
-          </button>
-          <button className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition">
             <Edit className="w-4 h-4" />
-            수정
+            이름 수정
           </button>
+          
           <button
             onClick={handleDelete}
             disabled={deleteMutation.isPending}
@@ -217,15 +245,23 @@ export default function CampaignDetailPage() {
 
       {/* Campaign Info */}
       <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">캠페인 정보</h2>
-        <div className="grid grid-cols-2 md:grid-cols-2 gap-4">
+        <h2 className="text-lg font-semibold text-gray-900 mb-4">기본 정보</h2>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <div>
-            <p className="text-sm text-gray-500">일일 예산</p>
-            <p className="font-medium text-gray-900">{formatCurrency(campaign.daily_budget || 0)}</p>
+            <p className="text-sm text-gray-500">연동된 광고 계정</p>
+            <p className="font-medium text-gray-900 mt-1">{campaign.account_name || '알 수 없음'}</p>
           </div>
           <div>
-            <p className="text-sm text-gray-500">총 예산</p>
-            <p className="font-medium text-gray-900">{formatCurrency(campaign.total_budget || 0)}</p>
+            <p className="text-sm text-gray-500">매체 고유 ID</p>
+            <p className="font-medium text-gray-900 mt-1 font-mono text-sm">{campaign.external_campaign_id || '-'}</p>
+          </div>
+          <div>
+            <p className="text-sm text-gray-500">데이터 수집 기간</p>
+            <p className="font-medium text-gray-900 mt-1">
+              {metrics.length > 0 
+                ? `${new Date(metrics[0].metric_date).toLocaleDateString('ko-KR')} ~ ${new Date(metrics[metrics.length - 1].metric_date).toLocaleDateString('ko-KR')}`
+                : '데이터 없음'}
+            </p>
           </div>
         </div>
       </div>
