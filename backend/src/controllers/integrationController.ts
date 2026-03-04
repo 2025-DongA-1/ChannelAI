@@ -260,6 +260,7 @@ import fs from 'fs';
 import path from 'path';
 import csvParser from 'csv-parser';
 import * as iconv from 'iconv-lite';
+import { logIntegration } from '../utils/logger';
 
 /**
  * 플랫폼별 서비스 매핑
@@ -382,8 +383,10 @@ export const handleOAuthCallback = async (req: AuthRequest, res: Response) => {
 
     // 프론트엔드로 리디렉트
     const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3001';
+    logIntegration(`${platform} OAuth Connection Successful`, true, { userId, accounts: accounts.length });
     res.redirect(`${frontendUrl}/integration?success=true&platform=${platform}&accounts=${accounts.length}`);
   } catch (error) {
+    logIntegration(`${req.params.platform} OAuth Connection Failed`, false, { error: String(error) });
     console.error('OAuth 콜백 처리 오류:', error);
     const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3001';
     res.redirect(`${frontendUrl}/integration?error=${encodeURIComponent(error instanceof Error ? error.message : '인증 실패')}`);

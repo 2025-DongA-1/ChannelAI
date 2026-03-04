@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import jwt, { Secret } from 'jsonwebtoken';
 import pool from '../config/database';
 import axios from 'axios';
+import { logAuth } from '../utils/logger';
 
 /**
  * 카카오 로그인 URL 생성
@@ -138,6 +139,7 @@ export const handleKakaoCallback = async (req: Request, res: Response) => {
           user = idResult.rows[0];
         } else {
           // 연동된 계정 없음 -> 에러 리턴 (자동 가입 차단)
+          logAuth('Kakao Login Failed - Unregistered Account', false, { kakaoId });
           return res.redirect(`${frontendUrl}/me?error=kakao_not_linked`);
         }
 
@@ -149,10 +151,13 @@ export const handleKakaoCallback = async (req: Request, res: Response) => {
           { expiresIn: '7d' }
         );
 
+        logAuth('Kakao Login Successful', true, { userId: user.id });
+
         // 5. 프론트엔드로 리다이렉트
         res.redirect(`${frontendUrl}/auth/callback?token=${token}&name=${encodeURIComponent(user.name)}`);
     }
   } catch (error) {
+    logAuth('Kakao Auth Failed With Exception', false, { error: String(error) });
     console.error('Kakao OAuth error:', error);
     res.redirect(`${frontendUrl}/me?error=oauth_failed`);
   } finally {
@@ -304,6 +309,7 @@ export const handleNaverCallback = async (req: Request, res: Response) => {
         user = idResult.rows[0];
       } else {
         // 연동된 계정 없음 -> 에러 리턴
+        logAuth('Naver Login Failed - Unregistered Account', false, { naverId });
         return res.redirect(`${frontendUrl}/me?error=naver_not_linked`);
       }
 
@@ -315,10 +321,13 @@ export const handleNaverCallback = async (req: Request, res: Response) => {
         { expiresIn: '7d' }
       );
 
+      logAuth('Naver Login Successful', true, { userId: user.id });
+
       // 3. 프론트엔드로 리다이렉트
       res.redirect(`${frontendUrl}/auth/callback?token=${token}&name=${encodeURIComponent(user.name)}`);
     }
   } catch (error) {
+    logAuth('Naver Auth Failed With Exception', false, { error: String(error) });
     console.error('Naver OAuth error:', error);
     res.redirect(`${frontendUrl}/me?error=oauth_failed`);
   } finally {
@@ -458,6 +467,7 @@ export const handleGoogleCallback = async (req: Request, res: Response) => {
           user = idResult.rows[0];
         } else {
           // 연동된 계정 없음 -> 에러 리턴 (자동 가입 차단)
+          logAuth('Google Login Failed - Unregistered Account', false, { googleId });
           return res.redirect(`${frontendUrl}/me?error=google_not_linked`);
         }
 
@@ -469,10 +479,13 @@ export const handleGoogleCallback = async (req: Request, res: Response) => {
           { expiresIn: '7d' }
         );
 
+        logAuth('Google Login Successful', true, { userId: user.id });
+
         // 5. 프론트엔드로 리다이렉트
         res.redirect(`${frontendUrl}/auth/callback?token=${token}&name=${encodeURIComponent(user.name)}`);
     }
   } catch (error) {
+    logAuth('Google Auth Failed With Exception', false, { error: String(error) });
     console.error('Google OAuth error:', error);
     res.redirect(`${frontendUrl}/me?error=oauth_failed`);
   } finally {

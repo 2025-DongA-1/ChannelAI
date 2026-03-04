@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import pool from '../config/database';
+import { logAuth } from '../utils/logger';
 
 // ──────────────────────────────────────────────────────────────
 // 회원가입
@@ -98,6 +99,7 @@ export const login = async (req: Request, res: Response) => {
     }
 
     if (result.rows.length === 0) {
+      logAuth('Login Attempt Failed - User not found', false, { email });
       return res.status(401).json({
         error: 'INVALID_CREDENTIALS',
         message: '이메일 또는 비밀번호가 올바르지 않습니다.',
@@ -108,6 +110,7 @@ export const login = async (req: Request, res: Response) => {
 
     // 소셜 로그인 계정
     if (!user.password_hash) {
+      logAuth('Login Attempt Failed - Used Email for Social Account', false, { email });
       return res.status(400).json({
         error: 'SOCIAL_ACCOUNT',
         message: '소셜 로그인으로 가입된 계정입니다. 소셜 로그인을 이용해주세요.',
@@ -117,6 +120,7 @@ export const login = async (req: Request, res: Response) => {
     // 비밀번호 검증
     const isMatch = await bcrypt.compare(password, user.password_hash);
     if (!isMatch) {
+      logAuth('Login Attempt Failed - Wrong Password', false, { email });
       return res.status(401).json({
         error: 'INVALID_CREDENTIALS',
         message: '이메일 또는 비밀번호가 올바르지 않습니다.',
@@ -133,6 +137,8 @@ export const login = async (req: Request, res: Response) => {
       { expiresIn: (process.env.JWT_EXPIRES_IN || '7d') as any }
     );
 
+    logAuth('Login Successful', true, { email, userId: user.id });
+
     return res.json({
       user: {
         id: user.id,
@@ -144,6 +150,7 @@ export const login = async (req: Request, res: Response) => {
       token,
     });
   } catch (error) {
+    logAuth('Login Error Resulting in Exception', false, { email: req.body?.email, error: String(error) });
     console.error('Login error:', error);
     return res.status(500).json({
       error: 'SERVER_ERROR',
