@@ -373,7 +373,7 @@ function MarketingAnalysis() {
                           onMouseLeave={() => setHoveredLine(null)}
                         />
                         <Line type="monotone" dataKey="Naver" name="네이버" stroke="#2DB400" strokeWidth={3} dot={{ r: 4 }} activeDot={{ r: 6 }} strokeOpacity={hoveredLine && hoveredLine !== 'Naver' ? 0.15 : 1} />
-                        <Line type="monotone" dataKey="Meta" name="인스타그램" stroke="#1877F2" strokeWidth={3} dot={{ r: 4 }} strokeOpacity={hoveredLine && hoveredLine !== 'Meta' ? 0.15 : 1} />
+                        <Line type="monotone" dataKey="Meta" name="메타" stroke="#1877F2" strokeWidth={3} dot={{ r: 4 }} strokeOpacity={hoveredLine && hoveredLine !== 'Meta' ? 0.15 : 1} />
                         <Line type="monotone" dataKey="Google" name="구글" stroke="#EA4335" strokeWidth={3} dot={{ r: 4 }} strokeOpacity={hoveredLine && hoveredLine !== 'Google' ? 0.15 : 1} />
                         <Line type="monotone" dataKey="Karrot" name="당근" stroke="#FF6F0F" strokeWidth={3} dot={{ r: 4 }} strokeOpacity={hoveredLine && hoveredLine !== 'Karrot' ? 0.15 : 1} />
                       </LineChart>
