@@ -141,7 +141,12 @@ function MarketingAnalysis() {
       // 백엔드 요청
       const cleanBudget = Number(budget.toString().replace(/,/g, ''));
       
-      const response = await axios.post('http://localhost:5000/api/v1/ai/recommend', {
+      // ✅ 환경변수에서 FastAPI 주소를 가져옴
+      //    - 로컬 개발 시: VITE_AI_API_URL이 없으면 → http://localhost:5000 (로컬 FastAPI)
+      //    - 서버 배포 후: VITE_AI_API_URL=https://channelai.kro.kr:5000 (또는 프록시 경로)
+      const AI_API_URL = import.meta.env.VITE_AI_API_URL || 'http://localhost:5000';
+      
+      const response = await axios.post(`${AI_API_URL}/api/v1/ai/recommend`, {
         total_budget: cleanBudget,
         features: features,
         history_data : dailyData,
