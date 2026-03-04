@@ -1,0 +1,648 @@
+# 🚀 ChannelAI 프로젝트 전체 파악 문서
+
+> **목적**: 새 채팅에서 이 한 문서만 읽으면 프로젝트 전체를 즉시 파악할 수 있도록 작성됨  
+> **최종 업데이트**: 2026-03-04
+
+---
+
+## 1. 📌 프로젝트 개요
+
+**ChannelAI**는 멀티채널 마케팅 최적화 SaaS 서비스입니다.  
+Meta(Facebook), 네이버, 구글, 당근마켓 등 여러 광고 플랫폼의 캠페인 성과를 **하나의 대시보드**에서 통합 관리하고, **AI로 인사이트와 예산 추천**을 제공합니다.
+
+- **GitHub**: https://github.com/2025-DongA-1/ChannelAI
+- **운영 URL**: https://channelai.kro.kr
+- **팀**: 스마트인재개발원 동아일보 AI 훈련 과정 졸업 프로젝트
+
+---
+
+## 2. 🏗️ 전체 시스템 아키텍처
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                     사용자 브라우저                          │
+│            React (Vite) SPA - Port 5173 (로컬)              │
+└──────────────────────┬──────────────────────────────────────┘
+                       │ HTTPS / REST API
+┌──────────────────────▼──────────────────────────────────────┐
+│              Nginx (channelai.kro.kr)                        │
+│  - HTTPS 터미네이션 (Let's Encrypt)                          │
+│  - /api/* → 백엔드(3000) 프록시                              │
+│  - /* → 프론트엔드 정적 파일 서빙                             │
+└───────────┬─────────────────────────┬───────────────────────┘
+            │                         │
+┌───────────▼──────────┐   ┌──────────▼──────────────────────┐
+│  Node.js + Express   │   │   Python (child_process)         │
+│  TypeScript          │   │   - predict_budget.py            │
+│  PM2 (marketing-api) │   │   - ai_inference.py              │
+│  Port 3000           │   │   ML 모델: XGBoost / Random Forest│
+└───────────┬──────────┘   └─────────────────────────────────┘
+            │
+   ┌─────────┴──────────┐
+   │                    │
+┌──▼───────┐  ┌─────────▼──────┐
+│  MySQL   │  │    Redis       │
+│  외부 DB  │  │  (세션/캐시)    │
+│smhrd.com │  │  설치됨, 대기중 │
+└──────────┘  └────────────────┘
+```
+
+### 서버 구성 (운영)
+
+| 구분 | 서버명 | 공인 IP | 스펙 | 용도 |
+|------|--------|---------|------|------|
+| WEB (현재) | s19c69b4cafd | 211.188.63.79 | 2vCPU/4GB | Frontend + Backend 통합 |
+| WAS (신규) | s19c8d8cd8e1 | 211.188.62.127 | 2vCPU/8GB | 향후 Backend 분리 예정 |
+
+> ⚠️ 두 서버가 **서로 다른 VPC**에 있어 미분리 상태. WPC 피어링 또는 이전 필요
+
+---
+
+## 3. 🛠️ 기술 스택
+
+### Frontend
+| 항목 | 기술 |
+|------|------|
+| 프레임워크 | React 18 + TypeScript |
+| 빌드 도구 | Vite |
+| 라우팅 | React Router v6 |
+| 상태관리 | (로컬 State / Context, Redux 일부) |
+| HTTP 클라이언트 | Axios (또는 fetch) |
+| 차트 | Recharts |
+| UI 컴포넌트 | Material-UI (MUI), Lucide-React 아이콘 |
+| 스타일 | CSS / Tailwind (일부) |
+
+### Backend
+| 항목 | 기술 |
+|------|------|
+| 런타임 | Node.js |
+| 언어 | TypeScript |
+| 프레임워크 | Express.js |
+| 데이터베이스 | MySQL (mysql2/promise, Raw SQL) |
+| 캐시 | Redis (연결됨, 적극 활용 예정) |
+| 인증 | JWT (JSON Web Token) + bcrypt |
+| 이메일 | Resend API |
+| 스케줄러 | node-cron |
+| 프로세스 관리 | PM2 |
+| AI/ML 연동 | Python child_process (spawn) |
+
+### AI/ML
+| 항목 | 기술 |
+|------|------|
+| 언어 | Python 3.14 |
+| LLM | Groq API / Gemini API / OpenAI (선택 가능) |
+| ML 모델 | XGBoost (ROAS 예측), Random Forest (플랫폼 추천) |
+| 학습 환경 | Google Colab |
+| 모델 파일 | `.pkl` 형태로 `backend/ml_models/`에 저장 |
+
+### 외부 API
+| 플랫폼 | 상태 | 방식 |
+|--------|------|------|
+| Meta (Facebook) Ads | ✅ 실제 연동 확인됨 | OAuth 2.0 + Facebook Business SDK |
+| 네이버 검색광고 | ✅ 연동됨 | API Key + OAuth |
+| 구글 Ads | ✅ 코드 있음 (실 테스트 미확인) | OAuth 2.0 |
+| 당근마켓 | ⚠️ 공식 API 없음 | 수동 입력 CRUD |
+
+### 인프라/DevOps
+| 항목 | 기술 |
+|------|------|
+| 웹서버 | Nginx (리버스 프록시 + HTTPS) |
+| SSL | Let's Encrypt |
+| CI/CD | GitHub Actions |
+| 컨테이너 | Docker Compose (로컬 Redis/Adminer용) |
+| 도메인 | channelai.kro.kr |
+
+---
+
+## 4. 📁 디렉토리 구조
+
+```
+ChannelAI/                         # 프로젝트 루트
+├── backend/                       # Node.js + TypeScript 백엔드
+│   ├── src/
+│   │   ├── app.ts                 # ★ 앱 진입점 (미들웨어, 라우트 등록, cron 설정)
+│   │   ├── config/
+│   │   │   ├── database.ts        # MySQL 커넥션 풀
+│   │   │   └── redis.ts           # Redis 클라이언트
+│   │   ├── controllers/           # 비즈니스 로직 핵심
+│   │   │   ├── authController.ts          # 회원가입/로그인/프로필 수정/비번 변경
+│   │   │   ├── socialAuthController.ts    # 카카오/네이버/구글 OAuth
+│   │   │   ├── campaignController.ts      # 캠페인 CRUD
+│   │   │   ├── dashboardController.ts     # 대시보드 집계 데이터
+│   │   │   ├── integrationController.ts   # ★ 가장 큰 파일 (51KB) - 플랫폼 연동 전체
+│   │   │   ├── aiAgentController.ts       # AI 인사이트 분석 (Groq/Gemini/OpenAI)
+│   │   │   ├── aiRecommendationController.ts # AI 예산 추천 (Python ML 모델)
+│   │   │   ├── insightController.ts       # 인사이트 CRUD
+│   │   │   ├── budgetController.ts        # 예산 관리
+│   │   │   ├── metricController.ts        # 메트릭 원본 데이터 CRUD
+│   │   │   ├── reportController.ts        # 이메일 리포트 발송
+│   │   │   └── accountController.ts       # 계정 관리
+│   │   ├── middlewares/
+│   │   │   └── auth.ts            # JWT 검증 미들웨어
+│   │   ├── routes/                # API 엔드포인트 정의 (10개)
+│   │   └── services/
+│   │       ├── external/          # 광고 플랫폼 연동 서비스
+│   │       │   ├── baseAdService.ts       # 추상 베이스 (Strategy 패턴)
+│   │       │   ├── metaAdsService.ts      # Meta API 연동
+│   │       │   ├── naverAdsService.ts     # Naver API 연동
+│   │       │   ├── googleAdsService.ts    # Google Ads 연동
+│   │       │   ├── karrotAdsService.ts    # 당근마켓 (수동)
+│   │       │   └── karrotCrawlerService.ts # 당근 크롤러 (미구현)
+│   │       ├── ai/                # AI 추론 서비스
+│   │       ├── ml/                # ML 서비스
+│   │       ├── emailService.ts    # Resend API 이메일 전송
+│   │       └── reportService.ts   # 리포트 생성/발송 로직
+│   ├── ai/
+│   │   └── predict_budget.py      # Python 예산 분석 스크립트
+│   ├── ml_models/                 # 학습된 .pkl 모델 파일들
+│   └── .env                       # 환경 변수
+│
+├── frontend/                      # React + Vite 프론트엔드
+│   └── src/
+│       ├── App.tsx                # ★ 라우팅 정의 전체
+│       ├── main.tsx               # 앱 진입점
+│       ├── pages/                 # 17개 페이지 컴포넌트
+│       ├── lib/                   # 유틸 함수
+│       └── store/                 # 상태관리
+│
+├── database/                      # DB 스키마 파일
+├── deploy/                        # 배포 스크립트 (setup/deploy .sh)
+├── python_scripts/                # Python 유틸 스크립트
+├── ml_training/                   # Google Colab 학습 노트북
+├── docs/                          # ★ 각종 문서 (36개)
+├── .github/workflows/
+│   └── deploy.yml                 # GitHub Actions CI/CD
+├── docker-compose.yml             # 로컬 Redis/Adminer
+└── start_servers.bat              # 로컬 개발 서버 한번에 실행
+```
+
+---
+
+## 5. 🗃️ DB 스키마 구조
+
+**DB 접속 정보**
+| 항목 | 값 |
+|------|-----|
+| 호스트 | `project-db-cgi.smhrd.com` |
+| 포트 | `3307` |
+| DB명 | `cgi_25K_DA1_p3_1` |
+| 유저 | `cgi_25K_DA1_p3_1` |
+| 비고 | 외부 공용 서버 (느림, connectTimeout=30s 설정됨) |
+
+### 핵심 테이블 관계
+```
+users (회원)
+  └── marketing_accounts (연동 광고 계정 - meta/naver/google/karrot)
+        └── campaigns (캠페인)
+              └── campaign_metrics (★ 핵심 - 일별 성과 지표)
+              └── data_sync_logs (동기화 이력)
+
+users
+  └── insights (AI 인사이트)
+  └── budgets (예산)
+  └── reports (리포트)
+```
+
+### 테이블 상세
+
+**users**
+```sql
+id, email(UNIQUE), password_hash, name, company_name,
+business_number, phone, role('user'/'admin'), 
+social_provider, social_id, created_at, updated_at, last_login, is_active
+```
+
+**marketing_accounts**
+```sql
+id, user_id(FK), platform('meta'/'naver'/'google'/'karrot'),
+account_id, account_name, access_token, refresh_token,
+token_expires_at, is_connected, created_at, updated_at
+```
+
+**campaigns**
+```sql
+id, marketing_account_id(FK), campaign_id(외부 플랫폼 ID),
+campaign_name, platform, status('active'/'paused'/'ended'),
+objective, daily_budget, total_budget, start_date, end_date,
+user_id(★ 없으면 user_id 필터 누락 버그 발생!), created_at, updated_at
+```
+
+**campaign_metrics (★ 핵심 테이블)**
+```sql
+id, campaign_id(FK), date, 
+impressions, clicks, cost, conversions(Meta는 항상 0 - Pixel 필요), revenue,
+ctr, cpc, cpm, cpa, conversion_rate, roas, roi,
+likes, shares, comments, saves, created_at, updated_at
+UNIQUE(campaign_id, date)
+```
+
+### campaign_metrics 데이터 소스별 현황
+| 컬럼 | CSV 업로드 | Meta API | 비고 |
+|------|----------|----------|------|
+| impressions | ✅ | ✅ | |
+| clicks | ✅ | ✅ | |
+| cost | ✅ | ✅ | |
+| conversions | ✅ | ✅ (항상 0) | Meta Pixel 없어서 0 |
+| revenue | ✅ | ✅ (항상 0) | Meta Pixel 없어서 0 |
+| ctr | ✅ | ⏸️ 보류 | 계산 코드 완성, 적용 대기 |
+| cpc | ✅ | ⏸️ 보류 | 계산 코드 완성, 적용 대기 |
+| roas | ✅ | ⏸️ 보류 | Pixel 없으면 의미없어서 보류 |
+| cpm, cpa, conversion_rate, roi | ✅ | ❌ 미수집 | API fields 추가 필요 |
+
+---
+
+## 6. 🌐 API 라우트 전체 목록
+
+**Base URL**: `https://channelai.kro.kr/api/v1` (운영) / `http://localhost:5000/api/v1` (로컬)  
+**인증방식**: `Authorization: Bearer {JWT_TOKEN}`
+
+| 라우트 | 파일 | 주요 기능 |
+|--------|------|-----------|
+| `POST /auth/register` | authController | 회원가입 |
+| `POST /auth/login` | authController | 로그인 (JWT 발급) |
+| `GET /auth/me` | authController | 내 정보 조회 |
+| `PUT /auth/me` | authController | 프로필 수정 (이름/이메일/회사명/사업자번호/전화) |
+| `PUT /auth/me/password` | authController | 비밀번호 변경 (소셜계정 자동 비활성화) |
+| `GET /auth/kakao` | socialAuthController | 카카오 OAuth |
+| `GET /auth/naver` | socialAuthController | 네이버 OAuth (소셜 로그인) |
+| `GET /auth/google` | socialAuthController | 구글 OAuth (소셜 로그인) |
+| `GET /campaigns` | campaignController | 캠페인 목록 (user_id 필터 필수) |
+| `GET /campaigns/:id` | campaignController | 캠페인 상세 |
+| `GET /dashboard` | dashboardController | 대시보드 집계 (기간 필터) |
+| `GET /integration/status` | integrationController | 연동 상태 조회 |
+| `GET /integration/meta/auth` | integrationController | Meta OAuth URL 반환 |
+| `GET /integration/meta/callback` | integrationController | Meta OAuth 콜백 |
+| `POST /integration/sync` | integrationController | 메타 캠페인/메트릭 동기화 |
+| `POST /integration/csv/upload` | integrationController | CSV 파일 업로드 (14개 컬럼) |
+| `GET /integration/csv/export` | integrationController | CSV 내보내기 |
+| `DELETE /integration/disconnect/:platform` | integrationController | 연동 해제 |
+| `POST /integration/karrot` | integrationController | 당근마켓 수동 캠페인 입력 |
+| `PUT /integration/karrot/:id` | integrationController | 당근마켓 캠페인 수정 |
+| `DELETE /integration/karrot/:id` | integrationController | 당근마켓 캠페인 삭제 |
+| `GET /budget` | budgetController | 예산 목록 |
+| `POST /budget` | budgetController | 예산 생성 |
+| `GET /insights` | insightController | AI 인사이트 목록 |
+| `POST /insights/generate` | insightController | AI 인사이트 생성 |
+| `POST /ai/analyze` | aiAgentController | AI 마케팅 인사이트 (Groq/Gemini/OpenAI) |
+| `POST /ai/recommend` | app.ts (직접) | Python ML 예산 분석 |
+| `GET /ai/status` | aiRoutes | Python 모델 상태 확인 |
+| `POST /report/send` | reportController | 이메일 리포트 수동 발송 |
+| `GET /metrics` | metricController | 메트릭 원본 데이터 조회 |
+| `PUT /metrics/:id` | metricController | 메트릭 수정 |
+| `DELETE /metrics/:id` | metricController | 메트릭 삭제 |
+| `DELETE /metrics/bulk` | metricController | 메트릭 일괄 삭제 |
+
+---
+
+## 7. 🖥️ 프론트엔드 페이지 목록
+
+| URL 경로 | 파일 | 상태 | 기능 |
+|---------|------|------|------|
+| `/login` | LoginPage.tsx | ✅ | 이메일/카카오/네이버/구글 로그인 |
+| `/register` | RegisterPage.tsx | ✅ | 회원가입 |
+| `/auth/callback` | AuthCallbackPage.tsx | ✅ | 소셜 로그인 OAuth 콜백 처리 |
+| `/dashboard` | DashboardPage.tsx | ✅ | 전체 성과 요약, 차트, 캠페인 목록 |
+| `/campaigns` | CampaignsPage.tsx | ✅ | 캠페인 목록, 검색, 필터, 예산 관리 |
+| `/campaigns/:id` | CampaignDetailPage.tsx | ✅ | 캠페인 상세 + 일별 성과 차트 |
+| `/integration` | IntegrationPage.tsx | ✅ | 플랫폼 연동(Meta/Naver/Google), CSV 업로드, 당근마켓 수동 입력 |
+| `/insights` | InsightsPage.tsx | ✅ | AI 인사이트 조회/생성 |
+| `/analysis` | MarketingAnalysis.tsx | ✅ | Python ML 기반 AI 예산 분석 |
+| `/ai-recommend` | AIRecommendationPage.tsx | ✅ | AI 광고 플랫폼 추천 |
+| `/advanced-model-test` | AdvancedModelTestPage.tsx | ✅ (개발용) | 고급 AI 모델 테스트 |
+| `/data-management` | DataManagementPage.tsx | ✅ | 원본 메트릭 데이터 조회/수정/삭제 |
+| `/dummy-data` | DummyDataPage.tsx | ✅ (개발용) | 더미 데이터 생성 |
+| `/email-report` | EmailReportPage.tsx | ✅ | 이메일 리포트 수동 발송 |
+| `/me` | MyPage.tsx | ✅ | 프로필 조회/수정, 비밀번호 변경 |
+| `/accounts` | AccountsPage (inline) | ❌ Placeholder | "계정 관리 (구현 필요)" 상태 |
+| `/terms` | TermsOfServicePage.tsx | ✅ | 이용약관 (정적) |
+| `/privacy` | PrivacyPolicyPage.tsx | ✅ | 개인정보처리방침 (정적) |
+
+---
+
+## 8. ⚙️ 시스템 기능별 구조 및 로직
+
+### 8-1. 🔐 인증 시스템
+
+**이메일 로그인 흐름**
+```
+1. POST /auth/login → authController.login()
+2. users 테이블에서 email 조회
+3. bcrypt.compare(입력 비번, password_hash)
+4. 일치 시 JWT 생성: jwt.sign({ userId, email, role }, JWT_SECRET, { expiresIn: '7d' })
+5. { token, user } 응답
+6. 프론트: localStorage에 토큰 저장
+7. 이후 모든 요청: Authorization: Bearer {token} 헤더
+8. auth.ts 미들웨어: jwt.verify() → req.user 설정
+```
+
+**소셜 로그인 흐름 (카카오/네이버/구글)**
+```
+1. 프론트: /auth/{provider} 클릭
+2. 백엔드: OAuth 제공자 인증 URL 반환
+3. 사용자 제공자 로그인 완료
+4. 콜백: /auth/callback?code=xxx
+5. socialAuthController: code로 액세스 토큰 교환
+6. 제공자 API로 사용자 정보 조회 (이메일, 이름)
+7. users 테이블에 social_provider, social_id로 upsert
+8. JWT 발급 후 프론트 /auth/callback 으로 리다이렉트 (토큰을 URL 쿼리로 전달)
+9. AuthCallbackPage.tsx: URL에서 토큰 추출 → localStorage 저장 → /dashboard 이동
+```
+
+---
+
+### 8-2. 📊 대시보드 시스템
+
+**데이터 흐름**
+```
+1. GET /dashboard?startDate=YYYY-MM-DD&endDate=YYYY-MM-DD
+2. dashboardController: campaign_metrics 테이블 집계 쿼리
+   - 전체 합계: SUM(impressions), SUM(clicks), SUM(cost), SUM(conversions), SUM(revenue)
+   - 플랫폼별 집계: GROUP BY platform
+   - 캠페인별 목록
+3. DashboardPage.tsx: Recharts 로 차트 렌더링
+   - 성과 요약 카드 (노출수/클릭수/비용/전환수)
+   - 플랫폼별 파이 차트
+   - 기간별 트렌드 라인 차트
+   - 캠페인 목록 테이블
+```
+
+---
+
+### 8-3. 🔗 플랫폼 연동 시스템 (integrationController.ts - 핵심)
+
+**Meta (Facebook) 연동 - 실제 동작 확인됨**
+```
+연동 과정:
+1. GET /integration/meta/auth → Meta OAuth URL 반환
+2. 사용자 Meta 로그인 완료
+3. GET /integration/meta/callback?code=xxx
+4. metaAdsService: code → access_token 교환
+5. marketing_accounts 테이블에 저장
+
+데이터 동기화:
+POST /integration/sync
+  → Meta Graph API: /act_{account_id}/campaigns
+  → 캠페인별: /act_{account_id}/insights (fields: impressions,clicks,spend)
+  → campaigns 테이블 upsert
+  → campaign_metrics 테이블 upsert (ON DUPLICATE KEY UPDATE)
+  
+주의: conversions, revenue = 0 (Meta Pixel 미연동)
+주의: ctr, cpc, roas는 계산 코드 있지만 의도적 미저장 (보류)
+```
+
+**네이버 광고 연동**
+```
+1. API Key 방식 (OAuth가 아닌 API Key + Secret)
+2. NAVER_API_KEY, NAVER_SECRET_KEY, NAVER_CUSTOMER_ID 필요
+3. naverAdsService: HMAC-SHA256 서명으로 인증
+4. 캠페인 목록 / 메트릭 데이터 수집
+```
+
+**당근마켓 (수동 입력)**
+```
+공식 API 없음 → 수동 CRUD 방식
+POST /integration/karrot → 수동으로 캠페인 데이터 입력
+PUT /integration/karrot/:id → 수정
+DELETE /integration/karrot/:id → 삭제
+```
+
+**CSV 업로드**
+```
+POST /integration/csv/upload (multipart/form-data)
+  → multer로 파일 수신
+  → CSV 파싱 (csv-parser)
+  → 14개 컬럼 campaign_metrics에 저장:
+     campaign_name, platform, date, impressions, clicks, cost,
+     conversions, revenue, ctr, cpc, cpm, cpa, conversion_rate, roas, roi
+  → 캠페인이 없으면 자동 생성
+```
+
+---
+
+### 8-4. 🤖 AI 시스템
+
+**AI 인사이트 (LLM 기반)**
+```
+POST /ai/analyze
+  → aiAgentController
+  → campaign_metrics 데이터 조회 (최근 30일)
+  → 프롬프트 생성 (캠페인 성과 데이터 포함)
+  → AI 모델 선택:
+     - GROQ_API_KEY가 있으면 → Groq (llama/mixtral)
+     - GEMINI_API_KEY가 있으면 → Google Gemini
+     - OPENAI_API_KEY가 있으면 → OpenAI
+  → AI 응답을 insights 테이블에 저장
+  → 프론트 InsightsPage.tsx에서 표시
+```
+
+**AI 예산 분석 (Python ML)**
+```
+POST /ai/recommend (app.ts에 직접 정의)
+  → spawn('python', ['ai/predict_budget.py', JSON.stringify(inputData)])
+  → predict_budget.py:
+     - ml_models/roas_predictor.pkl (XGBoost) 로드
+     - ml_models/platform_recommender.pkl (Random Forest) 로드
+     - 입력: 제품명, 업종, 지역, 타겟 연령, 예산, 기간
+     - 출력: ROAS 예측, 플랫폼 추천, 예산 배분, 실행 전략
+  → MarketingAnalysis.tsx에서 시각화
+```
+
+**AI 추천 (별도 시스템)**
+```
+/ai-recommend → AIRecommendationPage.tsx
+  → aiRecommendationController
+  → 사용자 캠페인 히스토리 기반 추천
+```
+
+---
+
+### 8-5. 📧 이메일 리포트 시스템
+
+**자동 스케줄**
+```
+app.ts에서 node-cron 등록:
+- 주간 리포트: cron.schedule('0 9 * * 1', ...) → 매주 월요일 오전 9시
+- 일간 리포트: ENABLE_DAILY_REPORT=true 환경변수 시 → 매일 오전 9시
+
+reportService.sendWeeklyReports():
+  1. users 테이블에서 활성 유저 전체 조회
+  2. 각 유저의 campaign_metrics 7일치 집계
+  3. HTML 이메일 템플릿 생성
+  4. emailService.sendEmail() → Resend API
+```
+
+**수동 발송**
+```
+POST /report/send → reportController → 즉시 발송
+EmailReportPage.tsx에서 트리거
+```
+
+---
+
+### 8-6. 🛡️ 보안 구조
+
+```
+미들웨어 체인:
+Request → CORS 검사 → JSON 파싱 → cookieParser
+        → (보호된 라우트) → auth.ts 미들웨어
+        → jwt.verify(token, JWT_SECRET)
+        → req.user = { userId, email, role }
+        → Controller
+
+JWT 설정:
+- 만료: 7일
+- 페이로드: { userId, email, role }
+- 저장: localStorage (프론트엔드)
+
+CORS 허용 출처:
+- http://localhost:5173
+- http://localhost:3000
+- http://channelai.kro.kr
+- https://channelai.kro.kr
+```
+
+---
+
+## 9. 🌍 배포 및 인프라
+
+### CI/CD 흐름 (GitHub Actions)
+```
+Push to main
+  └── Build Job: npx tsc (TypeScript 컴파일 검사)
+  └── Frontend Build: npm run build (Vite)
+
+Manual Trigger (workflow_dispatch)
+  └── Deploy Job:
+      1. SSH → 운영 서버 (211.188.63.79)
+      2. git pull origin main
+      3. npm ci (백엔드)
+      4. npx tsc (컴파일)
+      5. npm run build (프론트엔드)
+      6. cp -r frontend/dist /opt/marketing-platform/frontend/dist
+      7. pm2 restart marketing-api
+```
+
+### 운영 서버 경로
+| 항목 | 경로 |
+|------|------|
+| 프로젝트 루트 | `/opt/marketing-platform/` |
+| 백엔드 | `/opt/marketing-platform/backend/` |
+| 프론트엔드 빌드 | `/opt/marketing-platform/frontend/dist/` |
+| Nginx 설정 | `/etc/nginx/sites-available/channelai` |
+| 백엔드 .env | `/opt/marketing-platform/backend/.env` |
+| PM2 프로세스명 | `marketing-api` (포트 3000) |
+
+### 주요 운영 명령어
+```bash
+# 서버 접속
+ssh -i abc-pem root@211.188.63.79
+
+# 코드 업데이트 & 재배포
+cd /opt/marketing-platform && git pull origin main
+cd backend && npx tsc && pm2 restart marketing-api
+
+# 로그 확인
+pm2 logs marketing-api
+
+# Nginx 재시작
+sudo nginx -t && sudo systemctl reload nginx
+```
+
+### GitHub Secrets 목록
+| Secret | 값 |
+|--------|-----|
+| WEB_HOST | 211.188.63.79 |
+| DB_HOST | project-db-cgi.smhrd.com |
+| DB_PORT | 3307 |
+| DB_NAME | cgi_25K_DA1_p3_1 |
+| JWT_SECRET | channel_ai_secret_key_2024 |
+| GROQ_API_KEY | Groq AI 키 |
+| GEMINI_API_KEY | Google Gemini 키 |
+| RESEND_API_KEY | Resend 이메일 키 |
+| KAKAO_CLIENT_ID | 카카오 OAuth |
+| NAVER_CLIENT_ID / SECRET | 네이버 OAuth |
+| GOOGLE_CLIENT_ID / SECRET | 구글 OAuth |
+
+---
+
+## 10. 🔶 현재 미완성/이슈 사항
+
+### 미완성 기능
+| 기능 | 상태 | 파일 |
+|------|------|------|
+| AccountsPage 구현 | ❌ Placeholder ("계정 관리 (구현 필요)") | App.tsx L24 |
+| Meta ctr/cpc/roas DB 저장 | ⏸️ 의도적 보류 (계산 코드 완성됨) | integrationController.ts |
+| 당근마켓 자동 크롤링 | ❌ TODO 주석만 있음 | integrationController.ts L227 |
+| 구글 Ads 실제 테스트 | 🔲 미확인 | googleAdsService.ts |
+| WEB/WAS 서버 분리 | 🔲 미착수 | - |
+
+### 알려진 데이터 이슈
+- Meta API로 기존에 저장된 데이터: `ctr=0`, `cpc=0` (재동기화 필요)
+- Meta 전환/매출 데이터: Meta Pixel 미연동으로 항상 0
+- 외부 DB 지연: smhrd 공용 서버 느림 (connectTimeout=30s 설정 완료)
+
+### 우선순위 작업 예정
+| 우선순위 | 항목 |
+|----------|------|
+| 높음 | Meta ctr/cpc/roas DB 저장 적용 (2곳 수정) |
+| 높음 | WEB/WAS 서버 분리 (VPC 피어링 또는 이전) |
+| 높음 | AccountsPage 구현 |
+| 중간 | Meta API → ON DUPLICATE KEY 방식 변경 |
+| 중간 | cpm/cpa/conversion_rate Meta API 수집 |
+| 중간 | Meta Pixel 연동 가이드 제공 |
+
+---
+
+## 11. 💻 로컬 개발 환경 세팅
+
+```bash
+# 한번에 실행 (루트에서)
+start_servers.bat
+
+# 또는 각각
+cd backend && npm run dev    # → http://localhost:5000
+cd frontend && npm run dev   # → http://localhost:5173
+```
+
+**.env 필수 항목** (backend/.env)
+```env
+PORT=3000
+NODE_ENV=development
+DB_HOST=project-db-cgi.smhrd.com
+DB_PORT=3307
+DB_NAME=cgi_25K_DA1_p3_1
+DB_USER=cgi_25K_DA1_p3_1
+DB_PASSWORD=smhrd1
+JWT_SECRET=channel_ai_secret_key_2024
+REDIS_URL=redis://localhost:6379
+GROQ_API_KEY=...
+GEMINI_API_KEY=...
+RESEND_API_KEY=...
+KAKAO_CLIENT_ID=...
+NAVER_CLIENT_ID=...
+NAVER_CLIENT_SECRET=...
+GOOGLE_CLIENT_ID=...
+GOOGLE_CLIENT_SECRET=...
+META_APP_ID=...
+META_APP_SECRET=...
+ENABLE_DAILY_REPORT=false
+FRONTEND_URL=http://localhost:5173
+```
+
+---
+
+## 12. 📐 아키텍처 패턴 요약
+
+| 패턴 | 적용 위치 |
+|------|----------|
+| **MVC** | Routes → Controllers → (Services) |
+| **Strategy Pattern** | baseAdService → meta/naver/google/karrot 각 구현체 |
+| **JWT Stateless Auth** | 모든 API 인증 |
+| **Raw SQL** | ORM 대신 `mysql2/promise` 직접 사용 |
+| **Child Process** | Node.js → Python ML 모델 호출 (spawn) |
+| **Cron Job** | node-cron으로 이메일 자동 발송 |
+| **OAuth 2.0** | Meta/네이버/구글/카카오 소셜 로그인 + 광고 API |
+
+---
+
+_이 문서 하나로 ChannelAI 프로젝트의 전체 그림을 파악할 수 있습니다._
