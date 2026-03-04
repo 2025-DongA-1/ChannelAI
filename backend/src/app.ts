@@ -19,24 +19,10 @@ import reportRoutes from './routes/reportRoutes';
 import metricRoutes from './routes/metricRoutes';
 import { spawn } from 'child_process';
 import path from 'path';
-// AI예산추천 모델 독립 DB연결
-import mysql from 'mysql2/promise'
-
 
 // 환경 변수 로드
 dotenv.config();
 
-// 🛡️ [수정됨] 서버 시작 시 딱 한 번만 생성되는 AI 전용 DB 커넥션 풀
-const aiPool = mysql.createPool({
-  host: process.env.DB_HOST,
-  port: parseInt(process.env.DB_PORT || '3306', 10),
-  user: process.env.DB_USER,
-  password: process.env.DB_PASSWORD,
-  database: process.env.DB_NAME,
-  waitForConnections: true,
-  connectionLimit: 5,
-  queueLimit: 0
-});
 
 
 const app = express();
@@ -152,27 +138,30 @@ app.post('/api/v1/ai/recommend', (req: Request, res: Response) => {
       const channelNames = ["네이버", "메타", "구글", "당근"];
       const bestChannel = channelNames[bestChannelIndex];
 
-      const query = `
-        INSERT INTO ai_history (budget, best_channel, expected_revenue, full_report) 
-        VALUES (?, ?, ?, ?)
-      `;
-
-      // 사용자 대기 시간을 늘리지 않기 위해 앞에 'await'를 절대 쓰지 않습니다.
-      // 전역에 이미 만들어진 'aiPool'을 가져와서 쿼리만 날립니다.
       (async () => {
         try {
-          await aiPool.query(query, [
-            inputData.total_budget, 
-            bestChannel, 
+          if (!inputData.user_id) return;
+
+          const query = `
+            INSERT INTO ai_history (user_id, duration, budget, best_channel, expected_revenue, full_report) 
+            VALUES (?, ?, ?, ?, ?, ?)
+          `;
+
+          // 💡 [수정] import한 기존 'pool'을 그대로 사용합니다.
+          await pool.query(query, [
+            inputData.user_id,
+            inputData.duration || 7,
+            inputData.total_budget,
+            bestChannel,
             result.expected_revenue,
             JSON.stringify(result)
           ]);
-          console.log("✅ [플랜be] AI 리포트 독립 DB 저장 완료!");
+          
+          console.log(`✅ [플랜be] 유저(${inputData.user_id}) 리포트 저장 완료!`);
         } catch (dbErr) {
-          console.error("❌ [플랜be AI 독립 DB 저장 에러]:", dbErr);
+          console.error("❌ [플랜be AI DB 저장 에러]:", dbErr);
         }
       })();
-
     } catch (e) {
       console.error('❌ [Parsing Error]', e);
       if (!res.headersSent) {
@@ -181,6 +170,33 @@ app.post('/api/v1/ai/recommend', (req: Request, res: Response) => {
     } 
   });
 });
+
+// AI추천 모델 DB 데이터 불러오기 - 특정 유저의 과거 AI 분석 내역 조회
+
+app.get('/api/v1/ai/history/:userId', async (req: Request, res: Response) => {
+  const { userId } = req.params;
+  
+  console.log(`📜 [AI] 유저(${userId})의 히스토리 조회 요청`);
+
+  try {
+    // 💡 질문자님의 pool.query는 이미 결과값만 반환하므로 [rows]가 아닌 rows로 받습니다.
+    const rows = await pool.query(
+      'SELECT id, budget, best_channel, expected_revenue, created_at FROM ai_history WHERE user_id = ? ORDER BY created_at DESC',
+      [userId]
+    );
+
+    // 데이터가 없을 경우 빈 배열([])이 반환될 것입니다.
+    res.json(rows);
+    
+  } catch (error) {
+    console.error('❌ [AI History Error]:', error);
+    res.status(500).json({ 
+      error: "내역 조회 중 오류 발생",
+      message: error instanceof Error ? error.message : "Internal Server Error"
+    });
+  }
+});
+
 
 // ─────────────────────────────────────────────────────────────
 

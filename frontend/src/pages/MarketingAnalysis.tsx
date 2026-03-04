@@ -8,6 +8,7 @@ import {
 import { useQuery } from '@tanstack/react-query'; // 데이터 가져오는 훅
 import { dashboardAPI } from '@/lib/api';
 // import './App.css'; // 필요하다면 주석 해제
+import { useAuthStore } from '@/store/authStore';
 
 const BG_COLOR = '#F4F7FC';
 
@@ -47,10 +48,12 @@ function MarketingAnalysis() {
   const [mounted, setMounted] = useState<boolean>(false);
   // 꺾은선 그래프 하이라이팅 - 마우스가 어디 선에 올라가있었는지 기억하는 공간
   const [hoveredLine, setHoveredLine] = useState<string | null>(null);
-  // 예산 상한성 경고 띄울 상태
+  // 예산 상한선 경고 띄울 상태
   const [budgetWarning, setBudgetWarning] = useState<boolean>(false);
+  // 로그인한 내 정보 꺼내기
+  const user = useAuthStore((state) => state.user);
 
-
+  
   // 숫자에만 반응하고 콤마를 찍어주는 함수
   const handleBudgetChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const rawValue = e.target.value.replace(/[^0-9]/g, ''); // 숫자만 추출
@@ -127,7 +130,6 @@ function MarketingAnalysis() {
 
       features = targetPlatforms.map(pName => {
 
-
         // 1. [핵심] find(1개만 찾기) 대신 filter(모두 찾기)를 사용합니다.
         const matchedItems = dbList.filter((item: any) => 
           item.platform.toLowerCase().includes(pName)
@@ -165,7 +167,10 @@ function MarketingAnalysis() {
       //    - 서버 배포 후: VITE_AI_API_URL=https://channelai.kro.kr:5000 (또는 프록시 경로)
       const AI_API_URL = import.meta.env.VITE_AI_API_URL || 'http://localhost:5000';
       
+      console.log("🚀 [보안 검문] 현재 로그인의 주인공 ID:", user?.id);
+
       const response = await axios.post(`${AI_API_URL}/api/v1/ai/recommend`, {
+        user_id : user?.id, // user_id 추가
         total_budget: cleanBudget,
         features: features,
         history_data : dailyData,
