@@ -16,6 +16,8 @@ import DummyDataPage from './pages/DummyDataPage';
 import DataManagementPage from './pages/DataManagementPage';
 import MyPage from './pages/MyPage';
 import AdvancedModelTestPage from './pages/AdvancedModelTestPage';
+// [2026-03-05 16:15] 수정 이유: 새로 생성한 OpenAI 모델 전용 테스트 페이지 라우트 등록
+import OpenaiModelTestPage from './pages/OpenaiModelTestPage';
 import EmailReportPage from './pages/EmailReportPage';
 import MarketingAnalysis from './pages/MarketingAnalysis';
 import logo from "./assets/logo_crop.png";
@@ -289,6 +291,17 @@ function App() {
               <PrivateRoute>
                 <Layout>
                   <AdvancedModelTestPage />
+                </Layout>
+              </PrivateRoute>
+            }
+          />
+          {/* [2026-03-05 16:15] 수정 이유: OpenAI 모델 전용 테스트 페이지 접속 라우트 */}
+          <Route
+            path="/openai-model-test"
+            element={
+              <PrivateRoute>
+                <Layout>
+                  <OpenaiModelTestPage />
                 </Layout>
               </PrivateRoute>
             }

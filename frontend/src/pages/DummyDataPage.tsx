@@ -293,7 +293,12 @@ const DummyDataPage: React.FC = () => {
             <div className="flex flex-wrap gap-2 mt-3">
               <Link to="/advanced-model-test" className="inline-flex items-center gap-2 px-4 py-2 bg-purple-50 text-purple-700 border border-purple-200 hover:bg-purple-100 rounded-xl font-bold transition">
                 <Brain size={18} />
-                AI 고급 모델 평가 지표 보기
+                AI 고급 모델 평가 지표 보기 (Groq)
+              </Link>
+              {/* [2026-03-05 16:21] 수정 이유: OpenAI 전용 테스트 페이지로 이동하는 버튼 추가 */}
+              <Link to="/openai-model-test" className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 rounded-xl font-bold transition">
+                <Brain size={18} />
+                AI 고급 모델 평가 지표 (OpenAI)
               </Link>
               <Link to="/email-report" className="inline-flex items-center gap-2 px-4 py-2 bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 rounded-xl font-bold transition">
                 <Mail size={18} />
