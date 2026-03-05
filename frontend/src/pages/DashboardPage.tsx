@@ -4,7 +4,8 @@ import { dashboardAPI, aiAgentAPI, campaignAPI } from '@/lib/api';
 import { formatCurrency, formatPercent, formatCompactNumber, getComparisonText, getPreviousDateRange, calculateChangeRate } from '@/lib/utils';
 import { 
   TrendingUp, MousePointerClick, DollarSign, Target, ArrowUp, ArrowDown, Calendar,
-  Bot, Play, AlertTriangle, Pause, TrendingDown, Zap, ShieldCheck, Loader2
+  Bot, Play, AlertTriangle, Pause, TrendingDown, Zap, ShieldCheck, Loader2,
+  ChevronDown, ChevronUp, Info
 } from 'lucide-react';
 
 export default function DashboardPage() {
@@ -16,6 +17,7 @@ export default function DashboardPage() {
   const [selectedPreset, setSelectedPreset] = useState('all');
   const [activeTab, setActiveTab] = useState<'overall' | 'campaign'>('overall');
   const [selectedCampaignId, setSelectedCampaignId] = useState<string>('all');
+  const [showDatePicker, setShowDatePicker] = useState(false);
 
   const comparisonText = dateRange.startDate && dateRange.endDate
     ? getComparisonText(dateRange.startDate, dateRange.endDate)
@@ -216,145 +218,114 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="space-y-6 p-6">
-      {/* Header */}
+    <div className="space-y-3 sm:space-y-4 p-2 sm:p-4 md:p-6">
+      {/* Header - 모바일에서 간결하게 */}
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">통합 성과 대시보드</h1>
-          <p className="text-gray-600 mt-1">실시간 마케팅 성과를 한눈에 확인하세요</p>
+          <h1 className="text-lg sm:text-2xl md:text-3xl font-bold text-gray-900">통합 성과 대시보드</h1>
+          <p className="text-gray-500 text-xs sm:text-sm md:text-base mt-0.5">실시간 마케팅 성과를 한눈에 확인하세요</p>
         </div>
-        <button className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition">
+        <button className="hidden sm:block px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm">
           리포트 다운로드
         </button>
       </div>
 
-      {/* 👇 탭 버튼 영역 추가! */}
-      <div className="flex border-b border-gray-200 mt-2 mb-2">
+      {/* 탭 버튼 - 모바일에서 균등 분배 */}
+      <div className="flex border-b border-gray-200">
         <button
           onClick={() => setActiveTab('overall')}
-          className={`py-3 px-6 text-sm font-bold border-b-2 transition-colors ${
+          className={`flex-1 sm:flex-none py-2.5 sm:py-3 px-3 sm:px-6 text-xs sm:text-sm font-bold border-b-2 transition-colors text-center ${
             activeTab === 'overall'
               ? 'border-blue-600 text-blue-600'
-              : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              : 'border-transparent text-gray-500 hover:text-gray-700'
           }`}
         >
-          전체 성과 요약
+          전체 성과
         </button>
         <button
           onClick={() => setActiveTab('campaign')}
-          className={`py-3 px-6 text-sm font-bold border-b-2 transition-colors ${
+          className={`flex-1 sm:flex-none py-2.5 sm:py-3 px-3 sm:px-6 text-xs sm:text-sm font-bold border-b-2 transition-colors text-center ${
             activeTab === 'campaign'
               ? 'border-blue-600 text-blue-600'
-              : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              : 'border-transparent text-gray-500 hover:text-gray-700'
           }`}
         >
-          캠페인별 성과 요약
+          캠페인별 성과
         </button>
       </div>
 
-      {/* Date Range Filter */}
-      <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
-        <div className="flex flex-wrap items-center gap-4">
-          <div className="flex items-center gap-2 text-gray-700">
-            <Calendar className="w-5 h-5" />
-            <span className="font-medium">{getDateRangeText()}</span>
+      {/* Date Range Filter - 모바일에서 가로 스크롤 + 접이식 날짜 선택기 */}
+      <div className="bg-white p-2.5 sm:p-4 rounded-xl shadow-sm border border-gray-100">
+        {/* 기간 표시 + 토글 */}
+        <div className="flex items-center justify-between mb-2 sm:mb-3">
+          <div className="flex items-center gap-1.5 text-gray-700">
+            <Calendar className="w-4 h-4 sm:w-5 sm:h-5" />
+            <span className="font-medium text-xs sm:text-sm">{getDateRangeText()}</span>
           </div>
-          
-          <div className="flex-1 flex flex-wrap items-center gap-2">
-            {/* Preset Buttons */}
-            <button
-              onClick={() => handlePresetChange('all')}
-              className={`px-3 py-1.5 text-sm rounded-lg transition ${
-                selectedPreset === 'all'
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
-            >
-              전체
-            </button>
-            <button
-              onClick={() => handlePresetChange('today')}
-              className={`px-3 py-1.5 text-sm rounded-lg transition ${
-                selectedPreset === 'today'
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
-            >
-              오늘
-            </button>
-            <button
-              onClick={() => handlePresetChange('yesterday')}
-              className={`px-3 py-1.5 text-sm rounded-lg transition ${
-                selectedPreset === 'yesterday'
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
-            >
-              어제
-            </button>
-            <button
-              onClick={() => handlePresetChange('7days')}
-              className={`px-3 py-1.5 text-sm rounded-lg transition ${
-                selectedPreset === '7days'
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
-            >
-              최근 7일
-            </button>
-            <button
-              onClick={() => handlePresetChange('30days')}
-              className={`px-3 py-1.5 text-sm rounded-lg transition ${
-                selectedPreset === '30days'
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
-            >
-              최근 30일
-            </button>
-            <button
-              onClick={() => handlePresetChange('90days')}
-              className={`px-3 py-1.5 text-sm rounded-lg transition ${
-                selectedPreset === '90days'
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
-            >
-              최근 90일
-            </button>
+          <button
+            onClick={() => setShowDatePicker(!showDatePicker)}
+            className="sm:hidden flex items-center gap-1 text-xs text-blue-600 font-medium"
+          >
+            직접 선택
+            {showDatePicker ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+          </button>
+        </div>
+        
+        {/* 프리셋 버튼 - 모바일에서 가로 스크롤 */}
+        <div className="overflow-x-auto -mx-1 px-1 pb-1 sm:pb-0">
+          <div className="flex items-center gap-1.5 sm:gap-2 min-w-max sm:min-w-0 sm:flex-wrap">
+            {[
+              { key: 'all', label: '전체' },
+              { key: 'today', label: '오늘' },
+              { key: 'yesterday', label: '어제' },
+              { key: '7days', label: '7일' },
+              { key: '30days', label: '30일' },
+              { key: '90days', label: '90일' },
+            ].map((preset) => (
+              <button
+                key={preset.key}
+                onClick={() => handlePresetChange(preset.key)}
+                className={`px-2.5 sm:px-3 py-1 sm:py-1.5 text-xs sm:text-sm rounded-lg transition whitespace-nowrap ${
+                  selectedPreset === preset.key
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                {preset.label}
+              </button>
+            ))}
+          </div>
+        </div>
 
-            {/* Custom Date Inputs */}
-            <div className="flex items-center gap-2 ml-4">
-              <input
-                type="date"
-                value={dateRange.startDate}
-                onChange={(e) => handleCustomDateChange('start', e.target.value)}
-                max={dateRange.endDate}
-                className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              />
-              <span className="text-gray-500">~</span>
-              <input
-                type="date"
-                value={dateRange.endDate}
-                onChange={(e) => handleCustomDateChange('end', e.target.value)}
-                min={dateRange.startDate}
-                max={new Date().toISOString().split('T')[0]}
-                className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              />
-            </div>
-          </div>
+        {/* Custom Date Inputs - 모바일에서 접이식, 데스크탑에서 항상 표시 */}
+        <div className={`${showDatePicker ? 'flex' : 'hidden'} sm:flex items-center gap-1.5 sm:gap-2 mt-2 sm:mt-3`}>
+          <input
+            type="date"
+            value={dateRange.startDate}
+            onChange={(e) => handleCustomDateChange('start', e.target.value)}
+            max={dateRange.endDate}
+            className="flex-1 sm:flex-none px-2 sm:px-3 py-1.5 text-xs sm:text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          />
+          <span className="text-gray-400 text-xs">~</span>
+          <input
+            type="date"
+            value={dateRange.endDate}
+            onChange={(e) => handleCustomDateChange('end', e.target.value)}
+            min={dateRange.startDate}
+            max={new Date().toISOString().split('T')[0]}
+            className="flex-1 sm:flex-none px-2 sm:px-3 py-1.5 text-xs sm:text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          />
         </div>
       </div>
 
       {/* 👇 탭에 따른 콘텐츠 렌더링 시작! */}
       {activeTab === 'overall' ? (
-        <div className="space-y-6">
-          {/* Main Metrics Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="space-y-3 sm:space-y-4">
+          {/* Main Metrics Grid - 모바일 2열 컴팩트 */}
+          <div className="grid grid-cols-2 gap-2 sm:gap-4 md:grid-cols-2 lg:grid-cols-4 md:gap-6">
         <MetricCard
           title="총 노출수"
           value={formatCompactNumber(metrics?.impressions || 0)}
-          // 👇 요기 수정! (현재 노출수, 이전 노출수)
           change={calculateChangeRate(metrics?.impressions, prevMetrics?.impressions)}
           comparisonText={comparisonText}
           icon={TrendingUp}
@@ -363,7 +334,6 @@ export default function DashboardPage() {
         <MetricCard
           title="총 클릭수"
           value={formatCompactNumber(metrics?.clicks || 0)}
-          // 👇 요기 수정!
           change={calculateChangeRate(metrics?.clicks, prevMetrics?.clicks)}
           comparisonText={comparisonText}
           icon={MousePointerClick}
@@ -372,7 +342,6 @@ export default function DashboardPage() {
         <MetricCard
           title="총 광고비"
           value={formatCurrency(metrics?.cost || 0)}
-          // 👇 요기 수정!
           change={calculateChangeRate(metrics?.cost, prevMetrics?.cost)}
           comparisonText={comparisonText}
           icon={DollarSign}
@@ -381,7 +350,6 @@ export default function DashboardPage() {
         <MetricCard
           title="전환수"
           value={formatCompactNumber(metrics?.conversions || 0)}
-          // 👇 요기 수정!
           change={calculateChangeRate(metrics?.conversions, prevMetrics?.conversions)}
           comparisonText={comparisonText}
           icon={Target}
@@ -390,7 +358,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Performance Summary with Benchmarks */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 gap-3 sm:gap-4 lg:grid-cols-3 lg:gap-6">
         <PerformanceMetricCard
           title="클릭률 (CTR)"
           subtitle="광고를 본 사람 중 클릭한 비율"
@@ -443,51 +411,51 @@ export default function DashboardPage() {
       </div>
 
       {/* Channel Performance + AI Agent Side-by-Side */}
-      <div className="grid grid-cols-1 xl:grid-cols-5 gap-6">
+      <div className="grid grid-cols-1 gap-3 xl:grid-cols-5 xl:gap-6">
         {/* 채널별 성과 (왼쪽 3/5) */}
         <div className="xl:col-span-3 bg-white rounded-xl shadow-sm border border-gray-100">
-          <div className="p-6 border-b border-gray-100">
-            <h2 className="text-xl font-bold text-gray-900">채널별 성과</h2>
-            <p className="text-sm text-gray-600 mt-1">각 광고 플랫폼의 실시간 성과를 확인하세요</p>
+          <div className="p-3 sm:p-6 border-b border-gray-100">
+            <h2 className="text-base sm:text-xl font-bold text-gray-900">채널별 성과</h2>
+            <p className="text-xs sm:text-sm text-gray-600 mt-0.5">각 광고 플랫폼의 실시간 성과를 확인하세요</p>
           </div>
-          <div className="p-6">
-            <div className="space-y-6">
+          <div className="p-3 sm:p-6">
+            <div className="space-y-3 sm:space-y-6">
               {performance?.data?.performance?.map((channel: any) => (
-                <div key={channel.platform} className="border-b border-gray-100 pb-6 last:border-0 last:pb-0">
-                  <div className="flex justify-between items-center mb-4">
+                <div key={channel.platform} className="border-b border-gray-100 pb-3 sm:pb-6 last:border-0 last:pb-0">
+                  <div className="flex justify-between items-center mb-2 sm:mb-4">
                     <div className="flex items-center">
-                      <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${getPlatformBgColor(channel.platform)}`}>
+                      <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-lg flex items-center justify-center ${getPlatformBgColor(channel.platform)}`}>
                         {getPlatformIcon(channel.platform)}
                       </div>
-                      <div className="ml-3">
-                        <h3 className="font-semibold text-gray-900 capitalize">{channel.platform}</h3>
-                        <p className="text-sm text-gray-500">{channel.campaigns}개 캠페인 진행 중</p>
+                      <div className="ml-2 sm:ml-3">
+                        <h3 className="font-semibold text-gray-900 capitalize text-sm sm:text-base">{channel.platform}</h3>
+                        <p className="text-xs text-gray-500">{channel.campaigns}개 캠페인</p>
                       </div>
                     </div>
                   </div>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-4">
                     <div>
-                      <p className="text-xs text-gray-500 mb-1">노출수</p>
-                      <p className="text-lg font-semibold text-gray-900">{formatCompactNumber(channel.metrics.impressions)}</p>
+                      <p className="text-[10px] sm:text-xs text-gray-500 mb-0.5">노출수</p>
+                      <p className="text-sm sm:text-lg font-semibold text-gray-900">{formatCompactNumber(channel.metrics.impressions)}</p>
                     </div>
                     <div>
-                      <p className="text-xs text-gray-500 mb-1">클릭수</p>
-                      <p className="text-lg font-semibold text-gray-900">{formatCompactNumber(channel.metrics.clicks)}</p>
+                      <p className="text-[10px] sm:text-xs text-gray-500 mb-0.5">클릭수</p>
+                      <p className="text-sm sm:text-lg font-semibold text-gray-900">{formatCompactNumber(channel.metrics.clicks)}</p>
                     </div>
                     <div>
-                      <p className="text-xs text-gray-500 mb-1">CTR</p>
-                      <p className="text-lg font-semibold text-gray-900">{formatPercent(channel.metrics.ctr)}</p>
+                      <p className="text-[10px] sm:text-xs text-gray-500 mb-0.5">CTR</p>
+                      <p className="text-sm sm:text-lg font-semibold text-gray-900">{formatPercent(channel.metrics.ctr)}</p>
                     </div>
                     <div>
-                      <p className="text-xs text-gray-500 mb-1">ROAS</p>
-                      <p className="text-lg font-semibold text-green-600">{(channel.metrics?.roas ?? 0).toFixed(2)}x</p>
+                      <p className="text-[10px] sm:text-xs text-gray-500 mb-0.5">ROAS</p>
+                      <p className="text-sm sm:text-lg font-semibold text-green-600">{(channel.metrics?.roas ?? 0).toFixed(2)}x</p>
                     </div>
                   </div>
                 </div>
               ))}
               {(!performance?.data?.performance || performance.data.performance.length === 0) && (
-                <div className="text-center py-8 text-gray-500">
-                  <p>연동된 채널의 성과 데이터가 아직 없습니다.</p>
+                <div className="text-center py-6 text-gray-500">
+                  <p className="text-sm">연동된 채널의 성과 데이터가 아직 없습니다.</p>
                 </div>
               )}
             </div>
@@ -495,25 +463,25 @@ export default function DashboardPage() {
         </div>
 
         {/* AI 마케팅 에이전트 (오른쪽 2/5) */}
-        <div className="xl:col-span-2 space-y-4">
+        <div className="xl:col-span-2 space-y-3">
           {/* AI 에이전트 헤더 */}
-          <div className="bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-500 rounded-xl shadow-lg p-6 text-white">
-            <div className="flex items-center gap-3 mb-3">
-              <div className="p-2 bg-white/20 backdrop-blur rounded-lg">
-                <Bot className="w-6 h-6" />
+          <div className="bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-500 rounded-xl shadow-lg p-4 sm:p-6 text-white">
+            <div className="flex items-center gap-2 sm:gap-3 mb-2 sm:mb-3">
+              <div className="p-1.5 sm:p-2 bg-white/20 backdrop-blur rounded-lg">
+                <Bot className="w-5 h-5 sm:w-6 sm:h-6" />
               </div>
               <div>
-                <h2 className="text-lg font-bold">AI 마케팅 에이전트</h2>
-                <p className="text-sm text-white/80">광고 데이터 기반 예산 최적화</p>
+                <h2 className="text-base sm:text-lg font-bold">AI 마케팅 에이전트</h2>
+                <p className="text-xs sm:text-sm text-white/80">광고 데이터 기반 예산 최적화</p>
               </div>
             </div>
-            <p className="text-sm text-white/70 mb-4">
+            <p className="text-xs sm:text-sm text-white/70 mb-3 sm:mb-4">
               실제 광고 성과를 분석하여 플랫폼별 예산 배분과 액션을 추천합니다.
             </p>
             <button
               onClick={handleRunAgent}
               disabled={analyzeMutation.isPending}
-              className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-white text-indigo-700 font-semibold rounded-lg hover:bg-white/90 transition disabled:opacity-50"
+              className="w-full flex items-center justify-center gap-2 px-3 sm:px-4 py-2 sm:py-2.5 bg-white text-indigo-700 font-semibold rounded-lg hover:bg-white/90 transition disabled:opacity-50 text-sm"
             >
               {analyzeMutation.isPending ? (
                 <>
@@ -648,35 +616,53 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Budget Overview */}
+      {/* Budget Overview - 모바일 컴팩트 */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-100">
-        <div className="p-6 border-b border-gray-100">
-          <h2 className="text-xl font-bold text-gray-900">예산 현황</h2>
+        <div className="p-3 sm:p-6 border-b border-gray-100">
+          <h2 className="text-sm sm:text-xl font-bold text-gray-900">예산 현황</h2>
         </div>
-        <div className="p-6">
-          <div className="space-y-4">
-            <div className="flex justify-between items-center">
-              <span className="text-gray-600">총 예산</span>
-              <span className="text-xl font-bold text-gray-900">{formatCurrency(budget?.total || 0)}</span>
+        <div className="p-3 sm:p-6">
+          <div className="space-y-2 sm:space-y-4">
+            {/* 모바일: 3열 그리드로 한 줄에 예산 표시 */}
+            <div className="grid grid-cols-3 gap-2 sm:hidden">
+              <div className="text-center">
+                <p className="text-[10px] text-gray-500 mb-0.5">총 예산</p>
+                <p className="text-xs font-bold text-gray-900">{formatCurrency(budget?.total || 0)}</p>
+              </div>
+              <div className="text-center">
+                <p className="text-[10px] text-gray-500 mb-0.5">사용 예산</p>
+                <p className="text-xs font-bold text-blue-600">{formatCurrency(budget?.spent || 0)}</p>
+              </div>
+              <div className="text-center">
+                <p className="text-[10px] text-gray-500 mb-0.5">잔여 예산</p>
+                <p className="text-xs font-bold text-green-600">{formatCurrency(budget?.remaining || 0)}</p>
+              </div>
             </div>
-            <div className="flex justify-between items-center">
-              <span className="text-gray-600">사용 예산</span>
-              <span className="text-xl font-bold text-blue-600">{formatCurrency(budget?.spent || 0)}</span>
-            </div>
-            <div className="flex justify-between items-center">
-              <span className="text-gray-600">잔여 예산</span>
-              <span className="text-xl font-bold text-green-600">{formatCurrency(budget?.remaining || 0)}</span>
+            {/* 데스크탑: 기존 리스트 레이아웃 */}
+            <div className="hidden sm:block space-y-4">
+              <div className="flex justify-between items-center">
+                <span className="text-gray-600">총 예산</span>
+                <span className="text-xl font-bold text-gray-900">{formatCurrency(budget?.total || 0)}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-gray-600">사용 예산</span>
+                <span className="text-xl font-bold text-blue-600">{formatCurrency(budget?.spent || 0)}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-gray-600">잔여 예산</span>
+                <span className="text-xl font-bold text-green-600">{formatCurrency(budget?.remaining || 0)}</span>
+              </div>
             </div>
             
             {/* Progress Bar */}
-            <div className="pt-4">
-              <div className="flex justify-between text-sm text-gray-600 mb-2">
+            <div className="pt-1.5 sm:pt-4">
+              <div className="flex justify-between text-xs sm:text-sm text-gray-600 mb-1.5">
                 <span>예산 사용률</span>
                 <span className="font-medium">{formatPercent(budget?.utilizationRate || 0)}</span>
               </div>
-              <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
+              <div className="w-full bg-gray-200 rounded-full h-2 sm:h-3 overflow-hidden">
                 <div
-                  className="bg-gradient-to-r from-blue-500 to-blue-600 h-3 rounded-full transition-all duration-500"
+                  className="bg-gradient-to-r from-blue-500 to-blue-600 h-full rounded-full transition-all duration-500"
                   style={{ width: `${Math.min(budget?.utilizationRate || 0, 100)}%` }}
                 />
               </div>
@@ -687,15 +673,15 @@ export default function DashboardPage() {
         </div>
       ) : (
         /* 👇 캠페인별 상세 성과 탭 화면 */
-        <div className="space-y-6">
+        <div className="space-y-4">
           
-          {/* 1. 캠페인 선택 드롭다운 */}
-          <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex items-center gap-4">
-            <span className="font-semibold text-gray-700">분석할 캠페인:</span>
+          {/* 1. 캠페인 선택 드롭다운 - 모바일 최적화 */}
+          <div className="bg-white p-3 sm:p-4 rounded-xl shadow-sm border border-gray-100 flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
+            <span className="font-semibold text-gray-700 text-sm sm:text-base">분석할 캠페인:</span>
             <select
               value={selectedCampaignId}
               onChange={(e) => setSelectedCampaignId(e.target.value)}
-              className="flex-1 max-w-md px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+              className="flex-1 max-w-md px-3 sm:px-4 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
             >
               {/* 자동 선택되므로 빈 안내 문구는 깔끔하게 삭제했어요! 👇 */}
               {campaigns.map((camp: any) => (
@@ -708,15 +694,15 @@ export default function DashboardPage() {
 
           {/* 2. 캠페인 선택 유무에 따른 화면 렌더링 */}
           {selectedCampaignId === 'all' ? (
-            <div className="bg-white p-16 text-center rounded-xl border border-gray-100 shadow-sm mt-2">
-              <Target className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-              <h3 className="text-xl font-bold text-gray-900 mb-2">캠페인 성과 분석</h3>
-              <p className="text-gray-500">위의 드롭다운에서 개별 캠페인을 선택하시면 상세 성과가 나타납니다.</p>
+            <div className="bg-white p-8 sm:p-16 text-center rounded-xl border border-gray-100 shadow-sm mt-2">
+              <Target className="w-12 h-12 sm:w-16 sm:h-16 text-gray-300 mx-auto mb-3" />
+              <h3 className="text-base sm:text-xl font-bold text-gray-900 mb-1 sm:mb-2">캠페인 성과 분석</h3>
+              <p className="text-gray-500 text-sm">위에서 캠페인을 선택하면 상세 성과가 표시됩니다.</p>
             </div>
           ) : (
-            <div className="space-y-6 mt-2">
-              {/* 메인 요약 카드 (전체 성과 탭과 똑같은 스타일!) */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div className="space-y-3 sm:space-y-6 mt-2">
+              {/* 메인 요약 카드 - 모바일 2열 */}
+              <div className="grid grid-cols-2 gap-2 sm:gap-4 md:grid-cols-2 lg:grid-cols-4 md:gap-6">
                 <MetricCard
                   title="총 노출수"
                   value={formatCompactNumber(campaignTotals.impressions)}
@@ -752,7 +738,7 @@ export default function DashboardPage() {
               </div>
 
               {/* 디테일 지표 및 벤치마크 카드 */}
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 gap-3 sm:gap-4 lg:grid-cols-3 lg:gap-6">
                 <PerformanceMetricCard
                   title="캠페인 클릭률 (CTR)"
                   subtitle="광고를 본 사람 중 클릭한 비율"
@@ -887,50 +873,53 @@ function PerformanceMetricCard({
     }
   };
 
+  const [showAdvice, setShowAdvice] = useState(false);
+
   return (
-    <div className={`relative bg-white rounded-xl shadow-sm border-2 ${colors[level].border} p-6 transition-all hover:shadow-lg group`}>
-      {/* Tooltip on hover */}
-      <div className="absolute top-full left-0 right-0 mt-2 p-4 bg-gray-900 text-white text-sm rounded-lg shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-10">
+    <div
+      className={`relative bg-white rounded-xl shadow-sm border-2 ${colors[level].border} p-3 sm:p-6 transition-all hover:shadow-lg group`}
+      onClick={() => setShowAdvice(!showAdvice)}
+    >
+      {/* 데스크탑: Tooltip on hover */}
+      <div className="hidden sm:block absolute top-full left-0 right-0 mt-2 p-4 bg-gray-900 text-white text-sm rounded-lg shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-10">
         <div className="flex items-start gap-2">
           <div className="flex-shrink-0 mt-0.5">
-            <svg className="w-5 h-5 text-blue-400" fill="currentColor" viewBox="0 0 20 20">
-              <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-            </svg>
+            <Info className="w-5 h-5 text-blue-400" />
           </div>
           <div>
             <p className="font-semibold mb-1">💡 전략 조언</p>
             <p className="text-gray-200 leading-relaxed">{advice[level]}</p>
           </div>
         </div>
-        {/* Arrow */}
         <div className="absolute bottom-full left-8 w-0 h-0 border-l-8 border-r-8 border-b-8 border-transparent border-b-gray-900"></div>
       </div>
 
       {/* Status Badge */}
-      <div className="flex items-center justify-between mb-3">
-        <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${colors[level].label}`}>
-          <div className={`w-2 h-2 rounded-full ${colors[level].dot} animate-pulse`}></div>
+      <div className="flex items-center justify-between mb-2 sm:mb-3">
+        <div className={`inline-flex items-center gap-1 sm:gap-1.5 px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-full text-[10px] sm:text-xs font-medium ${colors[level].label}`}>
+          <div className={`w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full ${colors[level].dot} animate-pulse`}></div>
           {levelLabels[level]}
         </div>
-        <div className="text-xs text-gray-400">마우스를 올려보세요 👆</div>
+        <div className="hidden sm:block text-xs text-gray-400">마우스를 올려보세요 👆</div>
+        <div className="sm:hidden text-[10px] text-gray-400">탭하세요</div>
       </div>
 
       {/* Title */}
-      <h3 className="text-lg font-bold text-gray-900 mb-1">{title}</h3>
-      <p className="text-xs text-gray-500 mb-4">{subtitle}</p>
+      <h3 className="text-sm sm:text-lg font-bold text-gray-900 mb-0.5 sm:mb-1">{title}</h3>
+      <p className="text-[10px] sm:text-xs text-gray-500 mb-2 sm:mb-4">{subtitle}</p>
 
       {/* Value */}
       <div className="flex items-baseline gap-2">
-        <p className={`text-4xl font-bold ${colors[level].text}`}>{formatValue()}</p>
+        <p className={`text-2xl sm:text-4xl font-bold ${colors[level].text}`}>{formatValue()}</p>
       </div>
 
       {/* Benchmark Indicator */}
-      <div className="mt-4 pt-4 border-t border-gray-100">
-        <div className="flex items-center justify-between text-xs">
+      <div className="mt-2 sm:mt-4 pt-2 sm:pt-4 border-t border-gray-100">
+        <div className="flex items-center justify-between text-[10px] sm:text-xs">
           <span className="text-gray-500">기준</span>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 sm:gap-2">
             <span className="text-gray-400">나쁨</span>
-            <div className="w-20 h-1.5 bg-gray-200 rounded-full overflow-hidden">
+            <div className="w-14 sm:w-20 h-1 sm:h-1.5 bg-gray-200 rounded-full overflow-hidden">
               <div 
                 className={`h-full ${colors[level].dot} transition-all duration-500`}
                 style={{
@@ -942,6 +931,19 @@ function PerformanceMetricCard({
           </div>
         </div>
       </div>
+
+      {/* 모바일: 탭 시 조언 표시 */}
+      {showAdvice && (
+        <div className="sm:hidden mt-2 p-2.5 bg-gray-50 rounded-lg border border-gray-200">
+          <div className="flex items-start gap-1.5">
+            <Info className="w-3.5 h-3.5 text-blue-500 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="text-[10px] font-semibold text-gray-800 mb-0.5">💡 전략 조언</p>
+              <p className="text-[11px] text-gray-600 leading-relaxed">{advice[level]}</p>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -967,25 +969,25 @@ function MetricCard({ title, value, change, comparisonText, icon: Icon, color }:
   const isPositive = change && change > 0;
 
   return (
-    <div className={`bg-white rounded-xl shadow-sm border ${colors[color].border} p-6 transition hover:shadow-md`}>
-      <div className="flex items-center justify-between mb-4">
-        <div className={`p-3 rounded-lg ${colors[color].bg}`}>
-          <Icon className={`w-6 h-6 ${colors[color].text}`} />
+    <div className={`bg-white rounded-xl shadow-sm border ${colors[color].border} p-3 sm:p-6 transition hover:shadow-md`}>
+      <div className="flex items-center justify-between mb-2 sm:mb-4">
+        <div className={`p-2 sm:p-3 rounded-lg ${colors[color].bg}`}>
+          <Icon className={`w-4 h-4 sm:w-6 sm:h-6 ${colors[color].text}`} />
         </div>
         {change !== undefined && (
           <div className="flex flex-col items-end">
-            <div className={`flex items-center text-sm font-medium ${isPositive ? 'text-green-600' : 'text-red-600'}`}>
-              {isPositive ? <ArrowUp className="w-4 h-4" /> : <ArrowDown className="w-4 h-4" />}
+            <div className={`flex items-center text-xs sm:text-sm font-medium ${isPositive ? 'text-green-600' : 'text-red-600'}`}>
+              {isPositive ? <ArrowUp className="w-3 h-3 sm:w-4 sm:h-4" /> : <ArrowDown className="w-3 h-3 sm:w-4 sm:h-4" />}
               {Math.abs(change)}%
             </div>
             {comparisonText && (
-              <span className="text-[10px] text-gray-400 mt-1">{comparisonText}</span>
+              <span className="hidden sm:block text-[10px] text-gray-400 mt-1">{comparisonText}</span>
             )}
           </div>
         )}
       </div>
-      <p className="text-sm text-gray-600 mb-1">{title}</p>
-      <p className="text-2xl font-bold text-gray-900">{value}</p>
+      <p className="text-xs sm:text-sm text-gray-600 mb-0.5 sm:mb-1">{title}</p>
+      <p className="text-lg sm:text-2xl font-bold text-gray-900">{value}</p>
     </div>
   );
 }
