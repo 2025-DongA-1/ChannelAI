@@ -219,44 +219,103 @@ export default function InsightsPage() {
       )}
 
       {/* Performance Trend Chart */}
-      {trends && trends.timeline && trends.timeline.length > 0 && (
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">성과 추세</h2>
-          <ResponsiveContainer width="100%" height={350}>
-            <LineChart data={trends.timeline}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis 
-                dataKey="date" 
-                tick={{ fontSize: 12 }}
-                tickFormatter={(value) => new Date(value).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' })}
-              />
-              <YAxis yAxisId="left" tick={{ fontSize: 12 }} />
-              <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 12 }} />
-              <Tooltip 
-                formatter={(value: any) => formatCompactNumber(Number(value))}
-                labelFormatter={(label) => new Date(label).toLocaleDateString('ko-KR')}
-              />
-              <Legend />
-              <Line yAxisId="left" type="monotone" dataKey="impressions" stroke="#3B82F6" name="노출수" strokeWidth={2} />
-              <Line yAxisId="left" type="monotone" dataKey="clicks" stroke="#10B981" name="클릭수" strokeWidth={2} />
-              <Line yAxisId="right" type="monotone" dataKey="cost" stroke="#F59E0B" name="광고비" strokeWidth={2} />
-              <Line yAxisId="left" type="monotone" dataKey="conversions" stroke="#8B5CF6" name="전환수" strokeWidth={2} />
-            </LineChart>
-          </ResponsiveContainer>
-          
-          {/* 💡 [추가됨] 초보자를 위한 데이터 상세 해석 박스 */}
-          <div className="mt-4 p-4 bg-indigo-50 rounded-lg border border-indigo-100 flex items-start gap-3">
-            <Lightbulb className="w-5 h-5 text-indigo-600 flex-shrink-0 mt-0.5" />
-            <div>
-              <p className="font-semibold text-indigo-900 text-sm mb-1">💡 데이터 돋보기: 성과 추세 읽는 법</p>
-              <p className="text-sm text-indigo-800 leading-relaxed">
-                파란색 선(노출수) 대비 초록색 선(클릭수)이 함께 올라가고 있다면 타겟팅이 아주 잘 되고 있다는 뜻입니다! 
-                만약 광고비(노란선)는 꾸준히 나가는데 클릭수나 전환수(보라선)가 정체되어 있다면, 사람들의 눈에 익어 '광고 피로도'가 높아진 상태일 수 있으니 새로운 이미지나 문구로 교체해 보는 것을 추천해 드려요.
-              </p>
+      {trends && trends.timeline && trends.timeline.length > 0 && (() => {
+        // 1. 동적 스케일링을 위한 각 지표별 최소/최대값 추출
+        const getMinMax = (key: string) => {
+          const values = trends.timeline.map((d: any) => Number(d[key]) || 0);
+          return { min: Math.min(...values), max: Math.max(...values) };
+        };
+        
+        const bounds: Record<string, {min: number, max: number}> = {
+          impressions: getMinMax('impressions'),
+          clicks: getMinMax('clicks'),
+          cost: getMinMax('cost'),
+          conversions: getMinMax('conversions'),
+        };
+
+        // 2. 0~100 스케일로 정규화된 데이터 생성 (흐름 겹쳐 보기 용도)
+        const normalizedTimeline = trends.timeline.map((d: any) => {
+          const normalize = (key: string) => {
+            const val = Number(d[key]) || 0;
+            const { min, max } = bounds[key];
+            if (max === min) return 50; // 변화가 없으면 중간 50% 선으로 유지
+            return ((val - min) / (max - min)) * 100;
+          };
+
+          return {
+            ...d, // 원본 데이터는 그대로 보존 (툴팁에 띄우기 위함)
+            norm_impressions: normalize('impressions'),
+            norm_clicks: normalize('clicks'),
+            norm_cost: normalize('cost'),
+            norm_conversions: normalize('conversions'),
+          };
+        });
+
+        // 3. 커스텀 툴팁: 마우스 오버 시 비율(%)이 아닌 실제 '원본 숫자'를 보여줍니다.
+        const CustomTooltip = ({ active, payload, label }: any) => {
+          if (active && payload && payload.length) {
+            const data = payload[0].payload; 
+            return (
+              <div className="bg-white p-3 border border-gray-200 shadow-md rounded-lg text-sm">
+                <p className="font-bold text-gray-700 mb-2">{new Date(label).toLocaleDateString('ko-KR')}</p>
+                <p className="text-blue-600 font-medium">노출수: {formatCompactNumber(data.impressions)}</p>
+                <p className="text-green-600 font-medium">클릭수: {formatCompactNumber(data.clicks)}</p>
+                <p className="text-yellow-600 font-medium">광고비: {formatCurrency(data.cost)}</p>
+                <p className="text-purple-600 font-medium">전환수: {formatCompactNumber(data.conversions)}</p>
+              </div>
+            );
+          }
+          return null;
+        };
+
+        return (
+          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-lg font-semibold text-gray-900">상대적 성과 추세</h2>
+              <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">※ 각 지표의 최고점을 기준으로 흐름(패턴)을 비교합니다.</span>
+            </div>
+            <ResponsiveContainer width="100%" height={350}>
+              <LineChart data={normalizedTimeline}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
+                <XAxis 
+                  dataKey="date" 
+                  tick={{ fontSize: 12, fill: '#6B7280' }}
+                  tickFormatter={(value) => new Date(value).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' })}
+                  axisLine={false}
+                  tickLine={false}
+                />
+                <YAxis 
+                  domain={[0, 100]} 
+                  tickFormatter={(val) => `${val}%`} 
+                  tick={{ fontSize: 11, fill: '#9CA3AF' }} 
+                  axisLine={false} 
+                  tickLine={false} 
+                />
+                <Tooltip content={<CustomTooltip />} />
+                <Legend iconType="circle" wrapperStyle={{ paddingTop: '20px' }} />
+                {/* 💡 type을 'linear'로 변경하여 직선으로 만들고, dot={{ r: 3 }}을 주어 각 지점에 점을 찍습니다! */}
+                <Line type="linear" dataKey="norm_impressions" stroke="#3B82F6" name="노출 추세" strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 6 }} />
+                <Line type="linear" dataKey="norm_clicks" stroke="#10B981" name="클릭 추세" strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 6 }} />
+                <Line type="linear" dataKey="norm_cost" stroke="#F59E0B" name="비용 추세" strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 6 }} />
+                <Line type="linear" dataKey="norm_conversions" stroke="#8B5CF6" name="전환 추세" strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 6 }} />
+              </LineChart>
+            </ResponsiveContainer>
+            
+            {/* 💡 초보자를 위한 데이터 상세 해석 박스 */}
+            <div className="mt-4 p-4 bg-indigo-50 rounded-lg border border-indigo-100 flex items-start gap-3">
+              <Lightbulb className="w-5 h-5 text-indigo-600 flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="font-semibold text-indigo-900 text-sm mb-1">💡 데이터 돋보기: 성과 추세 읽는 법</p>
+                <p className="text-sm text-indigo-800 leading-relaxed">
+                  이 그래프는 단위가 완전히 다른 데이터들을 한눈에 비교할 수 있도록 <strong>비율(%)</strong>로 맞춰져 있습니다! (정확한 수치는 마우스를 올려 확인하세요). 
+                  파란색 선(노출수) 대비 초록색 선(클릭수)이 함께 올라가고 있다면 타겟팅이 아주 잘 되고 있다는 뜻입니다. 
+                  만약 비용(노란선)은 꾸준히 나가는데 클릭이나 전환(보라선) 추세가 바닥으로 꺾여 있다면, 사람들의 눈에 익어 '광고 피로도'가 높아진 상태일 수 있으니 새로운 이미지나 문구로 교체해 보세요.
+                </p>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* Platform Comparison */}
       {comparison && comparison.platforms && comparison.platforms.length > 0 && (
