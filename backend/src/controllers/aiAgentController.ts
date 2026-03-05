@@ -643,23 +643,22 @@ export const getMLRealtime = async (req: AuthRequest, res: Response) => {
 export const generateLLMInsights = async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user?.id;
-    // 프론트엔드에서 넘겨줄 데이터 (추세 데이터, 플랫폼 데이터 등)
-    const { trendsData, platformData } = req.body;
+    // 💡 [수정됨] 프론트엔드에서 넘겨주는 forceRefresh 플래그를 추가로 받습니다.
+    const { trendsData, platformData, forceRefresh } = req.body;
 
     if (!userId) {
       return res.status(401).json({ success: false, error: '인증이 필요합니다.' });
     }
 
-    // 서버 환경 변수에 OPENAI_API_KEY가 세팅되어 있어야 합니다!
     if (!process.env.OPENAI_API_KEY) {
       return res.status(500).json({ success: false, error: 'OpenAI API 키가 설정되지 않았습니다.' });
     }
 
-    // 💡 [추가됨] 캐시 확인 로직: 데이터가 완벽히 같으면 캐시를 타고 바로 응답!
     const cacheKey = generateCacheKey('trends', { trendsData, platformData });
     const cachedData = insightsCache.get(cacheKey);
     
-    if (cachedData && (Date.now() - cachedData.timestamp < CACHE_TTL)) {
+    // 💡 [수정됨] forceRefresh가 true가 아닐 때만 캐시를 사용합니다!
+    if (!forceRefresh && cachedData && (Date.now() - cachedData.timestamp < CACHE_TTL)) {
       console.log("⚡ [Cache Hit] 저장된 추세 분석 결과를 0.1초 만에 반환합니다!");
       return res.json({
         success: true,
@@ -669,13 +668,11 @@ export const generateLLMInsights = async (req: AuthRequest, res: Response) => {
       });
     }
 
-    // 💡 [수정됨] 창의성을 0.2로 대폭 낮춰서 뜬구름 잡는 소리(Hallucination)를 막고 수치 분석에 집중하게 만듭니다.
     const model = new ChatOpenAI({
       modelName: 'gpt-4o-mini', 
       temperature: 0.2, 
     });
 
-    // 💡 [수정됨] 근 한 달(약 30일) 간의 거시적인 추세를 바탕으로 분석하도록 프롬프트를 재설계했습니다.
     const prompt = PromptTemplate.fromTemplate(`
       너는 'Plan BE'의 수석 데이터 분석가야.
       사용자가 방금 [노출수, 클릭수, 광고비, 전환수] 4가지 지표의 최근 약 한 달(30일)간 시계열 추세를 보여주는 차트를 확인했어.
@@ -700,20 +697,18 @@ export const generateLLMInsights = async (req: AuthRequest, res: Response) => {
       - (가이드: 짧은 며칠의 변동성이 아닌, 제공된 데이터의 **'전체적인 한 달 추세(우상향/우하향)'와 '최근 일주일의 흐름'을 종합**하여 거시적인 관점에서 진단할 것. 예: "최근 한 달간 전반적으로 CPC가 상승하는 추세이며 최근 일주일 전환도 정체되었으므로, 현재 일일 예산을 10~15% 하향 조정하시는 것을 추천해 드려요." 처럼 묵직한 데이터 흐름에 기반한 '예산 분배와 운영(ON/OFF)' 액션을 1~2줄로 제안할 것.)
     `);
 
-    // 토큰 한도 초과를 막기 위해 데이터를 적당히 잘라서 넣습니다.
     const formattedPrompt = await prompt.format({
       trends: JSON.stringify(trendsData || {}).substring(0, 2000), 
       platforms: JSON.stringify(platformData || {}).substring(0, 2000),
     });
 
-    console.log("🤖 [LLM] OpenAI 인사이트 분석 요청 중...");
+    console.log(forceRefresh ? "🔄 [LLM] 강제 새로고침 요청! OpenAI 분석을 새로 시작합니다..." : "🤖 [LLM] OpenAI 인사이트 분석 요청 중...");
     const response = await model.invoke(formattedPrompt);
     console.log("✅ [LLM] 분석 완료!");
     
-    // 💡 [추가됨] 새로운 분석 결과를 캐시에 예쁘게 저장합니다.
+    // 캐시 덮어쓰기 (강제 새로고침 시 이 부분이 업데이트 됨)
     insightsCache.set(cacheKey, { result: response.content as string, timestamp: Date.now() });
 
-    // 분석된 텍스트 응답
     return res.json({
       success: true,
       data: {
@@ -734,7 +729,8 @@ export const generateLLMInsights = async (req: AuthRequest, res: Response) => {
 export const generatePlatformInsights = async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user?.id;
-    const { platformData } = req.body;
+    // 💡 [수정됨] 프론트엔드에서 넘겨주는 forceRefresh 플래그를 추가로 받습니다.
+    const { platformData, forceRefresh } = req.body;
 
     if (!userId) {
       return res.status(401).json({ success: false, error: '인증이 필요합니다.' });
@@ -744,11 +740,11 @@ export const generatePlatformInsights = async (req: AuthRequest, res: Response) 
       return res.status(500).json({ success: false, error: 'OpenAI API 키가 설정되지 않았습니다.' });
     }
 
-    // 💡 [추가됨] 매체 분석 캐시 확인 로직
     const cacheKey = generateCacheKey('platform', { platformData });
     const cachedData = insightsCache.get(cacheKey);
     
-    if (cachedData && (Date.now() - cachedData.timestamp < CACHE_TTL)) {
+    // 💡 [수정됨] forceRefresh가 true가 아닐 때만 캐시를 사용합니다!
+    if (!forceRefresh && cachedData && (Date.now() - cachedData.timestamp < CACHE_TTL)) {
       console.log("⚡ [Cache Hit] 저장된 매체 비교 분석 결과를 0.1초 만에 반환합니다!");
       return res.json({
         success: true,
@@ -791,11 +787,11 @@ export const generatePlatformInsights = async (req: AuthRequest, res: Response) 
       platforms: JSON.stringify(platformData || {}).substring(0, 2000),
     });
 
-    console.log("🤖 [LLM] 매체 비교 분석 요청 중...");
+    console.log(forceRefresh ? "🔄 [LLM] 강제 새로고침 요청! 매체 분석을 새로 시작합니다..." : "🤖 [LLM] 매체 비교 분석 요청 중...");
     const response = await model.invoke(formattedPrompt);
     console.log("✅ [LLM] 매체 비교 분석 완료!");
     
-    // 💡 [추가됨] 새로운 매체 분석 결과를 캐시에 예쁘게 저장합니다.
+    // 캐시 덮어쓰기 (강제 새로고침 시 이 부분이 업데이트 됨)
     insightsCache.set(cacheKey, { result: response.content as string, timestamp: Date.now() });
 
     return res.json({

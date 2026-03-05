@@ -12,6 +12,7 @@ import {
   CheckCircle,
   Target,
   Sparkles,
+  RefreshCw, // 💡 [추가됨] 다시 분석하기 버튼에 들어갈 예쁜 새로고침 아이콘!
 } from 'lucide-react';
 import {
   LineChart,
@@ -66,10 +67,12 @@ export default function InsightsPage() {
 
   // 🤖 [수정됨] 토큰 낭비 방지! 자동 실행(useQuery) 대신 수동 실행(useMutation)으로 변경
   const llmMutation = useMutation({
-    mutationFn: async () => {
+    // 💡 [수정됨] forceRefresh 값을 받아서 백엔드로 넘겨줍니다. 기본값은 false!
+    mutationFn: async (forceRefresh: boolean = false) => {
       const response = await api.post('/ai/agent/generate-insights', {
         trendsData: trends,
         platformData: comparison,
+        forceRefresh, 
       });
       return response.data;
     }
@@ -80,9 +83,11 @@ export default function InsightsPage() {
 
   // 🤖 [추가됨] 플랫폼 비교 전용 크로스 미디어 분석 API 호출
   const platformMutation = useMutation({
-    mutationFn: async () => {
+    // 💡 [수정됨] forceRefresh 값을 받아서 백엔드로 넘겨줍니다.
+    mutationFn: async (forceRefresh: boolean = false) => {
       const response = await api.post('/ai/agent/generate-platform-insights', {
         platformData: comparison,
+        forceRefresh, 
       });
       return response.data;
     }
@@ -342,11 +347,21 @@ export default function InsightsPage() {
                   {/* 분석 결과가 없고, 로딩 중이 아닐 때만 실행 버튼 표시 */}
                   {!llmInsightText && !llmInsightLoading && (
                     <button 
-                      onClick={() => llmMutation.mutate()}
+                      onClick={() => llmMutation.mutate(false)}
                       className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-md transition-colors flex items-center gap-1 shadow-sm"
                     >
                       <Sparkles className="w-4 h-4" />
                       AI 분석 실행하기
+                    </button>
+                  )}
+                  {/* 💡 [추가됨] 분석 결과가 이미 있을 때 표시되는 다시 분석하기(캐시 무시) 버튼 */}
+                  {llmInsightText && !llmInsightLoading && (
+                    <button 
+                      onClick={() => llmMutation.mutate(true)}
+                      className="px-3 py-1.5 bg-white border border-indigo-200 hover:bg-indigo-50 text-indigo-600 text-sm font-medium rounded-md transition-colors flex items-center gap-1 shadow-sm"
+                    >
+                      <RefreshCw className="w-4 h-4" />
+                      다시 분석하기
                     </button>
                   )}
                 </div>
@@ -485,11 +500,21 @@ export default function InsightsPage() {
                   
                   {!platformInsightText && !platformInsightLoading && (
                     <button 
-                      onClick={() => platformMutation.mutate()}
+                      onClick={() => platformMutation.mutate(false)}
                       className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-md transition-colors flex items-center gap-1 shadow-sm"
                     >
                       <Sparkles className="w-4 h-4" />
                       매체 비교 분석 실행하기
+                    </button>
+                  )}
+                  {/* 💡 [추가됨] 분석 결과가 이미 있을 때 표시되는 다시 분석하기(캐시 무시) 버튼 */}
+                  {platformInsightText && !platformInsightLoading && (
+                    <button 
+                      onClick={() => platformMutation.mutate(true)}
+                      className="px-3 py-1.5 bg-white border border-blue-200 hover:bg-blue-50 text-blue-600 text-sm font-medium rounded-md transition-colors flex items-center gap-1 shadow-sm"
+                    >
+                      <RefreshCw className="w-4 h-4" />
+                      다시 분석하기
                     </button>
                   )}
                 </div>
