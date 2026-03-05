@@ -87,6 +87,7 @@ jobs:
               cd $APP_DIR
               git fetch origin
               git reset --hard origin/main
+              git clean -fd   # untracked 파일(git에 없는 잔재 파일) 완전 제거
             else
               echo ">> 최초 clone..."
               rm -rf $APP_DIR
@@ -263,10 +264,6 @@ jobs:
 
             # ========== 4. 의존성 설치 & 빌드 ==========
             npm install --include=dev --no-audit --no-fund
-
-            # 서버에 남아있는 잔재 파일 제거 (git에서 삭제됐지만 서버에 남은 파일들)
-            rm -f src/routes/reportTest.ts
-
             npx tsc
 
             # ========== 5. PM2 시작/재시작 ==========
