@@ -197,6 +197,34 @@ app.get('/api/v1/ai/history/:userId', async (req: Request, res: Response) => {
   }
 });
 
+// 특정 AI 분석 리포트의 상세 내용(full_report) 가져오기
+app.get('/api/v1/ai/report/:id', async (req: Request, res: Response) => {
+  const { id } = req.params;
+  try {
+    // 🔥 [수정] 대괄호([])를 빼고 결과를 통째로 받습니다.
+    const result: any = await pool.query(
+      'SELECT full_report FROM ai_history WHERE id = ?',
+      [id]
+    );
+
+    // 🔥 [수정] 상자(Object) 안에 있는 rows 배열만 안전하게 꺼냅니다.
+    const rows = result.rows ? result.rows : (Array.isArray(result) ? result : []);
+
+    if (rows.length === 0) {
+      return res.status(404).json({ error: "리포트를 찾을 수 없습니다." });
+    }
+
+    // full_report를 꺼내서 프론트엔드로 전달
+    const reportData = rows[0].full_report;
+    res.json(reportData);
+
+  } catch (error) {
+    console.error('❌ [AI Report Detail Error]:', error);
+    res.status(500).json({ error: "상세 리포트 조회 실패" });
+  }
+});
+
+
 
 // ─────────────────────────────────────────────────────────────
 
