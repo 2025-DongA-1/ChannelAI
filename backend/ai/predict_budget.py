@@ -6,6 +6,18 @@ import xgboost as xgb
 from scipy.optimize import linprog
 import os
 from datetime import datetime
+import joblib
+
+# JSON 파싱 에러 방지
+import warnings
+warnings.filterwarnings("ignore")
+
+# 앙상블 라이브러리 및 설정값
+
+RIDGE_MODEL_FILENAME = 'baseline_ridge_model.joblib'
+USE_ENSEMBLE = True     # True : XGB + Ridge 가중 평균 / False : XGB 우선(Ridge 폴백만) 
+XGB_WEIGHT = 0.5        # XGBoost의 비중 (비선형 디테일)
+RIDGE_WEIGHT = 0.5      # Ridge의 비중 (안정성 및 제동 장치)
 
 
 # [추가] Windows(팀원) 환경에서 한글 깨짐 방지를 위한 입출력 강제 UTF-8 설정
@@ -299,26 +311,46 @@ def main():
     processed_data = []
 
     for item in features_list:
-        # 사용자가 입력한 총 예산의 평균치를 미래의 가상비용으로 투입
-        # 총 예산이 커질수록 AI가 패널티는 강하게 먹임 -> train_model_v2.py와 동일하게
         cost = float(total_budget) / 4.0
         current_roas = item.get('ROAS', 200)
 
-        # React에서 보내준 'trend_score' 받기 (없으면 기본값 50)
-        trend_score = item.get('trend_score', 50)
-
-        # 보조 지표 추정 (※ MVP 단계에서는 유지, 추후 DB 계산값으로 교체 권장)
-        ctr = 1.5 + (float(current_roas) / 1000.0)
-        cpc = 500
-        roas_3d = float(current_roas) * 1.02
-
-        # ✅ 채널 입력을 유연하게 받기:
-        # 1) 기존: 채널명_Naver/Meta/Google/Karrot
-        # 2) 신규: channel_naver/meta/google/karrot
+        # --------------------------------------------------------------------
+        # 🛠️ [개선] 채널별 현실적인 베이스라인 세팅 (디펜스 무기)
+        # --------------------------------------------------------------------
         channel_naver = item.get('channel_naver', item.get('채널명_Naver', 0))
         channel_meta = item.get('channel_meta', item.get('채널명_Meta', 0))
         channel_google = item.get('channel_google', item.get('채널명_Google', 0))
         channel_karrot = item.get('channel_karrot', item.get('채널명_Karrot', 0))
+
+        # 1. 채널별 현실적인 CPC 및 기본 CTR (도메인 지식 반영)
+        if channel_naver == 1:
+            base_cpc = 800  # 검색 광고 특성상 다소 높음
+            base_ctr = 2.5
+        elif channel_google == 1:
+            base_cpc = 600
+            base_ctr = 1.8
+        elif channel_meta == 1:
+            base_cpc = 400  # 노출 위주라 단가는 낮지만
+            base_ctr = 1.2  # 클릭률도 낮음
+        elif channel_karrot == 1:
+            base_cpc = 300  # 지역 기반, 단가 저렴
+            base_ctr = 3.0  # 타겟팅이 좁아 클릭률은 높음
+        else:
+            base_cpc = 500
+            base_ctr = 1.5
+
+        # 2. 임의성 부여 (고정값 탈피)
+        # 약간의 랜덤성을 더해 매번 똑같은 결과가 나오는 것을 방지
+        cpc = base_cpc * np.random.uniform(0.9, 1.1)
+        ctr = base_ctr * np.random.uniform(0.9, 1.1)
+        
+        # 3. ROAS 변화율 적용
+        roas_3d = float(current_roas) * np.random.uniform(0.95, 1.05)
+        
+        # 4. 트렌드 점수 
+        # (프론트에서 못 받으면, 30~80 사이의 랜덤 값으로 대체하여 시뮬레이션 현실성 확보)
+        trend_score = item.get('trend_score', np.random.randint(30, 80))
+        # --------------------------------------------------------------------
 
         row = {
             '비용': float(cost),
@@ -326,7 +358,6 @@ def main():
             'CTR': float(ctr),
             'ROAS_3d_trend': float(roas_3d),
             'trend_score': float(trend_score),
-
             'channel_naver': int(channel_naver),
             'channel_meta': int(channel_meta),
             'channel_google': int(channel_google),
@@ -352,25 +383,68 @@ def main():
         }, ensure_ascii=False))
         sys.exit(1)
 
-    # [AI 모델 로드 및 예측]
+    # [AI 모델 로드 및 예측]  ✅ XGB + Ridge(옵션) 앙상블/폴백
     try:
-        # 변경 1: 껍데기(XGBRegressor)를 버리고 코어 엔진(Booster) 사용
-        model = xgb.Booster()
         script_dir = os.path.dirname(os.path.abspath(__file__))
-        model_path = os.path.join(script_dir, 'optimal_budget_xgb_model.json')
 
-        model.load_model(model_path)
-        
-        # 변경 2: DataFrame을 XGBoost 전용 규격(DMatrix)으로 포장. 
-        # 이 과정을 거쳐야 컬럼명(이름표)이 절대 떨어져 나가지 않습니다.
-        # X의 알맹이(values)만 빼고, 이름표(feature_names)를 수동으로 강제 조립함 (절대 분실 안됨)
-        dtest = xgb.DMatrix(X.values, feature_names=model_columns)
-        predicted_roas = model.predict(dtest)
-
-        # ✅ 예측값 클리핑: 비현실 튐 방지
+        # ✅ 클리핑 범위(공통)
         CLIP_MIN = 50.0
         CLIP_MAX = 800.0
-        predicted_roas = clip_predicted_roas(predicted_roas, min_roas=CLIP_MIN, max_roas=CLIP_MAX)
+
+        # --------------------------
+        # (1) XGBoost 예측 (기본)
+        # --------------------------
+        predicted_roas_xgb = None
+        try:
+            model = xgb.Booster()
+            model_path = os.path.join(script_dir, 'optimal_budget_xgb_model.json')
+            model.load_model(model_path)
+
+            # 컬럼명 유지(DMatrix + feature_names 고정)
+            dtest = xgb.DMatrix(X.values, feature_names=model_columns)
+            predicted_roas_xgb = model.predict(dtest)
+
+            # 비현실 튐 방지
+            predicted_roas_xgb = clip_predicted_roas(predicted_roas_xgb, min_roas=CLIP_MIN, max_roas=CLIP_MAX)
+
+        except Exception as e:
+            log(json.dumps({"warn": f"XGB 예측 실패: {str(e)}"}, ensure_ascii=False))
+            predicted_roas_xgb = None
+
+        # --------------------------
+        # (2) Ridge 예측 (있으면 사용)
+        # --------------------------
+        predicted_roas_ridge = None
+        ridge_path = os.path.join(script_dir, RIDGE_MODEL_FILENAME)
+
+        if os.path.exists(ridge_path):
+            try:
+                ridge_model = joblib.load(ridge_path)
+                # ✅ Ridge 파이프라인은 DataFrame 입력을 권장 (스케일러 포함)
+                predicted_roas_ridge = ridge_model.predict(X)
+                predicted_roas_ridge = clip_predicted_roas(predicted_roas_ridge, min_roas=CLIP_MIN, max_roas=CLIP_MAX)
+
+            except Exception as e:
+                log(json.dumps({"warn": f"Ridge 예측 실패: {str(e)}"}, ensure_ascii=False))
+                predicted_roas_ridge = None
+        else:
+            # Ridge 파일이 없으면 조용히 넘어감
+            predicted_roas_ridge = None
+
+        # --------------------------
+        # (3) 앙상블 / 폴백 결정
+        # --------------------------
+        if predicted_roas_xgb is not None and predicted_roas_ridge is not None:
+            if USE_ENSEMBLE:
+                predicted_roas = (XGB_WEIGHT * predicted_roas_xgb) + (RIDGE_WEIGHT * predicted_roas_ridge)
+            else:
+                predicted_roas = predicted_roas_xgb
+        elif predicted_roas_xgb is not None:
+            predicted_roas = predicted_roas_xgb
+        elif predicted_roas_ridge is not None:
+            predicted_roas = predicted_roas_ridge
+        else:
+            raise RuntimeError("모델 로드/예측 실패: XGB와 Ridge 모두 예측 실패")
 
     except Exception as e:
         log(json.dumps({"error": f"모델 로드/예측 실패: {str(e)}"}, ensure_ascii=False))
@@ -430,7 +504,8 @@ def main():
 
             # duration 적용 히스토리 생성
             history_data = generate_past_history(predicted_roas, duration=duration)
-
+            log("predicted_roas:", predicted_roas)
+            
             output = {
                 "status": "success",
                 "total_budget": int(total_budget),

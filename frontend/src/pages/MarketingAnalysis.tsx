@@ -712,7 +712,7 @@ function MarketingAnalysis() {
             }}>
               <div style={{ fontSize: '4rem', marginBottom: '20px', opacity: 0.5 }}>📊</div>
               <p style={{ fontSize: '1.3rem', textAlign: 'center', lineHeight: '1.6' }}>
-                상단에 예산을 입력하고 <strong>PRO 리포트 생성</strong> 버튼을 눌러주세요.<br/>
+                상단에 예산을 입력하고 <strong>프리미엄 분석 실행</strong> 버튼을 눌러주세요.<br/>
                 <span style={{ fontSize: '1rem', color: '#bbb' }}>연동된 4개 채널의 데이터를 분석하여 최적의 전략을 제안합니다.</span>
               </p>
             </div>
@@ -723,7 +723,7 @@ function MarketingAnalysis() {
 
               {safeHistoryList && safeHistoryList.length > 0 ? (
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: '20px' }}>
-                  {safeHistoryList.slice(0,3).map((item: any) => (
+                  {safeHistoryList.slice(0,8).map((item: any) => (
                     <div 
                       key={item.id} 
                       onClick={()=> handleLoadHistory(item.id)}
