@@ -289,16 +289,16 @@ export const aiAgentAPI = {
 // 💡 인사이트 관련 API 함수 모음
 export const insightsAPI = {
   // 광고 성과 트렌드 조회 (시작일, 종료일, 기간 필터 가능)
-  getTrends: (params?: { start_date?: string; end_date?: string; period?: string }) =>
+  getTrends: (params?: { start_date?: string; end_date?: string; period?: string; campaign_id?: string }) =>
     api.get('/insights/trends', { params }),
   
   // 플랫폼 간 성과 비교 (시작일, 종료일 범위 내 비교 데이터)
-  getComparison: (params?: { start_date?: string; end_date?: string }) =>
+  getComparison: (params?: { start_date?: string; end_date?: string; campaign_id?: string }) =>
     api.get('/insights/comparison', { params }),
   
-  // AI 기반 추천사항 조회 (자동 생성된 액션 아이템)
-  getRecommendations: () =>
-    api.get('/insights/recommendations'),
+  // 💡 [수정됨] AI 기반 추천사항 조회 (캠페인 ID 파라미터 추가)
+  getRecommendations: (params?: { campaign_id?: string }) =>
+    api.get('/insights/recommendations', { params }),
 };
 
 // 📊 원본 메트릭 데이터 조회 및 관리 API
