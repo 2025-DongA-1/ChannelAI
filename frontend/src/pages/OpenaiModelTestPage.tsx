@@ -109,7 +109,7 @@ const OpenaiModelTestPage: React.FC = () => {
       if (res.data?.recommendations) setRecommendations(res.data.recommendations);
     } catch (e) { console.error('최적화 추천 조회 실패:', e); }
     finally { setIsRecsLoading(false); }
-  }, [period]);
+  }, []);
 
   useEffect(() => {
     fetchRanks();

@@ -234,8 +234,8 @@ export const getAdvancedMetrics = async (req: AuthRequest, res: Response) => {
       return res.status(401).json({ success: false, error: '인증이 필요합니다.' });
     }
 
-    // 쿼리 파라미터에서 기간 필터 추출 (없으면 전체 기간 조회)
-    const { startDate, endDate } = req.query as { startDate?: string; endDate?: string };
+    // 쿼리 파라미터에서 기간 필터 및 프로바이더 추출
+    const { startDate, endDate, provider } = req.query as { startDate?: string; endDate?: string; provider?: string };
 
     // 날짜 필터가 있을 경우 WHERE 조건을 동적으로 추가
     const dateFilter = startDate && endDate
@@ -287,8 +287,8 @@ export const getAdvancedMetrics = async (req: AuthRequest, res: Response) => {
       };
     });
 
-    // AI 전문가 분석 추가 (300자 내외)
-    const aiAnalysis = await aiAnalysisService.analyzeCampaignRanks(campaignRanks);
+    // AI 전문가 분석 추가 (프론트엔드에서 요청한 프로바이더 사용 가능)
+    const aiAnalysis = await aiAnalysisService.analyzeCampaignRanks(campaignRanks, provider);
 
     return res.json({
       success: true,
@@ -530,7 +530,7 @@ export const getMLRealtime = async (req: AuthRequest, res: Response) => {
       return res.status(401).json({ success: false, error: '인증이 필요합니다.' });
     }
 
-    const { startDate, endDate } = req.query as { startDate?: string; endDate?: string };
+    const { startDate, endDate, provider } = req.query as { startDate?: string; endDate?: string; provider?: string };
 
     // Python 스크립트 절대 경로 (backend/python/ml_predict.py)
     const scriptPath = path.join(__dirname, '../../python/ml_predict.py');
@@ -606,7 +606,8 @@ export const getMLRealtime = async (req: AuthRequest, res: Response) => {
           xgboostAnalysis = await aiAnalysisService.analyzeXGBoost(
             mlResult.xgboost.mae,
             mlResult.xgboost.platformMae,
-            mlResult.xgboost.sample
+            mlResult.xgboost.sample,
+            provider
           );
         }
 

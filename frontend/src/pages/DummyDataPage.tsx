@@ -205,7 +205,7 @@ const DummyDataPage: React.FC = () => {
         if (response.data.success) {
             alert(`✅ 성공: ${response.data.message}`);
         }
-    } catch (err: any) {
+    } catch (err: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
         console.error(err);
         alert(`❌ 저장 실패: ${err.response?.data?.error || err.response?.data?.message || err.message}`);
     } finally {
@@ -387,7 +387,7 @@ const DummyDataPage: React.FC = () => {
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {aggregatedData.length > 0 ? (
-                  aggregatedData.map((item: any, index: number) => {
+                  aggregatedData.map((item: { cost: number; revenue: number; startDate: string; endDate: string; media: string; campaign: string; group: string; impressions: number; clicks: number; conversions: number }, index: number) => {
                     const roas = item.cost > 0 ? ((item.revenue / item.cost) * 100).toFixed(0) : 0;
                     return (
                       <tr key={index} className="hover:bg-gray-50 transition">

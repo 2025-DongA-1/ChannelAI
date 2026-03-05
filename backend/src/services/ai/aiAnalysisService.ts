@@ -11,26 +11,22 @@ export class AIAnalysisService {
   private openaiKey: string | undefined;
 
   constructor() {
-    this.provider = process.env.AI_PROVIDER || 'groq';
+    this.provider = (process.env.AI_PROVIDER || 'groq').toLowerCase();
+    
+    // 모든 키를 일단 로드해둡니다 (동적 전환 대비)
+    this.groq = process.env.GROQ_API_KEY ? new Groq({ apiKey: process.env.GROQ_API_KEY }) : null;
+    const geminiKey = process.env.GEMINI_API_KEY;
+    if (geminiKey) this.gemini = new GoogleGenerativeAI(geminiKey);
+    this.openaiKey = process.env.OPENAI_API_KEY;
 
-    if (this.provider === 'groq') {
-      this.groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
-      console.log('[AI Service] Provider: Groq (llama-3.3-70b) - 무료');
-    } else if (this.provider === 'gemini') {
-      const key = process.env.GEMINI_API_KEY;
-      if (key) {
-        this.gemini = new GoogleGenerativeAI(key);
-        console.log('[AI Service] Provider: Google Gemini 2.0 Flash');
-      }
-    } else if (this.provider === 'openai') {
-      this.openaiKey = process.env.OPENAI_API_KEY;
-      console.log('[AI Service] Provider: OpenAI GPT-4o-mini (유료)');
-    }
+    console.log(`[AI Service] Default Provider: ${this.provider}`);
   }
 
-  private async call(prompt: string): Promise<string> {
+  private async call(prompt: string, overrideProvider?: string): Promise<string> {
+    const activeProvider = (overrideProvider || this.provider).toLowerCase();
+
     // --- Groq ---
-    if (this.provider === 'groq' && this.groq) {
+    if (activeProvider === 'groq' && this.groq) {
       const completion = await this.groq.chat.completions.create({
         model: 'llama-3.3-70b-versatile',
         messages: [{ role: 'user', content: prompt }],
@@ -41,14 +37,14 @@ export class AIAnalysisService {
     }
 
     // --- Gemini ---
-    if (this.provider === 'gemini' && this.gemini) {
+    if (activeProvider === 'gemini' && this.gemini) {
       const model = this.gemini.getGenerativeModel({ model: 'gemini-2.0-flash' });
       const result = await model.generateContent(prompt);
       return result.response.text();
     }
 
     // --- OpenAI ---
-    if (this.provider === 'openai' && this.openaiKey) {
+    if (activeProvider === 'openai' && this.openaiKey) {
       const response = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
         headers: {
@@ -63,16 +59,17 @@ export class AIAnalysisService {
         }),
       });
       const data = await response.json() as any;
+      if (data.error) throw new Error(`OpenAI Error: ${data.error.message}`);
       return data.choices[0].message.content;
     }
 
-    throw new Error('AI 프로바이더가 올바르게 설정되지 않았습니다.');
+    throw new Error(`AI 프로바이더 '${activeProvider}'가 올바르게 설정되지 않았거나 API 키가 없습니다.`);
   }
 
   // ──────────────────────────────────────────────
   // XGBoost 예측 결과 분석 (300자 내외)
   // ──────────────────────────────────────────────
-  async analyzeXGBoost(mae: number, platformMae: any[], sample: any): Promise<string> {
+  async analyzeXGBoost(mae: number, platformMae: any[], sample: any, provider?: string): Promise<string> {
     try {
       const prompt = `당신은 데이터 사이언스 기반 마케팅 컨설턴트입니다.
 XGBoost 모델의 앱 설치 수 예측 결과를 보고 마케터에게 300자 이내의 한글 분석을 제공해 주세요.
@@ -88,7 +85,7 @@ XGBoost 모델의 앱 설치 수 예측 결과를 보고 마케터에게 300자 
 3. 마케터를 위한 짧은 제언(인사이트)으로 마무리하십시오.
 * 반드시 300자 이내로 작성하십시오.`;
 
-      return await this.call(prompt);
+      return await this.call(prompt, provider);
     } catch (error) {
       console.error('AI Analysis (XGBoost) failed:', error);
       return '분석 데이터를 불러오는 중 오류가 발생했습니다.';
@@ -98,7 +95,7 @@ XGBoost 모델의 앱 설치 수 예측 결과를 보고 마케터에게 300자 
   // ──────────────────────────────────────────────
   // 캠페인 랭킹 분석 (300자 내외)
   // ──────────────────────────────────────────────
-  async analyzeCampaignRanks(ranks: any[]): Promise<string> {
+  async analyzeCampaignRanks(ranks: any[], provider?: string): Promise<string> {
     try {
       const prompt = `당신은 가게 매출을 같이 고민하는 '마케팅 비서'입니다.
 광고 성적표를 보고 사장님께 힘이 되는 전략 보고를 300자 이내로 작성해 주세요.
@@ -113,7 +110,7 @@ ${JSON.stringify(ranks)}
 3. "다음번에는 잘나오는 곳에 예산을 조금 더 집중해 볼까요?"라고 명확하게 방향을 짚어주세요.
 * 전문 용어 없이, 300자 이내의 친절한 반존대나 격식체로 작성하십시오.`;
 
-      return await this.call(prompt);
+      return await this.call(prompt, provider);
     } catch (error) {
       console.error('AI Analysis (Ranks) failed:', error);
       return '캠페인 랭킹 분석 중 오류가 발생했습니다.';
@@ -123,7 +120,7 @@ ${JSON.stringify(ranks)}
   // ──────────────────────────────────────────────
   // Random Forest 매체 추천 분석 (300자 내외)
   // ──────────────────────────────────────────────
-  async analyzeRandomForest(accuracy: number, metrics: any[], sample: any): Promise<string> {
+  async analyzeRandomForest(accuracy: number, metrics: any[], sample: any, provider?: string): Promise<string> {
     try {
       const prompt = `당신은 소상공인 사장님의 광고를 돕는 친절한 'AI 파트너'입니다.
 어려운 기술 용어(XGBoost, MAE 등)는 최대한 쓰지 말고, 옆에서 말해주듯 300자 이내로 분석해 주세요.
@@ -139,7 +136,7 @@ ${JSON.stringify(ranks)}
 3. "이 데이터를 믿고 광고비를 조절해 보세요" 같은 실질적인 응원으로 마무리하세요.
 * 반드시 300자 이내의 따뜻한 한글로 작성하십시오.`;
 
-      return await this.call(prompt);
+      return await this.call(prompt, provider);
     } catch (error) {
       console.error('AI Analysis (RF) failed:', error);
       return '매체 추천 모델 분석 중 오류가 발생했습니다.';
