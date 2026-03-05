@@ -8,9 +8,19 @@ import { AIAnalysisService } from '../services/ai/aiAnalysisService';
 // 💡 [추가됨] LangChain 및 OpenAI 패키지 임포트
 import { ChatOpenAI } from '@langchain/openai';
 import { PromptTemplate } from '@langchain/core/prompts';
+import crypto from 'crypto'; // 💡 [추가됨] 해시 생성을 위한 내장 모듈 임포트
 dotenv.config();
 
 const aiAnalysisService = new AIAnalysisService();
+
+// 💡 [추가됨] 간단한 인메모리 캐시 저장소 (메모리에 분석 결과 임시 저장)
+const insightsCache = new Map<string, { result: string, timestamp: number }>();
+const CACHE_TTL = 24 * 60 * 60 * 1000; // 24시간 유지 (자정 리셋 효과)
+
+// 💡 [추가됨] 데이터를 기반으로 고유한 해시 키를 생성하는 함수 (데이터가 같으면 키도 같음!)
+const generateCacheKey = (type: string, data: any) => {
+  return type + '_' + crypto.createHash('sha256').update(JSON.stringify(data)).digest('hex');
+};
 
 /**
  * AI 마케팅 에이전트 컨트롤러
@@ -645,6 +655,20 @@ export const generateLLMInsights = async (req: AuthRequest, res: Response) => {
       return res.status(500).json({ success: false, error: 'OpenAI API 키가 설정되지 않았습니다.' });
     }
 
+    // 💡 [추가됨] 캐시 확인 로직: 데이터가 완벽히 같으면 캐시를 타고 바로 응답!
+    const cacheKey = generateCacheKey('trends', { trendsData, platformData });
+    const cachedData = insightsCache.get(cacheKey);
+    
+    if (cachedData && (Date.now() - cachedData.timestamp < CACHE_TTL)) {
+      console.log("⚡ [Cache Hit] 저장된 추세 분석 결과를 0.1초 만에 반환합니다!");
+      return res.json({
+        success: true,
+        data: {
+          insightText: cachedData.result,
+        }
+      });
+    }
+
     // 💡 [수정됨] 창의성을 0.2로 대폭 낮춰서 뜬구름 잡는 소리(Hallucination)를 막고 수치 분석에 집중하게 만듭니다.
     const model = new ChatOpenAI({
       modelName: 'gpt-4o-mini', 
@@ -686,6 +710,9 @@ export const generateLLMInsights = async (req: AuthRequest, res: Response) => {
     const response = await model.invoke(formattedPrompt);
     console.log("✅ [LLM] 분석 완료!");
     
+    // 💡 [추가됨] 새로운 분석 결과를 캐시에 예쁘게 저장합니다.
+    insightsCache.set(cacheKey, { result: response.content as string, timestamp: Date.now() });
+
     // 분석된 텍스트 응답
     return res.json({
       success: true,
@@ -715,6 +742,20 @@ export const generatePlatformInsights = async (req: AuthRequest, res: Response) 
 
     if (!process.env.OPENAI_API_KEY) {
       return res.status(500).json({ success: false, error: 'OpenAI API 키가 설정되지 않았습니다.' });
+    }
+
+    // 💡 [추가됨] 매체 분석 캐시 확인 로직
+    const cacheKey = generateCacheKey('platform', { platformData });
+    const cachedData = insightsCache.get(cacheKey);
+    
+    if (cachedData && (Date.now() - cachedData.timestamp < CACHE_TTL)) {
+      console.log("⚡ [Cache Hit] 저장된 매체 비교 분석 결과를 0.1초 만에 반환합니다!");
+      return res.json({
+        success: true,
+        data: {
+          insightText: cachedData.result,
+        }
+      });
     }
 
     const model = new ChatOpenAI({
@@ -754,6 +795,9 @@ export const generatePlatformInsights = async (req: AuthRequest, res: Response) 
     const response = await model.invoke(formattedPrompt);
     console.log("✅ [LLM] 매체 비교 분석 완료!");
     
+    // 💡 [추가됨] 새로운 매체 분석 결과를 캐시에 예쁘게 저장합니다.
+    insightsCache.set(cacheKey, { result: response.content as string, timestamp: Date.now() });
+
     return res.json({
       success: true,
       data: {
