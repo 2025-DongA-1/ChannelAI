@@ -121,7 +121,7 @@ jobs:
               apt-get install -y socat
             fi
             if [ ! -f /etc/systemd/system/socat-db.service ]; then
-              cat > /etc/systemd/system/socat-db.service << 'SOCATEOF'
+              cat > /etc/systemd/system/socat-db.service << SOCATEOF
             [Unit]
             Description=Socat DB Proxy
             After=network.target
@@ -266,7 +266,42 @@ jobs:
             npm install --include=dev --no-audit --no-fund
             npx tsc
 
-            # ========== 5. PM2 시작/재시작 ==========
+            # ========== 5. ecosystem.config.js 생성 (프록시 환경변수 포함) ==========
+            # 배포할 때마다 ecosystem.config.js를 자동 생성
+            # PM2가 HTTPS_PROXY를 인식하려면 ecosystem.config.js에 직접 넣어야 함
+            cat > /opt/marketing-platform/deploy/ecosystem.config.js << ECOEOF
+            module.exports = {
+              apps: [{
+                name: 'marketing-api',
+                script: 'dist/app.js',
+                cwd: '/opt/marketing-platform/backend',
+                instances: 2,              // CPU 코어 수에 맞게 조정
+                exec_mode: 'cluster',      // 클러스터 모드 (로드밸런싱)
+                env: {
+                  NODE_ENV: 'production',
+                  PORT: 3000,
+                  HTTPS_PROXY: 'http://10.10.10.6:3128',  // WAS→외부 아웃바운드 프록시
+                  HTTP_PROXY: 'http://10.10.10.6:3128',
+                  NO_PROXY: 'googleapis.com,accounts.google.com,oauth2.googleapis.com'  // Google API는 프록시 우회
+                },
+                log_file: '/opt/marketing-platform/logs/combined.log',
+                out_file: '/opt/marketing-platform/logs/out.log',
+                error_file: '/opt/marketing-platform/logs/error.log',
+                log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
+                max_size: '50M',           // 로그 파일 최대 크기
+                retain: 10,                // 최대 보관 로그 수
+                max_memory_restart: '500M', // 메모리 500MB 초과 시 재시작
+                watch: false,              // 프로덕션에서는 watch 비활성화
+                autorestart: true,
+                restart_delay: 3000,       // 재시작 딜레이 3초
+                max_restarts: 10,          // 최대 재시작 횟수
+                kill_timeout: 5000,
+                listen_timeout: 10000
+              }]
+            };
+            ECOEOF
+
+            # ========== 6. PM2 시작/재시작 ==========
             cd /opt/marketing-platform
             pm2 delete marketing-api 2>/dev/null || true
             pm2 start deploy/ecosystem.config.js
