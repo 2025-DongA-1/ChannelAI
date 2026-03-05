@@ -1,10 +1,10 @@
   // ...existing code...
   // ...existing code...
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api, accountAPI, integrationAPI } from '@/lib/api';
 import { Link2, CheckCircle, XCircle, RefreshCw, AlertCircle, UploadCloud, FileSpreadsheet, Key, X, Eye, EyeOff } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 
 export default function IntegrationPage() {
   // 수정 상태 관리 (반드시 함수 내부에서 선언)
@@ -65,6 +65,29 @@ export default function IntegrationPage() {
 
   const queryClient = useQueryClient();
   const [syncing, setSyncing] = useState<string | null>(null);
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  // ✅ OAuth 콜백 후 URL 파라미터 감지 → 계정 목록 자동 갱신
+  useEffect(() => {
+    const success = searchParams.get('success');
+    const errorMsg = searchParams.get('error');
+    const platform = searchParams.get('platform');
+
+    if (success === 'true') {
+      // 계정 목록 및 캠페인 쿼리 갱신
+      queryClient.invalidateQueries({ queryKey: ['accounts'] });
+      queryClient.invalidateQueries({ queryKey: ['campaigns'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-summary'] });
+      // URL에서 파라미터 제거 (뒤로가기 시 중복 처리 방지)
+      setSearchParams({}, { replace: true });
+      if (platform) {
+        alert(`✅ ${platform.charAt(0).toUpperCase() + platform.slice(1)} 계정 연동이 완료되었습니다!`);
+      }
+    } else if (errorMsg) {
+      setSearchParams({}, { replace: true });
+      alert(`❌ 연동 실패: ${decodeURIComponent(errorMsg)}`);
+    }
+  }, [searchParams, queryClient, setSearchParams]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isUploading, setIsUploading] = useState(false);
 

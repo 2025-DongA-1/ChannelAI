@@ -247,12 +247,13 @@ jobs:
             NAVER_API_KEY=${{ secrets.NAVER_API_KEY }}
             NAVER_SECRET_KEY=${{ secrets.NAVER_SECRET_KEY }}
 
-            # Google Ads API   ← 여기 추가
+            # Google Ads API 
+            GOOGLE_ADS_REDIRECT_URI=https://channelai.kro.kr/api/v1/integration/callback/google
             GOOGLE_ADS_CLIENT_ID=${{ secrets.GOOGLE_CLIENT_ID }}
             GOOGLE_ADS_CLIENT_SECRET=${{ secrets.GOOGLE_CLIENT_SECRET }}
-            GOOGLE_ADS_REDIRECT_URI=https://channelai.kro.kr/api/v1/integration/callback/google
             GOOGLE_ADS_DEVELOPER_TOKEN=${{ secrets.GOOGLE_ADS_DEVELOPER_TOKEN }}
-            GOOGLE_ADS_CUSTOMER_ID=${{ secrets.GOOGLE_ADS_CUSTOMER_ID }}
+            GOOGLE_ADS_REFRESH_TOKEN=${{ secrets.GOOGLE_ADS_REFRESH_TOKEN }}
+            # GOOGLE_ADS_CUSTOMER_ID=${{ secrets.GOOGLE_ADS_CUSTOMER_ID }}
 
             # Proxy
             HTTPS_PROXY=${{ secrets.WEB_PROXY_URL }}
