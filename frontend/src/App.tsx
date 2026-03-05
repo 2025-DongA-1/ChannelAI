@@ -16,7 +16,6 @@ import DummyDataPage from './pages/DummyDataPage';
 import DataManagementPage from './pages/DataManagementPage';
 import MyPage from './pages/MyPage';
 import AdvancedModelTestPage from './pages/AdvancedModelTestPage';
-import OpenaiModelTestPage from './pages/OpenaiModelTestPage';
 import EmailReportPage from './pages/EmailReportPage';
 import MarketingAnalysis from './pages/MarketingAnalysis';
 import logo from "./assets/logo_crop.png";
@@ -290,16 +289,6 @@ function App() {
               <PrivateRoute>
                 <Layout>
                   <AdvancedModelTestPage />
-                </Layout>
-              </PrivateRoute>
-            }
-          />
-          <Route
-            path="/openai-model-test"
-            element={
-              <PrivateRoute>
-                <Layout>
-                  <OpenaiModelTestPage />
                 </Layout>
               </PrivateRoute>
             }
