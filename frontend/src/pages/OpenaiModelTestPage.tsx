@@ -105,7 +105,8 @@ const OpenaiModelTestPage: React.FC = () => {
   const fetchRecs = useCallback(async () => {
     setIsRecsLoading(true);
     try {
-      const res = await api.get('/insights/recommendations');
+      // [2026-03-05 17:35] 수정 이유: OpenAI 페이지에서 AI 추천 분석 시에도 openai를 사용하도록 명시
+      const res = await api.get('/insights/recommendations', { params: { provider: 'openai' } });
       if (res.data?.recommendations) setRecommendations(res.data.recommendations);
     } catch (e) { console.error('최적화 추천 조회 실패:', e); }
     finally { setIsRecsLoading(false); }

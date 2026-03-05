@@ -316,8 +316,14 @@ export const getAdvancedMetrics = async (req: AuthRequest, res: Response) => {
       };
     });
 
-    // AI 전문가 분석 추가 (프론트엔드에서 요청한 프로바이더 사용 가능)
-    const aiAnalysis = await aiAnalysisService.analyzeCampaignRanks(campaignRanks, provider);
+    // AI 전문가 분석 추가 (AI가 실패해도 데이터는 반환되도록 try-catch 보호)
+    let aiAnalysis = '';
+    try {
+      aiAnalysis = await aiAnalysisService.analyzeCampaignRanks(campaignRanks, provider);
+    } catch (aiErr: any) {
+      console.error('AI 분석 실패:', aiErr.message);
+      aiAnalysis = 'AI 분석을 일시적으로 사용할 수 없습니다.';
+    }
 
     return res.json({
       success: true,
@@ -632,12 +638,17 @@ export const getMLRealtime = async (req: AuthRequest, res: Response) => {
         let xgboostAnalysis = '';
 
         if (mlResult.xgboost?.status === 'success') {
-          xgboostAnalysis = await aiAnalysisService.analyzeXGBoost(
-            mlResult.xgboost.mae,
-            mlResult.xgboost.platformMae,
-            mlResult.xgboost.sample,
-            provider
-          );
+          try {
+            xgboostAnalysis = await aiAnalysisService.analyzeXGBoost(
+              mlResult.xgboost.mae,
+              mlResult.xgboost.platformMae,
+              mlResult.xgboost.sample,
+              provider
+            );
+          } catch (aiErr: any) {
+            console.error('XGBoost AI 분석 실패:', aiErr.message);
+            xgboostAnalysis = 'AI 분석을 불러오는 중 오류가 발생했습니다.';
+          }
         }
 
         return res.json({

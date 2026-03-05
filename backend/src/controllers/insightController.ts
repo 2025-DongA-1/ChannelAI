@@ -264,8 +264,8 @@ export const getRecommendations = async (req: Request, res: Response) => {
   
   try {
     const userId = (req as AuthRequest).user?.id;
-    // 💡 [수정됨] campaign_id를 추가로 받습니다.
-    const { campaign_id } = req.query;
+    // 💡 [수정됨] campaign_id, provider를 추가로 받습니다.
+    const { campaign_id, provider } = req.query;
     
     // 최근 30일 데이터 기반 분석
     const endDate = new Date();
@@ -397,12 +397,17 @@ export const getRecommendations = async (req: Request, res: Response) => {
     // 각 추천에 AI 70자 이유 추가 (병렬)
     const enriched = await Promise.all(
       sorted.map(async (rec) => {
-        const aiReason = await aiAnalysisService.analyzeRecommendation({
-          type: rec.type,
-          campaignName: rec.campaign_name,
-          platform: rec.platform,
-          reason: rec.reason,
-        });
+        let aiReason = '';
+        try {
+          aiReason = await aiAnalysisService.analyzeRecommendation({
+            type: rec.type,
+            campaignName: rec.campaign_name,
+            platform: rec.platform,
+            reason: rec.reason,
+          }, provider as string);
+        } catch (aiErr: any) {
+          console.error(`추천 AI 분석 실패 (${rec.campaign_name}):`, aiErr.message);
+        }
         return { ...rec, aiReason };
       })
     );

@@ -1,5 +1,6 @@
 import Groq from "groq-sdk";
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import axios from "axios";
 import dotenv from "dotenv";
 
 dotenv.config();
@@ -27,13 +28,21 @@ export class AIAnalysisService {
 
     // --- Groq ---
     if (activeProvider === 'groq' && this.groq) {
-      const completion = await this.groq.chat.completions.create({
-        model: 'llama-3.3-70b-versatile',
-        messages: [{ role: 'user', content: prompt }],
-        temperature: 0.5,
-        max_tokens: 400,
-      });
-      return completion.choices[0]?.message?.content ?? '';
+      try {
+        console.log(`[AI Service] Calling Groq with model: llama-3.3-70b-versatile`);
+        const completion = await this.groq.chat.completions.create({
+          model: 'llama-3.3-70b-versatile',
+          messages: [{ role: 'user', content: prompt }],
+          temperature: 0.5,
+          max_tokens: 400,
+        });
+        const content = completion.choices[0]?.message?.content ?? '';
+        console.log(`[AI Service] Groq response received (${content.length} chars)`);
+        return content;
+      } catch (err: any) {
+        console.error(`[AI Service] Groq Error:`, err);
+        throw new Error(`Groq Error: ${err.message}`);
+      }
     }
 
     // --- Gemini ---
@@ -45,22 +54,27 @@ export class AIAnalysisService {
 
     // --- OpenAI ---
     if (activeProvider === 'openai' && this.openaiKey) {
-      const response = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${this.openaiKey}`,
-        },
-        body: JSON.stringify({
+      try {
+        const res = await axios.post('https://api.openai.com/v1/chat/completions', {
           model: 'gpt-4o-mini',
           messages: [{ role: 'user', content: prompt }],
           temperature: 0.5,
           max_tokens: 400,
-        }),
-      });
-      const data = await response.json() as any;
-      if (data.error) throw new Error(`OpenAI Error: ${data.error.message}`);
-      return data.choices[0].message.content;
+        }, {
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${this.openaiKey}`,
+          }
+        });
+
+        if (res.data?.choices && res.data.choices.length > 0) {
+          return res.data.choices[0].message.content;
+        }
+        throw new Error('OpenAI 응답에 결과가 없습니다.');
+      } catch (err: any) {
+        const errorMsg = err.response?.data?.error?.message || err.message;
+        throw new Error(`OpenAI Error: ${errorMsg}`);
+      }
     }
 
     throw new Error(`AI 프로바이더 '${activeProvider}'가 올바르게 설정되지 않았거나 API 키가 없습니다.`);
@@ -151,7 +165,7 @@ ${JSON.stringify(ranks)}
     campaignName?: string;
     platform?: string;
     reason: string;
-  }): Promise<string> {
+  }, provider?: string): Promise<string> {
     try {
       const typeLabel =
         rec.type === 'budget_increase'          ? '예산 증액 추천' :
@@ -170,7 +184,7 @@ ${JSON.stringify(ranks)}
 
 * 딱 한 문장, 70자 이내로만 작성하세요. 다른 말은 하지 마세요.`;
 
-      const result = await this.call(prompt);
+      const result = await this.call(prompt, provider);
       // 70자 초과 시 자름
       return result.trim().slice(0, 70);
     } catch (error) {

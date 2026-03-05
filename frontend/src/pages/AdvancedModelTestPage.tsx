@@ -75,7 +75,8 @@ const AdvancedModelTestPage: React.FC = () => {
   const fetchRanks = useCallback(async () => {
     setIsRankLoading(true);
     try {
-      const res = await api.get('/ai/agent/advanced-metrics', { params: { startDate, endDate } });
+      // [2026-03-05 17:30] 수정 이유: Groq 페이지에서 명시적으로 groq 프로바이더를 지정하여 .env 기본값(OPENAI)에 의존하지 않도록 수정
+      const res = await api.get('/ai/agent/advanced-metrics', { params: { startDate, endDate, provider: 'groq' } });
       if (res.data?.success) {
         setCampaignRanks(res.data.data.campaignRanks ?? []);
         setRankAnalysis(res.data.data.aiAnalysis ?? '');
@@ -87,7 +88,8 @@ const AdvancedModelTestPage: React.FC = () => {
   const fetchML = useCallback(async () => {
     setIsMLLoading(true);
     try {
-      const res = await api.get('/ai/agent/ml-realtime', { params: { startDate, endDate } });
+      // [2026-03-05 17:30] 수정 이유: Groq 페이지에서 명시적으로 groq 프로바이더를 지정
+      const res = await api.get('/ai/agent/ml-realtime', { params: { startDate, endDate, provider: 'groq' } });
       if (res.data?.success) {
         setXgboost(res.data.data.xgboost    ?? null);
         setRf(     res.data.data.randomforest ?? null);
@@ -99,7 +101,8 @@ const AdvancedModelTestPage: React.FC = () => {
   const fetchRecs = useCallback(async () => {
     setIsRecsLoading(true);
     try {
-      const res = await api.get('/insights/recommendations');
+      // [2026-03-05 17:35] 수정 이유: Groq 페이지에서 AI 추천 분석 시에도 groq를 사용하도록 명시
+      const res = await api.get('/insights/recommendations', { params: { provider: 'groq' } });
       if (res.data?.recommendations) setRecommendations(res.data.recommendations);
     } catch (e) { console.error('AI 추천 조회 실패:', e); }
     finally { setIsRecsLoading(false); }
