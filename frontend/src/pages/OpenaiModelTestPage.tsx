@@ -50,8 +50,8 @@ const today   = () => new Date().toISOString().split('T')[0];
 
 // ── 컴포넌트 ───────────────────────────────────────────────────────────────
 // [2026-03-05 16:15] 수정 이유: AI 고급 모델 테스트 결과를 OpenAI 버전으로 확인하기 위해 독립된 페이지 생성
+// [2026-03-05 16:24] 수정 이유: 사용하지 않는 loading, setLoading 제거 (빌드 에러 및 TS6133 수정 목적)
 const OpenaiModelTestPage: React.FC = () => {
-  const [loading, setLoading] = useState(false);
   const [period, setPeriod] = useState({ start: daysAgo(30), end: today() });
 
   // 캠페인 랭킹
@@ -112,8 +112,9 @@ const OpenaiModelTestPage: React.FC = () => {
   }, [period]);
 
   useEffect(() => {
-    setLoading(true);
-    Promise.all([fetchRanks(), fetchML(), fetchRecs()]).finally(() => setLoading(false));
+    fetchRanks();
+    fetchML();
+    fetchRecs();
   }, [fetchRanks, fetchML, fetchRecs]);
 
   const handleSearch = () => { fetchRanks(); fetchML(); fetchRecs(); };
