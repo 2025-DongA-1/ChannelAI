@@ -75,9 +75,9 @@ const OpenaiModelTestPage: React.FC = () => {
   const fetchRanks = useCallback(async () => {
     setIsRankLoading(true);
     try {
-      // [2026-03-05 16:15] 수정 이유: OpenAI 전용 테스트를 위해 provider 파라미터 추가
-      const res = await api.get('/ai/advanced-test', {
-        params: { start_date: period.start, end_date: period.end, provider: 'openai' }
+      // [2026-03-05 16:35] 수정 이유: 잘못 변경했던 API 경로 원상 복구 (존재하는 백엔드 경로 사용)
+      const res = await api.get('/ai/agent/advanced-metrics', {
+        params: { startDate: period.start, endDate: period.end, provider: 'openai' }
       });
       if (res.data?.success) {
         setCampaignRanks(res.data.data.campaignRanks ?? []);
@@ -90,9 +90,9 @@ const OpenaiModelTestPage: React.FC = () => {
   const fetchML = useCallback(async () => {
     setIsMLLoading(true);
     try {
-      // [2026-03-05 16:15] 수정 이유: OpenAI 전용 테스트를 위해 provider 파라미터 추가
-      const res = await api.get('/ai/advanced-test', {
-        params: { start_date: period.start, end_date: period.end, provider: 'openai' }
+      // [2026-03-05 16:35] 수정 이유: 잘못 변경했던 API 경로 원상 복구 (존재하는 백엔드 경로 사용)
+      const res = await api.get('/ai/agent/ml-realtime', {
+        params: { startDate: period.start, endDate: period.end, provider: 'openai' }
       });
       if (res.data?.success) {
         setXgboost(res.data.data.xgboost    ?? null);
