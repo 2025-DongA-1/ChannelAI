@@ -87,6 +87,7 @@ jobs:
               cd $APP_DIR
               git fetch origin
               git reset --hard origin/main
+              git clean -fd   # untracked 파일(git에 없는 잔재 파일) 완전 제거
             else
               echo ">> 최초 clone..."
               rm -rf $APP_DIR
