@@ -117,9 +117,9 @@ export default function CampaignsPage() {
   // };
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="space-y-6 p-2 sm:p-4 md:p-6">
       {/* Header */}
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-center">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">캠페인 & 예산 관리</h1>
           <p className="text-gray-600 mt-1">모든 플랫폼의 캠페인과 예산을 한곳에서 관리하세요</p>
@@ -148,8 +148,8 @@ export default function CampaignsPage() {
       </div>
 
       {/* Filters */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-3 sm:p-4">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-3 md:gap-4">
           {/* Search */}
           <div className="relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
@@ -195,8 +195,8 @@ export default function CampaignsPage() {
       </div>
 
       {/* Budget Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+      <div className="grid grid-cols-1 gap-3 sm:gap-4 md:grid-cols-4 md:gap-6">
+        <div className="bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-gray-100">
           <div className="flex items-center justify-between mb-2">
             <p className="text-sm text-gray-500">전체 예산</p>
             {/* 👇 누르면 모달이 열리는 연필 아이콘 버튼 추가! */}
@@ -212,7 +212,7 @@ export default function CampaignsPage() {
           </div>
           <p className="text-2xl font-bold text-gray-900">{formatCurrency(summary?.totalBudget || 0)}</p>
         </div>
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+        <div className="bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-gray-100">
           <div className="flex items-center justify-between mb-2">
             <p className="text-sm text-gray-500">집행 금액</p>
             <TrendingUp className="w-5 h-5 text-green-500" />
@@ -222,14 +222,14 @@ export default function CampaignsPage() {
             소진율: {formatPercent(summary?.utilizationRate || 0)}
           </p>
         </div>
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+        <div className="bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-gray-100">
           <div className="flex items-center justify-between mb-2">
             <p className="text-sm text-gray-500">잔여 예산</p>
             <AlertTriangle className="w-5 h-5 text-yellow-500" />
           </div>
           <p className="text-2xl font-bold text-gray-900">{formatCurrency(summary?.remaining || 0)}</p>
         </div>
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+        <div className="bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-gray-100">
           <div className="flex items-center justify-between mb-2">
             <p className="text-sm text-gray-500">일일 예산</p>
             {/* 🌟 [수정 버튼 추가] 클릭 시 전체 예산과 일일 예산 값을 모달 상태에 미리 채워넣습니다. */}
@@ -250,7 +250,7 @@ export default function CampaignsPage() {
       </div>
 
       {/* Platform Budget Chart */}
-      <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+      <div className="bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-gray-100">
         <h2 className="text-lg font-semibold text-gray-900 mb-4">플랫폼별 예산 분배</h2>
         {platforms.length > 0 ? (
           <ResponsiveContainer width="100%" height={300}>
@@ -279,7 +279,7 @@ export default function CampaignsPage() {
       </div>
 
       {/* Campaign Stats Summary */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-4">
         <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-100">
           <p className="text-sm text-gray-600">전체 캠페인</p>
           <p className="text-2xl font-bold text-gray-900 mt-1">{campaigns.length}</p>

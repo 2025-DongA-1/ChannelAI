@@ -78,6 +78,19 @@ export default function InsightsPage() {
   const llmInsightText = llmMutation.data?.data?.insightText;
   const llmInsightLoading = llmMutation.isPending;
 
+  // 🤖 [추가됨] 플랫폼 비교 전용 크로스 미디어 분석 API 호출
+  const platformMutation = useMutation({
+    mutationFn: async () => {
+      const response = await api.post('/ai/agent/generate-platform-insights', {
+        platformData: comparison,
+      });
+      return response.data;
+    }
+  });
+
+  const platformInsightText = platformMutation.data?.data?.insightText;
+  const platformInsightLoading = platformMutation.isPending;
+
   const handleDateChange = (field: 'start' | 'end', value: string) => {
     setDateRange(prev => ({ ...prev, [field]: value }));
   };
@@ -459,18 +472,43 @@ export default function InsightsPage() {
             </table>
           </div>
           
-          {/* 💡 [추가됨] 성과 비교 표 하단 요약 및 해석 */}
-          <div className="bg-blue-50 p-5 border-t border-gray-100">
+          {/* 💡 [수정됨] 매체 비교 분석 전용 AI 돋보기 */}
+          <div className="bg-gradient-to-br from-blue-50 to-indigo-50 p-5 border-t border-blue-100">
             <div className="flex items-start gap-3">
-              <Target className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
-              <div>
-                <p className="font-semibold text-blue-900 text-sm mb-1.5">💡 데이터 돋보기: 어떤 채널이 제일 열일하고 있을까요?</p>
-                <p className="text-sm text-blue-800 leading-relaxed">
-                  위 표에서 가장 중요하게 보셔야 할 숫자는 제일 오른쪽에 있는 <strong className="font-bold">ROAS(광고 수익률)</strong>입니다! 
-                  ROAS가 가장 높은 플랫폼이 현재 사장님의 타겟 고객과 가장 궁합이 잘 맞는 채널이에요. 
-                  반대로 <strong className="font-bold">CTR(클릭률)</strong>은 높은데 ROAS가 1.0x 이하라면, 고객이 광고를 보고 클릭은 많이 하지만 실제 구매나 문의로는 이어지지 않고 있다는 뜻이랍니다. 
-                  효율이 높은 채널에 예산을 조금 더 실어주는 '선택과 집중'을 고려해 보세요!
-                </p>
+              <Target className="w-6 h-6 text-blue-600 flex-shrink-0 mt-0.5" />
+              <div className="w-full">
+                <div className="flex justify-between items-center mb-2">
+                  <p className="font-bold text-blue-900 text-base flex items-center gap-2">
+                    🤖 크로스 미디어 AI 전략 리포트
+                    {platformInsightLoading && <span className="text-xs text-blue-500 font-normal animate-pulse">(매체 간 효율을 꼼꼼히 비교하고 있어요...)</span>}
+                  </p>
+                  
+                  {!platformInsightText && !platformInsightLoading && (
+                    <button 
+                      onClick={() => platformMutation.mutate()}
+                      className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-md transition-colors flex items-center gap-1 shadow-sm"
+                    >
+                      <Sparkles className="w-4 h-4" />
+                      매체 비교 분석 실행하기
+                    </button>
+                  )}
+                </div>
+
+                {platformInsightLoading ? (
+                  <div className="space-y-2 animate-pulse mt-3 border-t border-blue-200 pt-3">
+                    <div className="h-4 bg-blue-200 rounded w-3/4"></div>
+                    <div className="h-4 bg-blue-200 rounded w-full"></div>
+                    <div className="h-4 bg-blue-200 rounded w-5/6"></div>
+                  </div>
+                ) : platformInsightText ? (
+                  <div className="text-sm text-blue-900 leading-relaxed whitespace-pre-line mt-3 border-t border-blue-200 pt-3">
+                    {platformInsightText}
+                  </div>
+                ) : (
+                  <div className="text-sm text-blue-600/80 leading-relaxed mt-1">
+                    우측 상단의 버튼을 눌러 각 매체별 예산 누수를 잡고 최적의 예산 재배분 전략을 받아보세요!
+                  </div>
+                )}
               </div>
             </div>
           </div>
