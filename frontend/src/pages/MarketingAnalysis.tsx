@@ -78,10 +78,20 @@ function MarketingAnalysis() {
     setBudget(numValue.toLocaleString()); // 콤마 붙여서 상태 업데이트
   };
 
+  // 1번 엔진 : AI분석을 위한 실시간 채널 데이터(Input 재료)
   const { data: dbData} = useQuery({
     queryKey: ['ai-analysis-data'], // 고유한 이름표
     queryFn: () => dashboardAPI.getChannelPerformance(), // 대시보드와 같은 API 호출
   }); 
+
+  // 2번 엔진 : 유저의 과거 분석 히스토리(output 결과)
+ const { data: historyList, refetch: refetchHistory } = useQuery({
+    queryKey: ['ai-history', user?.id],                   // 유저가 바뀌면 이 데이터도 바뀜
+    queryFn: () => dashboardAPI.getAiHistory(Number(user?.id)),
+    enabled: !!user?.id,                                  // 로그인했을 때만 작동하는 안전장치
+  });
+
+
 
   useEffect(() => {
     setMounted(true);
@@ -179,6 +189,9 @@ function MarketingAnalysis() {
 
       setResult(response.data);
 
+      // 히스토리 목록 다시 불러오기
+      setTimeout(() => refetchHistory(), 500);
+
     } catch (error) {
       console.error(error);
       alert("서버 연결 실패! (백엔드를 실행해주세요)");
@@ -186,11 +199,35 @@ function MarketingAnalysis() {
     setLoading(false);
   };
 
+  // ✅ [추가] 과거 리포트 불러오기 함수 (여기에 쏙 들어갑니다)
+  const handleLoadHistory = async (historyId: number) => {
+    setLoading(true); 
+    try {
+      const reportData = await dashboardAPI.getAiReportDetail(historyId);
+      
+      // DB에서 넘어온 데이터 파싱 (문자열이면 객체로, 객체면 그대로)
+      const parsedData = typeof reportData === 'string' ? JSON.parse(reportData) : reportData;
+      
+      // 기존 화면의 그래프와 리포트 데이터를 옛날 데이터로 싹 덮어씌웁니다!
+      setResult(parsedData);
+      
+      // 스크롤을 맨 위로 부드럽게 올려서 결과 화면을 바로 보게 해줍니다.
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } catch (error) {
+      console.error(error);
+      alert("과거 리포트를 불러오는 데 실패했습니다.");
+    }
+    setLoading(false);
+  };
+  // ─────────────────────────────────────────────────────────
+
+
   const handlePeriodChange = (newPeriod: number) => {
     setPeriod(newPeriod);
     getRecommendation(newPeriod);
   };
 
+  
   // 차트 데이터 가공
   const pieData = result ? [
     { name: '네이버', value: result.allocated_budget[0], color: '#2DB400' },
@@ -209,6 +246,9 @@ function MarketingAnalysis() {
   // DB 데이터(realPerformance)가 없으면 빈 배열로 처리
   const dbList = dbData?.data?.performance || [];
   const totalInputCost = dbList.reduce((acc: number, cur: any) => acc + (cur.metrics?.cost || 0), 0);
+
+  // rows에서 데이터만 가져오기
+  const safeHistoryList = historyList?.rows ? historyList.rows : (Array.isArray(historyList) ? historyList : []);
 
   return (
     <div style={{ backgroundColor: BG_COLOR, minHeight: '100vh', padding: '40px 20px', fontFamily: '"Pretendard", sans-serif' }}>
@@ -655,22 +695,58 @@ function MarketingAnalysis() {
           )
         ) : (
           /* ─── CASE C: 아직 분석 버튼을 누르지 않은 초기 화면 ─── */
-          <div style={{ 
-            display: 'flex', 
-            flexDirection: 'column',
-            alignItems: 'center', 
-            justifyContent: 'center', 
-            backgroundColor: 'white', 
-            borderRadius: '20px', 
-            border: '2px dashed #e0e0e0', 
-            color: '#aaa', 
-            minHeight: '400px' 
-          }}>
-            <div style={{ fontSize: '4rem', marginBottom: '20px', opacity: 0.5 }}>📊</div>
-            <p style={{ fontSize: '1.3rem', textAlign: 'center', lineHeight: '1.6' }}>
-              상단에 예산을 입력하고 <strong>PRO 리포트 생성</strong> 버튼을 눌러주세요.<br/>
-              <span style={{ fontSize: '1rem', color: '#bbb' }}>연동된 4개 채널의 데이터를 분석하여 최적의 전략을 제안합니다.</span>
-            </p>
+          // ✅ 1. 부모 박스(<div style={{ display: 'flex', flexDirection: 'column', gap: '30px' }}>)로 두 영역을 감싸줍니다.
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '30px' }}>
+            
+            {/* 1️⃣ 사장님의 기존 안내 문구 영역 (절대 건드리지 않음) */}
+            <div style={{ 
+              display: 'flex', 
+              flexDirection: 'column',
+              alignItems: 'center', 
+              justifyContent: 'center', 
+              backgroundColor: 'white', 
+              borderRadius: '20px', 
+              border: '2px dashed #e0e0e0', 
+              color: '#aaa', 
+              minHeight: '400px' 
+            }}>
+              <div style={{ fontSize: '4rem', marginBottom: '20px', opacity: 0.5 }}>📊</div>
+              <p style={{ fontSize: '1.3rem', textAlign: 'center', lineHeight: '1.6' }}>
+                상단에 예산을 입력하고 <strong>PRO 리포트 생성</strong> 버튼을 눌러주세요.<br/>
+                <span style={{ fontSize: '1rem', color: '#bbb' }}>연동된 4개 채널의 데이터를 분석하여 최적의 전략을 제안합니다.</span>
+              </p>
+            </div>
+
+            {/* 2️⃣ 🔥 여기에 드디어 historyList가 쓰입니다! (에러 해결의 핵심) 🔥 */}
+            <div style={{ backgroundColor: 'white', padding: '30px', borderRadius: '20px', boxShadow: '0 5px 15px rgba(0,0,0,0.02)', border: '1px solid #f1f3f5' }}>
+              <h3 style={{ marginBottom: '20px', color: '#2D3436', fontWeight: 'bold' }}>📜 지난 분석 리포트 다시보기</h3>
+
+              {safeHistoryList && safeHistoryList.length > 0 ? (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: '20px' }}>
+                  {safeHistoryList.slice(0,3).map((item: any) => (
+                    <div 
+                      key={item.id} 
+                      onClick={()=> handleLoadHistory(item.id)}
+                      style={{ padding: '20px', backgroundColor: '#F8F9FA', borderRadius: '15px', border: '1px solid #eee', cursor: 'pointer' }}>
+                        <div style={{ fontSize: '0.85rem', color: '#888', marginBottom: '8px' }}>
+                          📅 {new Date(item.created_at).toLocaleDateString()} 분석
+                        </div>
+                        <div style={{ fontWeight: '900', fontSize: '1.2rem', color: '#2D3436' }}>
+                          {item.budget.toLocaleString()}원 최적화
+                        </div>
+                        <div style={{ marginTop: '10px', fontSize: '0.9rem', color: '#0984e3' }}>
+                          ✨ {item.best_channel} 집중 전략
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div style={{ color: '#b2bec3', textAlign: 'center', padding: '20px' }}>
+                  아직 저장된 분석 기록이 없습니다. 사장님의 첫 분석을 시작해 보세요!
+                </div>
+              )}
+            </div>
+
           </div>
         )}
       </div>
