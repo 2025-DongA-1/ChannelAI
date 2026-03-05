@@ -281,8 +281,7 @@ jobs:
                   NODE_ENV: 'production',
                   PORT: 3000,
                   HTTPS_PROXY: 'http://10.10.10.6:3128',  // WAS→외부 아웃바운드 프록시
-                  HTTP_PROXY: 'http://10.10.10.6:3128',
-                  NO_PROXY: 'googleapis.com,accounts.google.com,oauth2.googleapis.com'  // Google API는 프록시 우회
+                  HTTP_PROXY: 'http://10.10.10.6:3128'
                 },
                 log_file: '/opt/marketing-platform/logs/combined.log',
                 out_file: '/opt/marketing-platform/logs/out.log',
