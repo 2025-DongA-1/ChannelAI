@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { insightsAPI } from '@/lib/api';
+import { useQuery, useMutation } from '@tanstack/react-query';
+import { insightsAPI, api } from '@/lib/api';
 import { 
   TrendingUp, 
   TrendingDown, 
@@ -11,6 +11,7 @@ import {
   AlertCircle,
   CheckCircle,
   Target,
+  Sparkles,
 } from 'lucide-react';
 import {
   LineChart,
@@ -62,6 +63,20 @@ export default function InsightsPage() {
   const trends = trendsData?.data;
   const comparison = comparisonData?.data;
   const recommendations = recommendationsData?.data;
+
+  // 🤖 [수정됨] 토큰 낭비 방지! 자동 실행(useQuery) 대신 수동 실행(useMutation)으로 변경
+  const llmMutation = useMutation({
+    mutationFn: async () => {
+      const response = await api.post('/ai/agent/generate-insights', {
+        trendsData: trends,
+        platformData: comparison,
+      });
+      return response.data;
+    }
+  });
+
+  const llmInsightText = llmMutation.data?.data?.insightText;
+  const llmInsightLoading = llmMutation.isPending;
 
   const handleDateChange = (field: 'start' | 'end', value: string) => {
     setDateRange(prev => ({ ...prev, [field]: value }));
@@ -301,16 +316,43 @@ export default function InsightsPage() {
               </LineChart>
             </ResponsiveContainer>
             
-            {/* 💡 초보자를 위한 데이터 상세 해석 박스 */}
-            <div className="mt-4 p-4 bg-indigo-50 rounded-lg border border-indigo-100 flex items-start gap-3">
-              <Lightbulb className="w-5 h-5 text-indigo-600 flex-shrink-0 mt-0.5" />
-              <div>
-                <p className="font-semibold text-indigo-900 text-sm mb-1">💡 데이터 돋보기: 성과 추세 읽는 법</p>
-                <p className="text-sm text-indigo-800 leading-relaxed">
-                  이 그래프는 단위가 완전히 다른 데이터들을 한눈에 비교할 수 있도록 <strong>비율(%)</strong>로 맞춰져 있습니다! (정확한 수치는 마우스를 올려 확인하세요). 
-                  파란색 선(노출수) 대비 초록색 선(클릭수)이 함께 올라가고 있다면 타겟팅이 아주 잘 되고 있다는 뜻입니다. 
-                  만약 비용(노란선)은 꾸준히 나가는데 클릭이나 전환(보라선) 추세가 바닥으로 꺾여 있다면, 사람들의 눈에 익어 '광고 피로도'가 높아진 상태일 수 있으니 새로운 이미지나 문구로 교체해 보세요.
-                </p>
+            {/* 💡 [수정됨] 수동 실행 버튼이 추가된 AI 상세 해석 박스 */}
+            <div className="mt-4 p-5 bg-gradient-to-br from-indigo-50 to-blue-50 rounded-lg border border-indigo-100 flex items-start gap-3 shadow-sm">
+              <Lightbulb className="w-6 h-6 text-indigo-600 flex-shrink-0 mt-0.5" />
+              <div className="w-full">
+                <div className="flex justify-between items-center mb-2">
+                  <p className="font-bold text-indigo-900 text-base flex items-center gap-2">
+                    🤖 AI 마케팅 분석가의 상세 리포트
+                    {llmInsightLoading && <span className="text-xs text-indigo-500 font-normal animate-pulse">(데이터를 꼼꼼히 분석하고 있어요...)</span>}
+                  </p>
+                  
+                  {/* 분석 결과가 없고, 로딩 중이 아닐 때만 실행 버튼 표시 */}
+                  {!llmInsightText && !llmInsightLoading && (
+                    <button 
+                      onClick={() => llmMutation.mutate()}
+                      className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-md transition-colors flex items-center gap-1 shadow-sm"
+                    >
+                      <Sparkles className="w-4 h-4" />
+                      AI 분석 실행하기
+                    </button>
+                  )}
+                </div>
+
+                {llmInsightLoading ? (
+                  <div className="space-y-2 animate-pulse mt-3 border-t border-indigo-100 pt-3">
+                    <div className="h-4 bg-indigo-200 rounded w-3/4"></div>
+                    <div className="h-4 bg-indigo-200 rounded w-full"></div>
+                    <div className="h-4 bg-indigo-200 rounded w-5/6"></div>
+                  </div>
+                ) : llmInsightText ? (
+                  <div className="text-sm text-indigo-800 leading-relaxed whitespace-pre-line mt-3 border-t border-indigo-100 pt-3">
+                    {llmInsightText}
+                  </div>
+                ) : (
+                  <div className="text-sm text-indigo-600/80 leading-relaxed mt-1">
+                    우측 상단의 버튼을 눌러 현재 차트 지표(노출, 클릭, 전환, 비용)에 대한 맞춤형 AI 상세 분석 리포트를 받아보세요!
+                  </div>
+                )}
               </div>
             </div>
           </div>

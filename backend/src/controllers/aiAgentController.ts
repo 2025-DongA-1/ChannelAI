@@ -5,6 +5,9 @@ import { spawn } from 'child_process'; // Python 스크립트 호출용
 import path from 'path';               // 스크립트 경로 계산용
 import dotenv from 'dotenv';
 import { AIAnalysisService } from '../services/ai/aiAnalysisService';
+// 💡 [추가됨] LangChain 및 OpenAI 패키지 임포트
+import { ChatOpenAI } from '@langchain/openai';
+import { PromptTemplate } from '@langchain/core/prompts';
 dotenv.config();
 
 const aiAnalysisService = new AIAnalysisService();
@@ -622,3 +625,81 @@ export const getMLRealtime = async (req: AuthRequest, res: Response) => {
     return res.status(500).json({ success: false, error: 'ML 예측 중 오류가 발생했습니다.' });
   }
 };
+
+/**
+ * 🤖 [새로 추가됨] 프론트엔드 차트 데이터를 받아 OpenAI LLM으로 분석 텍스트 생성
+ * POST /api/v1/ai/agent/generate-insights
+ */
+export const generateLLMInsights = async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    // 프론트엔드에서 넘겨줄 데이터 (추세 데이터, 플랫폼 데이터 등)
+    const { trendsData, platformData } = req.body;
+
+    if (!userId) {
+      return res.status(401).json({ success: false, error: '인증이 필요합니다.' });
+    }
+
+    // 서버 환경 변수에 OPENAI_API_KEY가 세팅되어 있어야 합니다!
+    if (!process.env.OPENAI_API_KEY) {
+      return res.status(500).json({ success: false, error: 'OpenAI API 키가 설정되지 않았습니다.' });
+    }
+
+    // 💡 [수정됨] 창의성을 0.2로 대폭 낮춰서 뜬구름 잡는 소리(Hallucination)를 막고 수치 분석에 집중하게 만듭니다.
+    const model = new ChatOpenAI({
+      modelName: 'gpt-4o-mini', 
+      temperature: 0.2, 
+    });
+
+    // 💡 [수정됨] 근 한 달(약 30일) 간의 거시적인 추세를 바탕으로 분석하도록 프롬프트를 재설계했습니다.
+    const prompt = PromptTemplate.fromTemplate(`
+      너는 'Plan BE'의 수석 데이터 분석가야.
+      사용자가 방금 [노출수, 클릭수, 광고비, 전환수] 4가지 지표의 최근 약 한 달(30일)간 시계열 추세를 보여주는 차트를 확인했어.
+      아래의 [마케팅 성과 추세 데이터]를 바탕으로, 지표 간 상관관계를 심도 깊게 분석해 줘.
+
+      [마케팅 성과 추세 데이터]
+      {trends}
+
+      [🚨 절대 지켜야 할 작성 수칙]
+      1. 일반론적인 마케팅 조언(예: 랜딩페이지 최적화, 사용자 경험(UX) 개선, 타겟팅 재검토, 소재 다양화 등)은 **절대, 무조건 금지**한다.
+      2. 마케팅 초보자인 소상공인 사장님에게 직접 보고하듯, 반드시 친절하고 정중한 존댓말(해요/비니다 체)을 사용할 것. 반말이나 명령조("~해라")는 절대 금지한다.
+      3. 반드시 데이터에 나타난 '특정 날짜나 기간', '정확한 수치', '지표간의 상관관계'를 직접 인용하여 분석 근거를 댈 것.
+      4. 다음 3가지 소제목 구조를 완벽하게 지켜서 작성해 줘.
+
+      📉 1. 비용 대비 트래픽 확보 효율 (광고비 vs 노출·클릭)
+      - (가이드: 지출된 광고비 대비 노출수와 클릭수가 비례해서 잘 따라오고 있는지, 특정 날짜를 기점으로 클릭당 비용(CPC) 효율이 떨어지거나 좋아진 구간이 있는지 전체 추세를 보고 정확히 짚어줄 것)
+      
+      🎯 2. 트래픽 대비 전환 달성률 (클릭 vs 전환)
+      - (가이드: 유입된 클릭수 대비 실제 전환수(구매/문의 등)가 어떻게 변하고 있는지, 트래픽은 유지되는데 전환만 급감한 특정 시점이 있는지 전체 추세를 분석할 것)
+      
+      💡 3. 근 한 달 추세 기반 맞춤 예산 액션 플랜
+      - (가이드: 짧은 며칠의 변동성이 아닌, 제공된 데이터의 **'전체적인 한 달 추세(우상향/우하향)'와 '최근 일주일의 흐름'을 종합**하여 거시적인 관점에서 진단할 것. 예: "최근 한 달간 전반적으로 CPC가 상승하는 추세이며 최근 일주일 전환도 정체되었으므로, 현재 일일 예산을 10~15% 하향 조정하시는 것을 추천해 드려요." 처럼 묵직한 데이터 흐름에 기반한 '예산 분배와 운영(ON/OFF)' 액션을 1~2줄로 제안할 것.)
+    `);
+
+    // 토큰 한도 초과를 막기 위해 데이터를 적당히 잘라서 넣습니다.
+    const formattedPrompt = await prompt.format({
+      trends: JSON.stringify(trendsData || {}).substring(0, 2000), 
+      platforms: JSON.stringify(platformData || {}).substring(0, 2000),
+    });
+
+    console.log("🤖 [LLM] OpenAI 인사이트 분석 요청 중...");
+    const response = await model.invoke(formattedPrompt);
+    console.log("✅ [LLM] 분석 완료!");
+    
+    // 분석된 텍스트 응답
+    return res.json({
+      success: true,
+      data: {
+        insightText: response.content,
+      }
+    });
+
+  } catch (error: any) {
+    console.error('LLM 인사이트 생성 오류:', error);
+    return res.status(500).json({ success: false, error: 'LLM 인사이트 생성 중 오류가 발생했습니다.' });
+  }
+};
+
+// =============================================================
+// 내부 분석 함수 (추후 ML 모델로 교체 예정)
+// =============================================================
