@@ -17,13 +17,39 @@ export const getTrends = async (req: Request, res: Response) => {
   
   try {
     const userId = (req as AuthRequest).user?.id;
-    const { start_date, end_date, period = 'daily' } = req.query;
+    // 💡 [수정됨] 프론트엔드에서 넘어오는 campaign_id 파라미터를 추가로 받습니다.
+    const { start_date, end_date, period = 'daily', campaign_id } = req.query;
     
     // 기본 기간: 최근 30일
     const endDate = end_date ? new Date(end_date as string) : new Date();
     const startDate = start_date 
       ? new Date(start_date as string) 
       : new Date(endDate.getTime() - 30 * 24 * 60 * 60 * 1000);
+    
+    // 💡 [추가됨] 캠페인 ID가 있으면 쿼리에 필터 조건을 추가하기 위한 설정
+    let campaignFilter = '';
+    const currentParams: any[] = [
+      userId,
+      startDate.toISOString().split('T')[0],
+      endDate.toISOString().split('T')[0]
+    ];
+    
+    // 이전 기간 데이터 (비교용) 파라미터 세팅
+    const periodLength = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+    const previousStartDate = new Date(startDate.getTime() - periodLength * 24 * 60 * 60 * 1000);
+    const previousEndDate = new Date(startDate.getTime() - 24 * 60 * 60 * 1000);
+    
+    const previousParams: any[] = [
+      userId,
+      previousStartDate.toISOString().split('T')[0],
+      previousEndDate.toISOString().split('T')[0]
+    ];
+
+    if (campaign_id) {
+      campaignFilter = ' AND c.id = ? ';
+      currentParams.push(campaign_id);
+      previousParams.push(campaign_id);
+    }
     
     // 현재 기간 데이터
     const currentPeriodQuery = `
@@ -39,20 +65,12 @@ export const getTrends = async (req: Request, res: Response) => {
       JOIN marketing_accounts ma ON c.marketing_account_id = ma.id
       WHERE ma.user_id = ?
         AND cm.metric_date BETWEEN ? AND ?
+        ${campaignFilter}
       GROUP BY DATE(cm.metric_date)
       ORDER BY DATE(cm.metric_date)
     `;
     
-    const currentData = await client.query(currentPeriodQuery, [
-      userId,
-      startDate.toISOString().split('T')[0],
-      endDate.toISOString().split('T')[0],
-    ]);
-    
-    // 이전 기간 데이터 (비교용)
-    const periodLength = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
-    const previousStartDate = new Date(startDate.getTime() - periodLength * 24 * 60 * 60 * 1000);
-    const previousEndDate = new Date(startDate.getTime() - 24 * 60 * 60 * 1000);
+    const currentData = await client.query(currentPeriodQuery, currentParams);
     
     const previousPeriodQuery = `
       SELECT 
@@ -66,13 +84,10 @@ export const getTrends = async (req: Request, res: Response) => {
       JOIN marketing_accounts ma ON c.marketing_account_id = ma.id
       WHERE ma.user_id = ?
         AND cm.metric_date BETWEEN ? AND ?
+        ${campaignFilter}
     `;
     
-    const previousData = await client.query(previousPeriodQuery, [
-      userId,
-      previousStartDate.toISOString().split('T')[0],
-      previousEndDate.toISOString().split('T')[0],
-    ]);
+    const previousData = await client.query(previousPeriodQuery, previousParams);
     
     // 현재 기간 총합
     const currentTotals = currentData.rows.reduce((acc: any, row: any) => ({
@@ -150,13 +165,26 @@ export const getComparison = async (req: Request, res: Response) => {
   
   try {
     const userId = (req as AuthRequest).user?.id;
-    const { start_date, end_date } = req.query;
+    // 💡 [수정됨] campaign_id를 추가로 받습니다.
+    const { start_date, end_date, campaign_id } = req.query;
     
     const endDate = end_date ? new Date(end_date as string) : new Date();
     const startDate = start_date 
       ? new Date(start_date as string) 
       : new Date(endDate.getTime() - 30 * 24 * 60 * 60 * 1000);
     
+    let campaignFilter = '';
+    const queryParams: any[] = [
+      startDate.toISOString().split('T')[0],
+      endDate.toISOString().split('T')[0],
+      userId,
+    ];
+
+    if (campaign_id) {
+      campaignFilter = ' AND c.id = ? ';
+      queryParams.push(campaign_id);
+    }
+
     const query = `
       SELECT 
         ma.channel_code AS platform,
@@ -174,15 +202,12 @@ export const getComparison = async (req: Request, res: Response) => {
       JOIN campaign_metrics cm ON cm.campaign_id = c.id
         AND cm.metric_date BETWEEN ? AND ?
       WHERE ma.user_id = ?
+        ${campaignFilter}
       GROUP BY ma.channel_code
       ORDER BY SUM(cm.cost) DESC
     `;
     
-    const result = await client.query(query, [
-      startDate.toISOString().split('T')[0],
-      endDate.toISOString().split('T')[0],
-      userId,
-    ]);
+    const result = await client.query(query, queryParams);
     
     const platforms = result.rows.map(row => ({
       platform: row.platform,
@@ -239,11 +264,25 @@ export const getRecommendations = async (req: Request, res: Response) => {
   
   try {
     const userId = (req as AuthRequest).user?.id;
+    // 💡 [수정됨] campaign_id를 추가로 받습니다.
+    const { campaign_id } = req.query;
     
     // 최근 30일 데이터 기반 분석
     const endDate = new Date();
     const startDate = new Date(endDate.getTime() - 30 * 24 * 60 * 60 * 1000);
     
+    let campaignFilter = '';
+    const queryParams: any[] = [
+      startDate.toISOString().split('T')[0],
+      endDate.toISOString().split('T')[0],
+      userId,
+    ];
+
+    if (campaign_id) {
+      campaignFilter = ' AND c.id = ? ';
+      queryParams.push(campaign_id);
+    }
+
     // 캠페인별 성과 분석
     const campaignQuery = `
       SELECT 
@@ -264,16 +303,13 @@ export const getRecommendations = async (req: Request, res: Response) => {
       LEFT JOIN campaign_metrics cm ON cm.campaign_id = c.id
         AND cm.metric_date BETWEEN ? AND ?
       WHERE ma.user_id = ?
+        ${campaignFilter}
       GROUP BY c.id, c.campaign_name, ma.channel_code, c.status, c.daily_budget
       HAVING SUM(cm.cost) > 0
       ORDER BY roas DESC
     `;
     
-    const campaigns = await client.query(campaignQuery, [
-      startDate.toISOString().split('T')[0],
-      endDate.toISOString().split('T')[0],
-      userId,
-    ]);
+    const campaigns = await client.query(campaignQuery, queryParams);
     
     const recommendations: any[] = [];
     

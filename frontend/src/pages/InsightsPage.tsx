@@ -1,4 +1,5 @@
-import { useState } from 'react';
+// 💡 [수정됨] React에서 useEffect를 추가로 불러옵니다.
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { insightsAPI, api } from '@/lib/api';
 import { 
@@ -12,7 +13,7 @@ import {
   CheckCircle,
   Target,
   Sparkles,
-  RefreshCw, // 💡 [추가됨] 다시 분석하기 버튼에 들어갈 예쁜 새로고침 아이콘!
+  RefreshCw, 
 } from 'lucide-react';
 import {
   LineChart,
@@ -36,34 +37,69 @@ export default function InsightsPage() {
     start: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
     end: new Date().toISOString().split('T')[0],
   });
+  
+  // 💡 [추가됨] 캠페인 선택 상태 관리 ('all'이면 모든 캠페인 종합 보기)
+  const [selectedCampaign, setSelectedCampaign] = useState<string>('all');
 
-  // 추세 분석 데이터
+  // 💡 [추가됨] 백엔드에 뚫어둔 analyze API를 호출해서 '활성 캠페인 목록'을 가져옵니다.
+  const { data: analyzeData } = useQuery({
+    queryKey: ['ai-analyze-base'],
+    queryFn: async () => {
+      const response = await api.post('/ai/agent/analyze', { period: 30 });
+      return response.data;
+    }
+  });
+
+  // 추세 분석 데이터 (캠페인 ID 파라미터 추가)
   const { data: trendsData, isLoading: trendsLoading } = useQuery({
-    queryKey: ['insights-trends', dateRange],
+    queryKey: ['insights-trends', dateRange, selectedCampaign],
     queryFn: () => insightsAPI.getTrends({
       start_date: dateRange.start,
       end_date: dateRange.end,
+      campaign_id: selectedCampaign === 'all' ? undefined : selectedCampaign,
     }),
   });
 
-  // 플랫폼 비교 데이터
+  // 플랫폼 비교 데이터 (캠페인 ID 파라미터 추가)
   const { data: comparisonData, isLoading: comparisonLoading } = useQuery({
-    queryKey: ['insights-comparison', dateRange],
+    queryKey: ['insights-comparison', dateRange, selectedCampaign],
     queryFn: () => insightsAPI.getComparison({
       start_date: dateRange.start,
       end_date: dateRange.end,
+      campaign_id: selectedCampaign === 'all' ? undefined : selectedCampaign,
     }),
   });
 
-  // AI 추천 데이터
+  // AI 추천 데이터 (캠페인 ID 파라미터 추가)
   const { data: recommendationsData, isLoading: recommendationsLoading } = useQuery({
-    queryKey: ['insights-recommendations'],
-    queryFn: () => insightsAPI.getRecommendations(),
+    queryKey: ['insights-recommendations', selectedCampaign],
+    queryFn: () => insightsAPI.getRecommendations({
+      campaign_id: selectedCampaign === 'all' ? undefined : selectedCampaign,
+    }),
   });
 
   const trends = trendsData?.data;
   const comparison = comparisonData?.data;
   const recommendations = recommendationsData?.data;
+  // 💡 [추가됨] 드롭다운에 뿌려줄 캠페인 목록 데이터
+  const availableCampaigns = analyzeData?.data?.availableCampaigns || [];
+
+  // 💡 [추가됨] 페이지 최초 진입 시, 캠페인 목록 로딩이 끝나면 날짜를 전체 캠페인 최초 개시일로 자동 셋팅!
+  useEffect(() => {
+    if (availableCampaigns.length > 0 && selectedCampaign === 'all') {
+      const today = new Date().toISOString().split('T')[0];
+      const earliestDate = availableCampaigns.reduce((min: string, c: any) => {
+        if (!c.start_date) return min;
+        const cDate = new Date(c.start_date).toISOString().split('T')[0];
+        return cDate < min ? cDate : min;
+      }, today);
+
+      // 이미 계산된 날짜와 다를 때만 업데이트 (무한 렌더링 방지)
+      if (dateRange.start !== earliestDate) {
+        setDateRange({ start: earliestDate, end: today });
+      }
+    }
+  }, [availableCampaigns]); // availableCampaigns 데이터가 준비될 때 한 번 실행됩니다.
 
   // 🤖 [수정됨] 토큰 낭비 방지! 자동 실행(useQuery) 대신 수동 실행(useMutation)으로 변경
   const llmMutation = useMutation({
@@ -95,6 +131,35 @@ export default function InsightsPage() {
 
   const platformInsightText = platformMutation.data?.data?.insightText;
   const platformInsightLoading = platformMutation.isPending;
+
+  // 💡 [추가됨] 캠페인 드롭다운 변경 시 시작 날짜를 해당 캠페인의 최초 개시일로 자동 업데이트합니다!
+  const handleCampaignChange = (e: any) => {
+    const val = e.target.value;
+    setSelectedCampaign(val);
+    
+    const today = new Date().toISOString().split('T')[0];
+
+    if (val === 'all') {
+      // 전체 캠페인 중 가장 빠른 시작일 찾기
+      const earliestDate = availableCampaigns.reduce((min: string, c: any) => {
+        if (!c.start_date) return min;
+        const cDate = new Date(c.start_date).toISOString().split('T')[0];
+        return cDate < min ? cDate : min;
+      }, today);
+      setDateRange({ start: earliestDate, end: today });
+    } else {
+      // 선택한 캠페인의 시작일 찾기
+      const targetCampaign = availableCampaigns.find((c: any) => c.id.toString() === val);
+      if (targetCampaign && targetCampaign.start_date) {
+        const cDate = new Date(targetCampaign.start_date).toISOString().split('T')[0];
+        setDateRange({ start: cDate, end: today });
+      } else {
+        // 데이터가 없으면 기본 30일
+        const fallbackStart = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+        setDateRange({ start: fallbackStart, end: today });
+      }
+    }
+  };
 
   const handleDateChange = (field: 'start' | 'end', value: string) => {
     setDateRange(prev => ({ ...prev, [field]: value }));
@@ -169,24 +234,47 @@ export default function InsightsPage() {
         </button>
       </div>
 
-      {/* Date Range Selector */}
-      <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
-        <div className="flex items-center gap-4">
-          <Calendar className="w-5 h-5 text-gray-500" />
-          <span className="text-sm font-medium text-gray-700">분석 기간:</span>
-          <input
-            type="date"
-            value={dateRange.start}
-            onChange={(e) => handleDateChange('start', e.target.value)}
-            className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm"
-          />
-          <span className="text-gray-500">~</span>
-          <input
-            type="date"
-            value={dateRange.end}
-            onChange={(e) => handleDateChange('end', e.target.value)}
-            className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm"
-          />
+      {/* Date Range & Campaign Selector */}
+      <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 mb-6">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-6">
+          {/* 💡 [추가됨] 캠페인 선택 드롭다운 UI */}
+          <div className="flex items-center gap-3">
+            <Target className="w-5 h-5 text-indigo-500" />
+            <span className="text-sm font-medium text-gray-700">분석 대상:</span>
+            <select
+              value={selectedCampaign}
+              onChange={handleCampaignChange}
+              className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm bg-gray-50 text-gray-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+            >
+              <option value="all">모든 캠페인 종합 보기</option>
+              {availableCampaigns.map((campaign: any) => (
+                <option key={campaign.id} value={campaign.id}>
+                  [{campaign.platform}] {campaign.campaign_name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="hidden sm:block w-px h-6 bg-gray-200"></div> {/* 구분선 */}
+
+          {/* 기존 날짜 선택기 */}
+          <div className="flex items-center gap-3">
+            <Calendar className="w-5 h-5 text-gray-500" />
+            <span className="text-sm font-medium text-gray-700">분석 기간:</span>
+            <input
+              type="date"
+              value={dateRange.start}
+              onChange={(e) => handleDateChange('start', e.target.value)}
+              className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm"
+            />
+            <span className="text-gray-500">~</span>
+            <input
+              type="date"
+              value={dateRange.end}
+              onChange={(e) => handleDateChange('end', e.target.value)}
+              className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm"
+            />
+          </div>
         </div>
       </div>
 

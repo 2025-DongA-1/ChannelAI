@@ -61,16 +61,28 @@ interface AgentRecommendation {
 export const analyzeAndRecommend = async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user?.id;
-    const { totalBudget, period = 30 } = req.body;
+    // 💡 [수정됨] 프론트엔드에서 넘겨줄 수 있는 선택적 파라미터(campaignId)를 추가로 받습니다.
+    const { totalBudget, period = 30, campaignId } = req.body;
 
     if (!userId) {
       return res.status(401).json({ success: false, error: '인증이 필요합니다.' });
     }
 
-    // 1. 사용자의 플랫폼별 광고 데이터 조회
     const startDate = new Date(Date.now() - period * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
     const endDate = new Date().toISOString().split('T')[0];
 
+    // 💡 [수정됨] campaignId가 있으면 해당 캠페인만 필터링하도록 WHERE 조건과 파라미터 배열을 동적으로 구성합니다.
+    let campaignFilter = '';
+    const platformQueryParams: any[] = [startDate, endDate, userId];
+    const trendQueryParams: any[] = [userId, startDate, endDate];
+
+    if (campaignId) {
+      campaignFilter = ' AND c.id = ? ';
+      platformQueryParams.push(campaignId);
+      trendQueryParams.push(campaignId);
+    }
+
+    // 1. 사용자의 플랫폼별(또는 특정 캠페인별) 광고 데이터 조회
     const platformDataQuery = `
       SELECT 
         ma.channel_code AS platform,
@@ -94,12 +106,12 @@ export const analyzeAndRecommend = async (req: AuthRequest, res: Response) => {
       JOIN campaigns c ON c.marketing_account_id = ma.id AND c.status = 'active'
       JOIN campaign_metrics cm ON cm.campaign_id = c.id 
         AND cm.metric_date >= ? AND cm.metric_date <= ?
-      WHERE ma.user_id = ?
+      WHERE ma.user_id = ? ${campaignFilter}
       GROUP BY ma.channel_code
       ORDER BY COALESCE(SUM(cm.cost), 0) DESC
     `;
 
-    const platformResult = await pool.query(platformDataQuery, [startDate, endDate, userId]);
+    const platformResult = await pool.query(platformDataQuery, platformQueryParams);
     const platformData: PlatformAnalysis[] = platformResult.rows.map((row: any) => ({
       platform: row.platform,
       currentBudget: Number(row.total_budget) || 0,
@@ -128,12 +140,28 @@ export const analyzeAndRecommend = async (req: AuthRequest, res: Response) => {
       FROM campaign_metrics cm
       JOIN campaigns c ON cm.campaign_id = c.id
       JOIN marketing_accounts ma ON c.marketing_account_id = ma.id
-      WHERE ma.user_id = ? AND cm.metric_date >= ? AND cm.metric_date <= ?
+      WHERE ma.user_id = ? AND cm.metric_date >= ? AND cm.metric_date <= ? ${campaignFilter}
       GROUP BY cm.metric_date, ma.channel_code
       ORDER BY cm.metric_date DESC
     `;
 
-    const trendResult = await pool.query(trendQuery, [userId, startDate, endDate]);
+    const trendResult = await pool.query(trendQuery, trendQueryParams);
+
+    // 💡 [수정됨] 프론트엔드 드롭다운에 표시할 활성 캠페인 목록과 최초 개시일(start_date)을 함께 조회합니다.
+    const campaignListQuery = `
+      SELECT 
+        c.id, 
+        c.campaign_name, 
+        ma.channel_code AS platform,
+        MIN(cm.metric_date) AS start_date
+      FROM campaigns c
+      JOIN marketing_accounts ma ON c.marketing_account_id = ma.id
+      LEFT JOIN campaign_metrics cm ON cm.campaign_id = c.id
+      WHERE ma.user_id = ? AND c.status = 'active'
+      GROUP BY c.id, c.campaign_name, ma.channel_code
+      ORDER BY c.campaign_name ASC
+    `;
+    const campaignListResult = await pool.query(campaignListQuery, [userId]);
 
     // 3. AI 에이전트 분석 로직
     const userTotalBudget = totalBudget || platformData.reduce((sum, p) => sum + p.currentBudget, 0);
@@ -156,6 +184,7 @@ export const analyzeAndRecommend = async (req: AuthRequest, res: Response) => {
         platforms: platformData,
         recommendations,
         overallInsight,
+        availableCampaigns: campaignListResult.rows, // 💡 [추가됨] 캠페인 목록을 응답에 포함시켜 프론트엔드로 전달합니다!
         generatedAt: new Date().toISOString(),
       },
     });
