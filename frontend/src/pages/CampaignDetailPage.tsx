@@ -166,9 +166,9 @@ export default function CampaignDetailPage() {
   };
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="space-y-6 p-2 sm:p-4 md:p-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-4">
           <button
             onClick={() => navigate('/campaigns')}
@@ -243,9 +243,9 @@ export default function CampaignDetailPage() {
       </div>
 
       {/* Campaign Info */}
-      <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+      <div className="bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-gray-100">
         <h2 className="text-lg font-semibold text-gray-900 mb-4">기본 정보</h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 gap-3 sm:gap-6 md:grid-cols-3">
           <div>
             <p className="text-sm text-gray-500">연동된 광고 계정</p>
             <p className="font-medium text-gray-900 mt-1">{campaign.account_name || '알 수 없음'}</p>
@@ -266,8 +266,8 @@ export default function CampaignDetailPage() {
       </div>
 
       {/* Date Range Filter */}
-      <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
-        <div className="flex items-center gap-4">
+      <div className="bg-white p-3 sm:p-4 rounded-xl shadow-sm border border-gray-100">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4">
           <Calendar className="w-5 h-5 text-gray-500" />
           <span className="text-sm text-gray-700">분석 기간:</span>
           <input
@@ -275,7 +275,7 @@ export default function CampaignDetailPage() {
             value={dateRange.startDate}
             onChange={(e) => setDateRange((prev) => ({ ...prev, startDate: e.target.value }))}
             max={dateRange.endDate}
-            className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg"
+            className="px-2 py-1 text-xs sm:px-3 sm:py-1.5 sm:text-sm border border-gray-300 rounded-lg"
           />
           <span>~</span>
           <input
@@ -284,21 +284,21 @@ export default function CampaignDetailPage() {
             onChange={(e) => setDateRange((prev) => ({ ...prev, endDate: e.target.value }))}
             min={dateRange.startDate}
             max={new Date().toISOString().split('T')[0]}
-            className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg"
+            className="px-2 py-1 text-xs sm:px-3 sm:py-1.5 sm:text-sm border border-gray-300 rounded-lg"
           />
         </div>
       </div>
 
       {/* Performance Summary */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-4 md:grid-cols-2 lg:grid-cols-4 lg:gap-6">
+        <div className="bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-gray-100">
           <div className="flex items-center justify-between mb-2">
             <p className="text-sm text-gray-500">총 노출수</p>
             <TrendingUp className="w-5 h-5 text-blue-500" />
           </div>
           <p className="text-2xl font-bold text-gray-900">{formatCompactNumber(totals.impressions)}</p>
         </div>
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+        <div className="bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-gray-100">
           <div className="flex items-center justify-between mb-2">
             <p className="text-sm text-gray-500">총 클릭수</p>
             <MousePointerClick className="w-5 h-5 text-green-500" />
@@ -306,7 +306,7 @@ export default function CampaignDetailPage() {
           <p className="text-2xl font-bold text-gray-900">{formatCompactNumber(totals.clicks)}</p>
           <p className="text-sm text-gray-500 mt-1">CTR: {avgCTR.toFixed(2)}%</p>
         </div>
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+        <div className="bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-gray-100">
           <div className="flex items-center justify-between mb-2">
             <p className="text-sm text-gray-500">총 광고비</p>
             <DollarSign className="w-5 h-5 text-yellow-500" />
@@ -314,7 +314,7 @@ export default function CampaignDetailPage() {
           <p className="text-2xl font-bold text-gray-900">{formatCurrency(totals.cost)}</p>
           <p className="text-sm text-gray-500 mt-1">CPC: {formatCurrency(avgCPC)}</p>
         </div>
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+        <div className="bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-gray-100">
           <div className="flex items-center justify-between mb-2">
             <p className="text-sm text-gray-500">총 전환수</p>
             <Target className="w-5 h-5 text-purple-500" />
@@ -325,7 +325,7 @@ export default function CampaignDetailPage() {
       </div>
 
       {/* Performance Chart */}
-      <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+      <div className="bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-gray-100">
         <h2 className="text-lg font-semibold text-gray-900 mb-4">성과 추이</h2>
         <ResponsiveContainer width="100%" height={300}>
           <LineChart data={chartData}>
@@ -343,55 +343,55 @@ export default function CampaignDetailPage() {
 
       {/* Daily Metrics Table */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-        <div className="p-6 border-b border-gray-100">
+        <div className="p-4 sm:p-6 border-b border-gray-100">
           <h2 className="text-lg font-semibold text-gray-900">일별 성과 데이터</h2>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full">
+          <table className="min-w-full text-xs sm:text-sm">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">날짜</th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">노출수</th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">클릭수</th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">CTR</th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">전환수</th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">비용</th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">CPC</th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">ROAS</th>
+                <th className="px-2 py-2 sm:px-6 sm:py-3 text-left font-medium text-gray-500 uppercase">날짜</th>
+                <th className="px-2 py-2 sm:px-6 sm:py-3 text-right font-medium text-gray-500 uppercase">노출수</th>
+                <th className="px-2 py-2 sm:px-6 sm:py-3 text-right font-medium text-gray-500 uppercase">클릭수</th>
+                <th className="px-2 py-2 sm:px-6 sm:py-3 text-right font-medium text-gray-500 uppercase">CTR</th>
+                <th className="px-2 py-2 sm:px-6 sm:py-3 text-right font-medium text-gray-500 uppercase">전환수</th>
+                <th className="px-2 py-2 sm:px-6 sm:py-3 text-right font-medium text-gray-500 uppercase">비용</th>
+                <th className="px-2 py-2 sm:px-6 sm:py-3 text-right font-medium text-gray-500 uppercase">CPC</th>
+                <th className="px-2 py-2 sm:px-6 sm:py-3 text-right font-medium text-gray-500 uppercase">ROAS</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
               {metrics.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-6 py-8 text-center text-gray-500">
+                  <td colSpan={8} className="px-2 py-8 sm:px-6 text-center text-gray-500">
                     데이터가 없습니다.
                   </td>
                 </tr>
               ) : (
                 metrics.map((metric: any) => (
                   <tr key={metric.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    <td className="px-2 py-2 sm:px-6 sm:py-4 whitespace-nowrap text-gray-900">
                       {new Date(metric.metric_date).toLocaleDateString('ko-KR')}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right">
+                    <td className="px-2 py-2 sm:px-6 sm:py-4 whitespace-nowrap text-gray-900 text-right">
                       {formatCompactNumber(Number(metric.impressions) || 0)}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right">
+                    <td className="px-2 py-2 sm:px-6 sm:py-4 whitespace-nowrap text-gray-900 text-right">
                       {formatCompactNumber(Number(metric.clicks) || 0)}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right">
+                    <td className="px-2 py-2 sm:px-6 sm:py-4 whitespace-nowrap text-gray-900 text-right">
                       {formatPercent(Number(metric.impressions) > 0 ? (Number(metric.clicks) / Number(metric.impressions)) * 100 : 0)}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right">
+                    <td className="px-2 py-2 sm:px-6 sm:py-4 whitespace-nowrap text-gray-900 text-right">
                       {formatCompactNumber(metric.conversions || 0)}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right">
+                    <td className="px-2 py-2 sm:px-6 sm:py-4 whitespace-nowrap text-gray-900 text-right">
                       {formatCurrency(Number(metric.cost) || 0)}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right">
+                    <td className="px-2 py-2 sm:px-6 sm:py-4 whitespace-nowrap text-gray-900 text-right">
                       {formatCurrency(Number(metric.clicks) > 0 ? Number(metric.cost) / Number(metric.clicks) : 0)}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right">
+                    <td className="px-2 py-2 sm:px-6 sm:py-4 whitespace-nowrap text-gray-900 text-right">
                       {Number(metric.cost) > 0 ? `${(Number(metric.revenue) / Number(metric.cost)).toFixed(2)}x` : '-'}
                     </td>
                   </tr>
