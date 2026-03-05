@@ -700,6 +700,73 @@ export const generateLLMInsights = async (req: AuthRequest, res: Response) => {
   }
 };
 
+/**
+ * 🤖 [새로 추가됨] 플랫폼 성과 비교 데이터를 받아 OpenAI LLM으로 교차 분석 텍스트 생성
+ * POST /api/v1/ai/agent/generate-platform-insights
+ */
+export const generatePlatformInsights = async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    const { platformData } = req.body;
+
+    if (!userId) {
+      return res.status(401).json({ success: false, error: '인증이 필요합니다.' });
+    }
+
+    if (!process.env.OPENAI_API_KEY) {
+      return res.status(500).json({ success: false, error: 'OpenAI API 키가 설정되지 않았습니다.' });
+    }
+
+    const model = new ChatOpenAI({
+      modelName: 'gpt-4o-mini', 
+      temperature: 0.2, // 날카로운 데이터 분석을 위해 창의성 억제
+    });
+
+    const prompt = PromptTemplate.fromTemplate(`
+      너는 'Plan BE'의 수석 데이터 분석가야.
+      사용자가 방금 여러 광고 매체(네이버, 구글, 메타 등)의 성과를 비교하는 표를 확인했어.
+      아래의 [플랫폼별 성과 데이터]를 바탕으로, 각 매체의 역할과 예산 누수를 심도 깊게 분석해 줘.
+
+      [플랫폼별 성과 데이터]
+      {platforms}
+
+      [🚨 절대 지켜야 할 작성 수칙]
+      1. 일반론적인 마케팅 조언(예: 랜딩페이지 최적화, 타겟팅 재검토, 소재 다양화 등)은 **절대, 무조건 금지**한다.
+      2. 반드시 친절하고 정중한 존댓말(해요/비니다 체)을 사용할 것. 반말이나 명령조는 절대 금지한다.
+      3. 반드시 데이터에 나타난 '매체명', '정확한 수치(ROAS, 예산 비중, 전환수 등)'를 직접 인용하여 근거를 댈 것.
+      4. 다음 3가지 소제목 구조를 완벽하게 지켜서 작성해 줘.
+
+      📊 1. 매체별 역할 및 성과 진단
+      - (가이드: 클릭률(CTR)이 높아 트래픽 유입에 기여하는 '미끼' 매체와, 실제 수익(ROAS) 및 전환을 이끌어내는 '핵심' 매체를 수치와 함께 명확히 구분해 줄 것)
+      
+      🚨 2. 비효율 및 예산 누수 탐지
+      - (가이드: 전체 예산에서 차지하는 비중은 크지만 전환수나 ROAS가 저조하여 가성비가 가장 떨어지는 '돈 먹는 하마' 매체를 콕 짚어낼 것)
+      
+      💡 3. 크로스 미디어 예산 재배분 액션 플랜
+      - (가이드: 위의 진단을 바탕으로 "구글 예산의 20%를 덜어내어, 현재 ROAS가 3.5x로 가장 높은 네이버로 이동시키는 것을 추천해 드려요."처럼 2개 이상의 매체를 엮어서 '어디서 빼서 어디로 옮길지' 구체적인 예산 이동 액션을 1~2줄로 제안할 것)
+    `);
+
+    const formattedPrompt = await prompt.format({
+      platforms: JSON.stringify(platformData || {}).substring(0, 2000),
+    });
+
+    console.log("🤖 [LLM] 매체 비교 분석 요청 중...");
+    const response = await model.invoke(formattedPrompt);
+    console.log("✅ [LLM] 매체 비교 분석 완료!");
+    
+    return res.json({
+      success: true,
+      data: {
+        insightText: response.content,
+      }
+    });
+
+  } catch (error: any) {
+    console.error('LLM 매체 분석 오류:', error);
+    return res.status(500).json({ success: false, error: 'LLM 매체 분석 중 오류가 발생했습니다.' });
+  }
+};
+
 // =============================================================
 // 내부 분석 함수 (추후 ML 모델로 교체 예정)
 // =============================================================
