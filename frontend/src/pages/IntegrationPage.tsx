@@ -289,15 +289,14 @@ export default function IntegrationPage() {
   }
 
   return (
-    <div className="space-y-6 p-6">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+    <div className="space-y-3 sm:space-y-6 p-2 sm:p-6">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-2 sm:gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">광고 플랫폼 연동</h1>
-          <p className="text-gray-600 mt-1">
+          <h1 className="text-lg sm:text-3xl font-bold text-gray-900">광고 플랫폼 연동</h1>
+          <p className="text-xs sm:text-base text-gray-600 mt-0.5 sm:mt-1">
             Google, Meta, Naver 광고 계정을 연동하여 통합 관리하세요
           </p>
         </div>
-        
         <div className="flex flex-wrap gap-2 w-full md:w-auto">
           <input 
             type="file" 
@@ -309,32 +308,31 @@ export default function IntegrationPage() {
           <button
             onClick={triggerFileInput}
             disabled={isUploading}
-            className="flex items-center justify-center px-4 py-3 bg-blue-600 text-white rounded-xl font-medium hover:bg-blue-700 transition shadow-md w-full sm:w-auto disabled:opacity-50"
+            className="flex items-center justify-center px-3 sm:px-4 py-2 sm:py-3 bg-blue-600 text-white rounded-xl font-medium hover:bg-blue-700 transition shadow-md w-full sm:w-auto text-xs sm:text-base disabled:opacity-50"
           >
             {isUploading ? <RefreshCw className="w-4 h-4 mr-2 animate-spin" /> : <UploadCloud className="w-4 h-4 mr-2" />}
-            {isUploading ? '업로드 중...' : 'CSV 파일 직접 업로드'}
+            {isUploading ? '업로드 중...' : 'CSV 업로드'}
           </button>
-          
           <Link 
             to="/dummy-data" 
-            className="flex items-center justify-center px-4 py-3 bg-indigo-50 text-indigo-600 rounded-xl border border-indigo-200 font-medium hover:bg-indigo-100 transition w-full sm:w-auto"
+            className="flex items-center justify-center px-3 sm:px-4 py-2 sm:py-3 bg-indigo-50 text-indigo-600 rounded-xl border border-indigo-200 font-medium hover:bg-indigo-100 transition w-full sm:w-auto text-xs sm:text-base"
           >
             <FileSpreadsheet className="w-4 h-4 mr-2" />
-            테스트 데이터 생성하기
+            테스트 데이터 생성
           </Link>
         </div>
       </div>
 
-      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 flex items-start">
-        <AlertCircle className="w-5 h-5 text-blue-600 mt-0.5 mr-3 flex-shrink-0" />
-        <div className="text-sm text-blue-800">
-          <p className="font-medium mb-1">다양한 인증 방식 지원</p>
-          <p>네이버는 API Key 입력으로, Google/Meta는 OAuth 2.0 으로 연동합니다. CSV 파일 업로드도 지원합니다.</p>
+      <div className="bg-blue-50 border border-blue-200 rounded-lg p-2 sm:p-4 flex items-start">
+        <AlertCircle className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600 mt-0.5 mr-2 sm:mr-3 flex-shrink-0" />
+        <div className="text-xs sm:text-sm text-blue-800">
+          <p className="font-medium mb-0.5 sm:mb-1">다양한 인증 방식 지원</p>
+          <p>네이버는 API Key 입력, Google/Meta는 OAuth 2.0, CSV 업로드도 지원합니다.</p>
         </div>
       </div>
 
       {/* Platform Cards */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 sm:gap-6">
         {platforms.map((platform) => {
           if (platform.id === 'karrot') return null; // 당근마켓은 별도 폼으로 처리
           const account = getAccountForPlatform(platform.id);
@@ -346,40 +344,40 @@ export default function IntegrationPage() {
               className={`bg-white rounded-xl shadow-sm border ${platform.borderColor} overflow-hidden transition hover:shadow-md`}
             >
               {/* Header */}
-              <div className={`${platform.bgColor} p-6 border-b ${platform.borderColor}`}>
-                <div className="flex items-center justify-between mb-4">
-                  <div className={`text-4xl w-16 h-16 flex items-center justify-center bg-gradient-to-br ${platform.color} rounded-xl`}>
-                    <span className="text-white text-2xl">{platform.icon}</span>
+              <div className={`${platform.bgColor} p-3 sm:p-6 border-b ${platform.borderColor}`}>
+                <div className="flex items-center justify-between mb-2 sm:mb-4">
+                  <div className={`text-2xl sm:text-4xl w-10 h-10 sm:w-16 sm:h-16 flex items-center justify-center bg-gradient-to-br ${platform.color} rounded-xl`}>
+                    <span className="text-white">{platform.icon}</span>
                   </div>
                   {isConnected ? (
-                    <CheckCircle className="w-6 h-6 text-green-600" />
+                    <CheckCircle className="w-5 h-5 sm:w-6 sm:h-6 text-green-600" />
                   ) : (
-                    <XCircle className="w-6 h-6 text-gray-400" />
+                    <XCircle className="w-5 h-5 sm:w-6 sm:h-6 text-gray-400" />
                   )}
                 </div>
-                <h3 className="text-xl font-bold text-gray-900">{platform.name}</h3>
-                <p className="text-sm text-gray-600 mt-1">{platform.description}</p>
+                <h3 className="text-base sm:text-xl font-bold text-gray-900">{platform.name}</h3>
+                <p className="text-xs sm:text-sm text-gray-600 mt-0.5 sm:mt-1">{platform.description}</p>
               </div>
 
               {/* Body */}
-              <div className="p-6 space-y-4">
+              <div className="p-3 sm:p-6 space-y-2 sm:space-y-4">
                 {isConnected ? (
                   <>
                     {/* Account Info */}
-                    <div className="space-y-2">
-                      <div className="flex justify-between text-sm">
+                    <div className="space-y-1 sm:space-y-2">
+                      <div className="flex justify-between text-xs sm:text-sm">
                         <span className="text-gray-600">계정 ID</span>
                         <span className="font-medium text-gray-900">{account.account_id}</span>
                       </div>
-                      <div className="flex justify-between text-sm">
+                      <div className="flex justify-between text-xs sm:text-sm">
                         <span className="text-gray-600">계정명</span>
                         <span className="font-medium text-gray-900">{account.account_name}</span>
                       </div>
-                      <div className="flex justify-between text-sm">
+                      <div className="flex justify-between text-xs sm:text-sm">
                         <span className="text-gray-600">캠페인 수</span>
                         <span className="font-medium text-gray-900">{account.campaign_count || 0}개</span>
                       </div>
-                      <div className="flex justify-between text-sm">
+                      <div className="flex justify-between text-xs sm:text-sm">
                         <span className="text-gray-600">마지막 동기화</span>
                         <span className="font-medium text-gray-900">
                           {account.last_sync_at
@@ -390,11 +388,11 @@ export default function IntegrationPage() {
                     </div>
 
                     {/* Actions */}
-                    <div className="flex gap-2 pt-2">
+                    <div className="grid grid-cols-2 gap-2 pt-1 sm:flex sm:gap-2">
                       <button
                         onClick={() => handleSync(platform.id)}
                         disabled={isSyncing}
-                        className="flex-1 flex items-center justify-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="flex items-center justify-center px-2 sm:px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-xs sm:text-base disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         {isSyncing ? (
                           <>
@@ -410,25 +408,25 @@ export default function IntegrationPage() {
                       </button>
                       <button 
                         onClick={() => handleDisconnect(platform.id)}
-                        className="px-4 py-2 border border-red-300 text-red-600 rounded-lg hover:bg-red-50 transition"
+                        className="px-2 sm:px-4 py-2 border border-red-300 text-red-600 rounded-lg hover:bg-red-50 transition text-xs sm:text-base"
                       >
-                        연동 해제
+                        해제
                       </button>
                     </div>
                   </>
                 ) : (
                   <>
                     {/* Not Connected */}
-                    <div className="text-center py-4">
-                      <p className="text-sm text-gray-600 mb-4">
-                        {platform.name} 계정을 연동하여<br />
+                    <div className="text-center py-2 sm:py-4">
+                      <p className="text-xs sm:text-sm text-gray-600 mb-2 sm:mb-4">
+                        {platform.name} 계정을 연동하여<br className="sm:hidden" />
                         캠페인과 데이터를 가져오세요
                       </p>
                       <button
                         onClick={() => handleConnect(platform.id)}
-                        className={`w-full flex items-center justify-center px-4 py-3 bg-gradient-to-r ${platform.color} text-white rounded-lg hover:shadow-lg transition font-medium`}
+                        className={`w-full flex items-center justify-center px-2 sm:px-4 py-2 sm:py-3 bg-gradient-to-r ${platform.color} text-white rounded-lg hover:shadow-lg transition font-medium text-xs sm:text-base`}
                       >
-                        <Link2 className="w-5 h-5 mr-2" />
+                        <Link2 className="w-4 h-4 sm:w-5 sm:h-5 mr-2" />
                         {platform.name} 연동하기
                       </button>
                     </div>
@@ -441,17 +439,16 @@ export default function IntegrationPage() {
       </div>
 
       {/* 당근마켓 광고 수동 입력 폼 */}
-      <div className="bg-orange-50 border border-orange-200 rounded-xl p-6 mt-8">
-        <h2 className="text-2xl font-bold text-orange-700 mb-2 flex items-center">
+      <div className="bg-orange-50 border border-orange-200 rounded-xl p-3 sm:p-6 mt-6 sm:mt-8">
+        <h2 className="text-base sm:text-2xl font-bold text-orange-700 mb-1 sm:mb-2 flex items-center">
           🥕 당근마켓 광고 데이터 직접 입력
         </h2>
-        <p className="text-sm text-orange-900 mb-4">
-          당근마켓 간편 모드인 경우 광고센터에서 확인한 성과 데이터를 아래 입력란에 직접 입력해 주세요.<br />
-          당근마켓 전문가 모드이거나 키워드 광고라면 해당 사이트에서 다운로드 받을 수 있는 엑셀 형태의 성과 보고서를 위에서 첨부해주세요.<br />
-          AI 분석 및 대시보드 표출에 필요한 모든 항목을 빠짐없이 입력해야 정확한 분석이 가능합니다.<br />
-          *당근마켓 간편 모드에서는 광고 기간 전체의 데이터만 제공되므로, 기간 내 집계 합산 수치를 일수에 따라 일별로 동일하게 나누어 계산됩니다.
+        <p className="text-xs sm:text-sm text-orange-900 mb-2 sm:mb-4">
+          당근마켓 광고센터에서 확인한 성과 데이터를 아래 입력란에 직접 입력해 주세요.<br className="sm:hidden" />
+          전문가 모드/키워드 광고는 엑셀 보고서를 첨부해 주세요.<br className="sm:hidden" />
+          모든 항목을 빠짐없이 입력해야 정확한 분석이 가능합니다.
         </p>
-        <form className="space-y-4 max-w-xl" onSubmit={async e => {
+        <form className="space-y-2 sm:space-y-4 max-w-xl" onSubmit={async e => {
           e.preventDefault();
           setKarrotLoading(true);
           try {

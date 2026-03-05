@@ -118,8 +118,11 @@ export const dashboardAPI = {
   getBudget: (params?: { groupBy?: 'platform' | 'campaign' }) =>
     api.get('/dashboard/budget', { params }),
 
-  // AI 모델 불러오기 - 동희
+  // AI 모델 불러오기 - DH
   getAiHistory: (userId: number) => axios.get(`/api/v1/ai/history/${userId}`).then(res => res.data),
+
+  // 이전 분석 불러오기 - DH
+  getAiReportDetail: (id: number) => axios.get(`/api/v1/ai/report/${id}`).then(res => res.data),
 };
 
 // 📢 캠페인 관련 API 함수 모음
