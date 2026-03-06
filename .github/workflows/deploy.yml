@@ -304,7 +304,7 @@ jobs:
                 if 'HttpsProxyAgent' not in content:
                     content = content.replace('import Groq from "groq-sdk";', 'import Groq from "groq-sdk";\nimport { HttpsProxyAgent } from "https-proxy-agent";')
                 old = 'this.groq = process.env.GROQ_API_KEY ? new Groq({ apiKey: process.env.GROQ_API_KEY }) : null;'
-                new = "const agent = new HttpsProxyAgent(process.env.HTTPS_PROXY || 'http://10.10.10.6:3128');\n      this.groq = process.env.GROQ_API_KEY ? new Groq({\n        apiKey: process.env.GROQ_API_KEY,\n        httpAgent: agent,\n        timeout: 60000,\n        maxRetries: 1,\n      }) : null;"
+                new = "const agent = new HttpsProxyAgent(process.env.HTTPS_PROXY || 'http://10.10.10.6:3128');\n      this.groq = process.env.GROQ_API_KEY ? new Groq({\n        apiKey: process.env.GROQ_API_KEY,\n        httpAgent: agent,\n        timeout: 300000,\n        maxRetries: 1,\n      }) : null;"
                 if old in content: content = content.replace(old, new)
                 with open(full, 'w') as f: f.write(content)
                 print(f"  ✅ {os.path.basename(filepath)}")
@@ -421,13 +421,13 @@ jobs:
             fi
 
             # [2026-03-06 10:48] Nginx 프록시 설정 오류(502) 및 Groq API 타임아웃 대응 설정 추가
-            # /etc/nginx/sites-available/default 파일에 location /api/ 설정이 없으면 추가합니다.
-            if ! grep -q "location /api/" /etc/nginx/sites-available/default; then
+            # /etc/nginx/conf.d/default.conf 파일에 location /api/ 설정이 없으면 추가합니다.
+            if ! grep -q "location /api/" /etc/nginx/conf.d/default.conf; then
               echo ">> Nginx /api 경로 프록시 설정이 없어 새로 주입합니다..."
               # server 블록을 찾아서 그 바로 밑에 location /api/ 블록을 밀어 넣습니다.
               sed -i '/server {/a \
                   location /api/ {\n\
-                      proxy_pass http://localhost:3000;\n\
+                      proxy_pass http://10.10.10.7:3000;\n\
                       proxy_http_version 1.1;\n\
                       proxy_set_header Upgrade $http_upgrade;\n\
                       proxy_set_header Connection "upgrade";\n\
@@ -436,7 +436,7 @@ jobs:
                       proxy_cache_bypass $http_upgrade;\n\
                       proxy_read_timeout 300s;\n\
                       proxy_connect_timeout 300s;\n\
-                  }\n' /etc/nginx/sites-available/default
+                  }\n' /etc/nginx/conf.d/default.conf
             fi
 
             sudo nginx -t && sudo systemctl reload nginx
