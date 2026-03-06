@@ -351,7 +351,26 @@ jobs:
             };
             ECOEOF
 
-            # ========== 6. PM2 시작/재시작 ==========
+            # ========== 6. AI 모델 자동 학습 및 파이썬 환경 구성 ==========
+            echo ">> [배포 파이프라인 훅] AI 환경 점검 및 모델 파일 갱신..."
+            # 6-1. python 명령어 누락 시 python3로 링크
+            if ! command -v python &> /dev/null; then
+              if command -v python3 &> /dev/null; then
+                sudo ln -snf $(which python3) /usr/bin/python || true
+              fi
+            fi
+            
+            # 6-2. 모델 훈련 스크립트 실행 (ML 파일이 재생성되도록 보장)
+            cd /opt/marketing-platform/backend/ai
+            if [ -f "requirements.txt" ]; then
+              pip install -r requirements.txt || true
+            fi
+            if [ -f "train_model_v2.py" ]; then
+              python train_model_v2.py || echo "⚠️ 모델 훈련 스크립트 실패 시 서버 배포는 계속 진행"
+            fi
+            echo ">> AI 모델(JSON/PKL) 배포 단에서 사전 구성 완료!"
+
+            # ========== 7. PM2 시작/재시작 ==========
             cd /opt/marketing-platform
             pm2 delete marketing-api 2>/dev/null || true
             pm2 start deploy/ecosystem.config.js

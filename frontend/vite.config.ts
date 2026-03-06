@@ -14,9 +14,9 @@ export default defineConfig({
     allowedHosts: true, // 터널(localtunnel, pinggy 등) 외부 접속 허용
     proxy: {
       '/api': {
-        // [2026-03-06 10:57] 수정 이유: 로컬 개발 환경에서는 5000번 포트로 통신하도록 서버/로컬 환경 분기를 위한 롤백
-        target: 'http://localhost:5000', 
+        target: 'http://localhost:3000', 
         changeOrigin: true,
+        timeout: 300000, // [추가] AI 응답 대기 시간 확보용(5분)
       },
     },
   },
