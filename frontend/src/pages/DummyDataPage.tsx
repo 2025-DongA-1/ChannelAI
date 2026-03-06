@@ -304,6 +304,10 @@ const DummyDataPage: React.FC = () => {
                 <Mail size={18} />
                 일일 리포트 설정
               </Link>
+              <Link to="/monthly-report" className="inline-flex items-center gap-2 px-4 py-2 bg-teal-50 text-teal-700 border border-teal-200 hover:bg-teal-100 rounded-xl font-bold transition">
+                <FileSpreadsheet size={18} />
+                월별 성과 보고서 보기
+              </Link>
             </div>
           </div>
           <div className="flex flex-wrap gap-2">

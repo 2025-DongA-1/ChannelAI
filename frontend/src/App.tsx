@@ -19,6 +19,7 @@ import AdvancedModelTestPage from './pages/AdvancedModelTestPage';
 // [2026-03-05 16:15] 수정 이유: 새로 생성한 OpenAI 모델 전용 테스트 페이지 라우트 등록
 import OpenaiModelTestPage from './pages/OpenaiModelTestPage';
 import EmailReportPage from './pages/EmailReportPage';
+import MonthlyReportPage from './pages/MonthlyReportPage';
 import MarketingAnalysis from './pages/MarketingAnalysis';
 import logo from "./assets/logo_crop.png";
 // 💡 [추가됨] 방금 새로 만든 MainPage 컴포넌트를 불러옵니다!
@@ -378,6 +379,18 @@ function App() {
                 <Layout>
                   <div className="max-w-7xl mx-auto py-3 sm:py-6 px-4 sm:px-6 lg:px-8">
                     <EmailReportPage />
+                  </div>
+                </Layout>
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/monthly-report"
+            element={
+              <PrivateRoute>
+                <Layout>
+                  <div className="max-w-7xl mx-auto py-3 sm:py-6 px-4 sm:px-6 lg:px-8">
+                    <MonthlyReportPage />
                   </div>
                 </Layout>
               </PrivateRoute>
