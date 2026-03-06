@@ -419,4 +419,24 @@ jobs:
               systemctl enable squid
               systemctl start squid
             fi
+
+            # [2026-03-06 10:48] Nginx 프록시 설정 오류(502) 및 Groq API 타임아웃 대응 설정 추가
+            # /etc/nginx/sites-available/default 파일에 location /api/ 설정이 없으면 추가합니다.
+            if ! grep -q "location /api/" /etc/nginx/sites-available/default; then
+              echo ">> Nginx /api 경로 프록시 설정이 없어 새로 주입합니다..."
+              # server 블록을 찾아서 그 바로 밑에 location /api/ 블록을 밀어 넣습니다.
+              sed -i '/server {/a \
+                  location /api/ {\n\
+                      proxy_pass http://localhost:3000;\n\
+                      proxy_http_version 1.1;\n\
+                      proxy_set_header Upgrade $http_upgrade;\n\
+                      proxy_set_header Connection "upgrade";\n\
+                      proxy_set_header Host $host;\n\
+                      proxy_set_header X-Real-IP $remote_addr;\n\
+                      proxy_cache_bypass $http_upgrade;\n\
+                      proxy_read_timeout 300s;\n\
+                      proxy_connect_timeout 300s;\n\
+                  }\n' /etc/nginx/sites-available/default
+            fi
+
             sudo nginx -t && sudo systemctl reload nginx
