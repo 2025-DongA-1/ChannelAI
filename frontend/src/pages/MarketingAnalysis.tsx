@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-// [2026-03-06 10:25] 수정 이유: AI 분석 시 API 인스턴스를 사용하도록 통일하면서 불필요해진 axios 모듈 임포트를 주석 처리 (TS6133 빌드 에러 해결)
-// import axios from 'axios';
+// [2026-03-06] 수정 이유: 로컬 환경(5000 포트 직접 호출) 분기를 위해 axios 임포트 복구
+import axios from 'axios';
 import {
   PieChart, Pie, Cell, Tooltip, Legend,
   BarChart, Bar, LabelList, XAxis, YAxis, CartesianGrid, ResponsiveContainer,
@@ -175,14 +175,24 @@ function MarketingAnalysis() {
       
       console.log("🚀 [보안 검문] 현재 로그인의 주인공 ID:", user?.id);
 
-      // 통합된 Node.js API 서버로 향하도록 설정
-      const response = await api.post(`/ai/recommend`, {
-        user_id : user?.id, // user_id 추가
+      // [2026-03-06] 서버(Production)와 로컬(Development) 환경의 AI 서버 포트 분기 처리
+      let response;
+      const requestData = {
+        user_id : user?.id,
         total_budget: cleanBudget,
         features: features,
         history_data : dailyData,
         duration : currentDuration
-      });
+      };
+
+      if (import.meta.env.PROD) {
+        // 서버 환경 (Node.js 3000번 통합 포트로 호출, 프록시 통과)
+        response = await api.post(`/ai/recommend`, requestData);
+      } else {
+        // 로컬 환경 (독립된 5000번 포트로 브라우저에서 직접 XHR 요청)
+        const LOCAL_AI_URL = import.meta.env.VITE_AI_API_URL || 'http://localhost:5000';
+        response = await axios.post(`${LOCAL_AI_URL}/api/v1/ai/recommend`, requestData);
+      }
 
       setResult(response.data);
 
