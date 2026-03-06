@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+// [2026-03-06 10:25] 수정 이유: AI 분석 시 API 인스턴스를 사용하도록 통일하면서 불필요해진 axios 모듈 임포트를 주석 처리 (TS6133 빌드 에러 해결)
+// import axios from 'axios';
 import {
   PieChart, Pie, Cell, Tooltip, Legend,
   BarChart, Bar, LabelList, XAxis, YAxis, CartesianGrid, ResponsiveContainer,
