@@ -142,8 +142,19 @@ export default function MonthlyReportPage() {
   const [isExporting, setIsExporting] = useState(false);
   
   // 리포트 렌더 영역 요소를 추적하기 위한 ref
-  const reportRef = useRef<HTMLDivElement>(null);
+  // const reportRef = useRef<HTMLDivElement>(null);
 
+  // 리포트 렌더 영역 요소를 추적하기 위한 ref
+  
+  // ↓ 추가: 각 탭별 캡처용 ref
+  const overviewRef = useRef<HTMLDivElement>(null);
+  const platformRef = useRef<HTMLDivElement>(null);
+  const trendRef    = useRef<HTMLDivElement>(null);
+  // 탭 추가 시 여기에 ref 하나만 더 선언하면 됩니다
+  
+  const TAB_REFS = [overviewRef, platformRef, trendRef];
+
+  const reportRef = useRef<HTMLDivElement>(null);
   /**
    * 컴포넌트 최초 마운트 시, API에서 월별 리포트 데이터를 호출하여 가공 및 상태에 저장합니다.
    */
@@ -186,67 +197,73 @@ export default function MonthlyReportPage() {
    * 즉시 다운로드 가능한 완벽한 PDF 파일로 변환하여 받아옵니다.
    */
   const handleDownloadPDF = async () => {
-    if (!reportRef.current) return;
-    
-    // 숨겨진 탭 렌더링 강제 실행 및 차트 애니메이션 대기
-    setIsExporting(true);
-    
-    // React가 모든 탭을 DOM에 그리고 Recharts가 SVG 크기를 계산할 시간을 충분히 줌 (약 1.5초)
-    setTimeout(async () => {
-      try {
-        // 리포트 영역의 순수 웹뷰 DOM 형태 추출
-        const htmlContent = reportRef.current?.innerHTML || '';
-        
-        // 다운로드용 HTML 생성 (Tailwind 적용 + hidden 요소 강제 표시 안해도 이미 DOM에 나타남)
-        const fullHtml = `
-          <!DOCTYPE html>
-          <html lang="ko">
-          <head>
-            <meta charset="UTF-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>ChannelAI 월별 성과 보고서 - ${selectedMonth}</title>
-            <script src="https://cdn.tailwindcss.com"></script>
-            <style>
-              body { background-color: #f9fafb; font-family: sans-serif; }
-              svg { overflow: visible; }
-              .page-break-after { page-break-after: always; break-after: page; }
-            </style>
-          </head>
-          <body>
-            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full mt-10">
-              <div class="mb-10 border-b border-gray-200 pb-6 text-center">
-                <h1 class="text-3xl font-bold text-gray-900 leading-tight">ChannelAI 통합 성과 리포트</h1>
-                <p class="text-gray-500 mt-2 text-lg">${fmtLabel(selectedMonth)} 월 보고서 원본</p>
-              </div>
-              ${htmlContent}
-            </div>
-          </body>
-          </html>
-        `;
-        
-        // 백엔드로 HTML을 보내 PDF 파일(Blob)을 받아와서 브라우저에서 다운로드
-        const response = await api.post('/report/pdf', {
-          htmlContent: fullHtml,
-          filename: `ChannelAI_통합리포트_${selectedMonth}.pdf`
-        }, {
-          responseType: 'arraybuffer'
-        });
+  setIsExporting(true); // 모든 탭 DOM 강제 렌더
 
-        const blob = new Blob([response.data], { type: 'application/pdf' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = `ChannelAI_통합리포트_${selectedMonth}.pdf`;
-        a.click();
-        URL.revokeObjectURL(url);
-      } catch (error) {
-        console.error('PDF 다운로드 실패:', error);
-        alert('PDF 파일 생성 중 오류가 발생했습니다.');
-      } finally {
-        setIsExporting(false); // 다시 원래 탭 모드로 복구
+  // Recharts SVG 애니메이션 완료 대기
+  await new Promise(resolve => setTimeout(resolve, 1500));
+
+  try {
+    const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+    const A4_W = 210;
+    const A4_H = 297;
+    const MARGIN = 10;
+    const CONTENT_W = A4_W - MARGIN * 2;
+
+    let isFirstPage = true;
+
+    for (const ref of TAB_REFS) {
+      const el = ref.current;
+      if (!el) continue;
+
+      const canvas = await html2canvas(el, {
+        scale: 2,
+        useCORS: true,
+        backgroundColor: '#ffffff',
+        logging: false,
+        windowWidth: 1280,
+      });
+
+      const imgW = canvas.width;
+      const imgH = canvas.height;
+      const renderedH = (imgH * CONTENT_W) / imgW;
+
+      let yOffset = 0;
+      while (yOffset < renderedH) {
+        if (!isFirstPage) pdf.addPage();
+        isFirstPage = false;
+
+        const sliceH    = Math.min(A4_H - MARGIN * 2, renderedH - yOffset);
+        const srcY      = (yOffset / renderedH) * imgH;
+        const srcSliceH = (sliceH / renderedH) * imgH;
+
+        const slice = document.createElement('canvas');
+        slice.width  = imgW;
+        slice.height = Math.round(srcSliceH);
+        const ctx = slice.getContext('2d')!;
+        ctx.drawImage(canvas, 0, srcY, imgW, srcSliceH, 0, 0, imgW, Math.round(srcSliceH));
+
+        pdf.addImage(
+          slice.toDataURL('image/jpeg', 0.92),
+          'JPEG',
+          MARGIN,
+          MARGIN,
+          CONTENT_W,
+          sliceH
+        );
+
+        yOffset += sliceH;
       }
-    }, 1500); // 1.5초 딜레이
-  };
+    }
+
+    pdf.save(`ChannelAI_통합리포트_${selectedMonth}.pdf`);
+
+  } catch (err) {
+    console.error('PDF 생성 실패:', err);
+    alert('PDF 생성 중 오류가 발생했습니다.');
+  } finally {
+    setIsExporting(false);
+  }
+};
 
   if (isLoading) {
     return (
@@ -404,7 +421,7 @@ export default function MonthlyReportPage() {
         <div ref={reportRef} className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8" key={animKey}>
 
           {/* ===== 탭 1: 종합 현황 ===== */}
-          <div className={`${(activeTab === "overview" || isExporting) ? "block" : "hidden"} animate-fade-in-up space-y-6 ${isExporting ? 'mb-24 page-break-after' : ''}`}>
+          <div ref={overviewRef} className={`${(activeTab === "overview" || isExporting) ? "block" : "hidden"} animate-fade-in-up space-y-6 ${isExporting ? 'mb-24 page-break-after' : ''}`}>
 // ... (leave code between them intact, but updating the classes. Wait, I shouldn't replace lines 404 to 610 with just a tiny snippet. Let me use multi_replace for accuracy.)
 
 
@@ -517,7 +534,7 @@ export default function MonthlyReportPage() {
           </div>
 
           {/* ===== 탭 2: 채널별 분석 ===== */}
-          <div className={`${(activeTab === "platform" || isExporting) ? "block" : "hidden"} animate-fade-in-up space-y-6 ${isExporting ? 'mb-24 page-break-after' : ''}`}>
+          <div  className={`${(activeTab === "platform" || isExporting) ? "block" : "hidden"} animate-fade-in-up space-y-6 ${isExporting ? 'mb-24 page-break-after' : ''}`}>
               {/* 채널별 KPI 카드 */}
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
                 {Object.entries(cur.platforms).map(([k, v]: any) => (
@@ -638,7 +655,7 @@ export default function MonthlyReportPage() {
           </div>
 
           {/* ===== 탭 3: 추이 분석 ===== */}
-          <div className={`${(activeTab === "trend" || isExporting) ? "block" : "hidden"} animate-fade-in-up space-y-6`}>
+          <div  ref={trendRef} className={`${(activeTab === "trend" || isExporting) ? "block" : "hidden"} animate-fade-in-up space-y-6`}>
               {/* 광고비 & 매출 추이 */}
               <div className="bg-white border border-gray-100 rounded-2xl p-6 shadow-sm">
                 <SectionTitle sub="최근 6개월 광고비 지출 대비 매출 획득 변화 트렌드">광고비 · 매출 트렌드 (최근 6개월)</SectionTitle>
