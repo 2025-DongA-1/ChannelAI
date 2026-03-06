@@ -262,9 +262,60 @@ jobs:
 
             ENVEOF
 
-            # ========== 4. 의존성 설치 & 빌드 ==========
+            # ========== 4. 의존성 설치 ==========
             npm install --include=dev --no-audit --no-fund
+
+            # ========== 4-1. 프록시 주입 스크립트 생성 ==========
+            cat > /opt/marketing-platform/inject-proxy.py << 'PROXYEOF'
+            ...
+            PROXYEOF
+
+            # ========== 4-2. 프록시 코드 주입 실행 ==========
+            python3 /opt/marketing-platform/inject-proxy.py
+
+            # ========== 4-3. 빌드 ==========
             npx tsc
+            # ========== 5-1. 프록시 주입 스크립트 생성 ==========
+            cat > /opt/marketing-platform/inject-proxy.py << 'PROXYEOF'
+            import os
+            AXIOS_FILES = [
+                'backend/src/controllers/socialAuthController.ts',
+                'backend/src/services/external/googleAdsService.ts',
+                'backend/src/services/external/naverAdsService.ts',
+                'backend/src/services/external/metaAdsService.ts',
+                'backend/src/services/external/karrotAdsService.ts',
+                'backend/src/services/external/karrotCrawlerService.ts',
+            ]
+            AXIOS_PROXY_CODE = "import { HttpsProxyAgent } from 'https-proxy-agent';\nconst proxyAgent = new HttpsProxyAgent(process.env.HTTPS_PROXY || 'http://10.10.10.6:3128');\naxios.defaults.httpsAgent = proxyAgent;\naxios.defaults.httpAgent = proxyAgent;\naxios.defaults.proxy = false;"
+            GROQ_FILE = 'backend/src/services/ai/aiAnalysisService.ts'
+            BASE_DIR = '/opt/marketing-platform'
+            def inject_axios(filepath):
+                full = os.path.join(BASE_DIR, filepath)
+                if not os.path.exists(full): return
+                with open(full, 'r') as f: content = f.read()
+                if 'HttpsProxyAgent' in content: return
+                content = content.replace("import axios from 'axios';", "import axios from 'axios';\n" + AXIOS_PROXY_CODE)
+                with open(full, 'w') as f: f.write(content)
+                print(f"  ✅ {os.path.basename(filepath)}")
+            def inject_groq(filepath):
+                full = os.path.join(BASE_DIR, filepath)
+                if not os.path.exists(full): return
+                with open(full, 'r') as f: content = f.read()
+                if 'HttpsProxyAgent' not in content:
+                    content = content.replace('import Groq from "groq-sdk";', 'import Groq from "groq-sdk";\nimport { HttpsProxyAgent } from "https-proxy-agent";')
+                old = 'this.groq = process.env.GROQ_API_KEY ? new Groq({ apiKey: process.env.GROQ_API_KEY }) : null;'
+                new = "const agent = new HttpsProxyAgent(process.env.HTTPS_PROXY || 'http://10.10.10.6:3128');\n      this.groq = process.env.GROQ_API_KEY ? new Groq({\n        apiKey: process.env.GROQ_API_KEY,\n        httpAgent: agent,\n        timeout: 60000,\n        maxRetries: 1,\n      }) : null;"
+                if old in content: content = content.replace(old, new)
+                with open(full, 'w') as f: f.write(content)
+                print(f"  ✅ {os.path.basename(filepath)}")
+            print(">> 프록시 주입 시작...")
+            for f in AXIOS_FILES: inject_axios(f)
+            inject_groq(GROQ_FILE)
+            print(">> 프록시 주입 완료!")
+            PROXYEOF
+
+            # ========== 5-2. 프록시 코드 주입 실행 ==========
+            python3 /opt/marketing-platform/inject-proxy.py
 
             # ========== 5. ecosystem.config.js 생성 (프록시 환경변수 포함) ==========
             # 배포할 때마다 ecosystem.config.js를 자동 생성
