@@ -90,3 +90,8 @@ id_rsa.pub
 *.md
 !README.md
 !QUICKSTART.md
+
+# ai 파일
+backend/ai/baseline_ridge_model.joblib
+backend/ai/optimal_budget_xgb_model.json
+backend/ai/predict_budget_debug.py
