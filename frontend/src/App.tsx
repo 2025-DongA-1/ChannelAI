@@ -21,10 +21,13 @@ import OpenaiModelTestPage from './pages/OpenaiModelTestPage';
 import EmailReportPage from './pages/EmailReportPage';
 import MarketingAnalysis from './pages/MarketingAnalysis';
 import logo from "./assets/logo_crop.png";
-
+// 💡 [추가됨] 방금 새로 만든 MainPage 컴포넌트를 불러옵니다!
+import MainPage from './pages/MainPage';
 
 // Placeholder components (to be created)
 const AccountsPage = () => <div className="p-8">계정 관리 (구현 필요)</div>;
+
+// 💡 (주의) App.tsx 내부에 있던 임시 MainPage 컴포넌트는 삭제했습니다! (이제 외부 파일에서 불러옵니다)
 
 // Simple Layout Component
 const Layout = ({ children }: { children: React.ReactNode }) => {
@@ -32,6 +35,7 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
   const location = useLocation();
   const logout = useAuthStore((state) => state.logout);
   const user = useAuthStore((state) => state.user);
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   // 페이지 이동 시 모바일 메뉴 닫기
@@ -55,12 +59,12 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
   ];
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 flex flex-col">
       <nav className="bg-white shadow-sm border-b sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between h-14 sm:h-16">
             <div className="flex items-center">
-              <Link to="/dashboard" className="flex items-center">
+              <Link to={isAuthenticated ? "/dashboard" : "/"} className="flex items-center">
                 <img
                   src={logo}
                   alt="PLAN BE"
@@ -70,32 +74,44 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
             </div>
 
             {/* 데스크탑 네비게이션 */}
-            <div className="hidden md:flex items-center space-x-4">
-              {navLinks.map((link) => (
-                <Link
-                  key={link.to}
-                  to={link.to}
-                  className={`text-sm font-medium transition-colors ${
-                    location.pathname === link.to
-                      ? 'text-blue-600'
-                      : 'text-gray-700 hover:text-gray-900'
-                  }`}
-                >
-                  {link.label}
-                </Link>
-              ))}
-              <div className="flex items-center space-x-2 ml-4 pl-4 border-l">
-                <Link to="/me" className="text-sm text-gray-600 hover:text-gray-900 cursor-pointer font-medium">
-                  {user?.name || user?.email?.split('@')[0] || '사용자'}
-                </Link>
-                <button
-                  onClick={handleLogout}
-                  className="px-3 py-1 text-sm text-red-600 hover:bg-red-50 rounded transition"
-                >
-                  로그아웃
-                </button>
+            {isAuthenticated ? (
+              <div className="hidden md:flex items-center space-x-4">
+                {navLinks.map((link) => (
+                  <Link
+                    key={link.to}
+                    to={link.to}
+                    className={`text-sm font-medium transition-colors ${
+                      location.pathname === link.to
+                        ? 'text-blue-600'
+                        : 'text-gray-700 hover:text-gray-900'
+                    }`}
+                  >
+                    {link.label}
+                  </Link>
+                ))}
+                <div className="flex items-center space-x-2 ml-4 pl-4 border-l">
+                  <Link to="/me" className="text-sm text-gray-600 hover:text-gray-900 cursor-pointer font-medium">
+                    {user?.name || user?.email?.split('@')[0] || '사용자'}
+                  </Link>
+                  <button
+                    onClick={handleLogout}
+                    className="px-3 py-1 text-sm text-red-600 hover:bg-red-50 rounded transition"
+                  >
+                    로그아웃
+                  </button>
+                </div>
               </div>
-            </div>
+            ) : (
+              // 비로그인 사용자를 위한 데스크탑 네비게이션
+              <div className="hidden md:flex items-center space-x-4">
+                <Link to="/login" className="text-sm font-medium text-gray-700 hover:text-gray-900 transition-colors">
+                  로그인
+                </Link>
+                <Link to="/register" className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors shadow-sm">
+                  무료로 시작하기
+                </Link>
+              </div>
+            )}
 
             {/* 모바일 햄버거 버튼 */}
             <div className="flex items-center md:hidden">
@@ -121,39 +137,52 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
         {/* 모바일 드롭다운 메뉴 */}
         {mobileMenuOpen && (
           <div className="md:hidden border-t border-gray-100 bg-white shadow-lg">
-            <div className="px-4 py-3 space-y-1">
-              {navLinks.map((link) => (
-                <Link
-                  key={link.to}
-                  to={link.to}
-                  className={`block px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-                    location.pathname === link.to
-                      ? 'bg-blue-50 text-blue-600'
-                      : 'text-gray-700 hover:bg-gray-50'
-                  }`}
-                >
-                  {link.label}
-                </Link>
-              ))}
-              <div className="border-t border-gray-100 mt-2 pt-2">
-                <Link
-                  to="/me"
-                  className="block px-3 py-2.5 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50"
-                >
-                  👤 {user?.name || user?.email?.split('@')[0] || '사용자'}
-                </Link>
-                <button
-                  onClick={handleLogout}
-                  className="w-full text-left px-3 py-2.5 rounded-lg text-sm font-medium text-red-600 hover:bg-red-50 transition"
-                >
-                  로그아웃
-                </button>
+            {isAuthenticated ? (
+              <div className="px-4 py-3 space-y-1">
+                {navLinks.map((link) => (
+                  <Link
+                    key={link.to}
+                    to={link.to}
+                    className={`block px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                      location.pathname === link.to
+                        ? 'bg-blue-50 text-blue-600'
+                        : 'text-gray-700 hover:bg-gray-50'
+                    }`}
+                  >
+                    {link.label}
+                  </Link>
+                ))}
+                <div className="border-t border-gray-100 mt-2 pt-2">
+                  <Link
+                    to="/me"
+                    className="block px-3 py-2.5 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50"
+                  >
+                    👤 {user?.name || user?.email?.split('@')[0] || '사용자'}
+                  </Link>
+                  <button
+                    onClick={handleLogout}
+                    className="w-full text-left px-3 py-2.5 rounded-lg text-sm font-medium text-red-600 hover:bg-red-50 transition"
+                  >
+                    로그아웃
+                  </button>
+                </div>
               </div>
-            </div>
+            ) : (
+              // 비로그인 사용자를 위한 모바일 드롭다운 메뉴
+              <div className="px-4 py-4 space-y-3">
+                <Link to="/login" className="block w-full text-center px-4 py-2.5 text-sm font-medium text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50">
+                  로그인
+                </Link>
+                <Link to="/register" className="block w-full text-center px-4 py-2.5 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700">
+                  무료로 시작하기
+                </Link>
+              </div>
+            )}
           </div>
         )}
       </nav>
-      <main className="max-w-7xl mx-auto py-3 sm:py-6">{children}</main>
+      {/* 💡 [수정됨] Layout이 감싸는 화면이 화면 전체 높이를 차지하도록 수정 */}
+      <main className="flex-grow w-full">{children}</main>
     </div>
   );
 };
@@ -180,6 +209,7 @@ function App() {
       <BrowserRouter>
         <Routes>
           {/* Public Routes */}
+          <Route path="/" element={<Layout><MainPage /></Layout>} />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
           <Route path="/auth/callback" element={<AuthCallbackPage />} />
@@ -192,7 +222,9 @@ function App() {
             element={
               <PrivateRoute>
                 <Layout>
-                  <DashboardPage />
+                  <div className="max-w-7xl mx-auto py-3 sm:py-6 px-4 sm:px-6 lg:px-8">
+                    <DashboardPage />
+                  </div>
                 </Layout>
               </PrivateRoute>
             }
@@ -202,7 +234,9 @@ function App() {
             element={
               <PrivateRoute>
                 <Layout>
-                  <CampaignsPage />
+                  <div className="max-w-7xl mx-auto py-3 sm:py-6 px-4 sm:px-6 lg:px-8">
+                    <CampaignsPage />
+                  </div>
                 </Layout>
               </PrivateRoute>
             }
@@ -212,7 +246,9 @@ function App() {
             element={
               <PrivateRoute>
                 <Layout>
-                  <CampaignDetailPage />
+                  <div className="max-w-7xl mx-auto py-3 sm:py-6 px-4 sm:px-6 lg:px-8">
+                    <CampaignDetailPage />
+                  </div>
                 </Layout>
               </PrivateRoute>
             }
@@ -222,7 +258,9 @@ function App() {
             element={
               <PrivateRoute>
                 <Layout>
-                  <AccountsPage />
+                  <div className="max-w-7xl mx-auto py-3 sm:py-6 px-4 sm:px-6 lg:px-8">
+                    <AccountsPage />
+                  </div>
                 </Layout>
               </PrivateRoute>
             }
@@ -232,7 +270,9 @@ function App() {
             element={
               <PrivateRoute>
                 <Layout>
-                  <IntegrationPage />
+                  <div className="max-w-7xl mx-auto py-3 sm:py-6 px-4 sm:px-6 lg:px-8">
+                    <IntegrationPage />
+                  </div>
                 </Layout>
               </PrivateRoute>
             }
@@ -243,31 +283,36 @@ function App() {
             element={
               <PrivateRoute>
                 <Layout>
-                  <InsightsPage />
+                  <div className="max-w-7xl mx-auto py-3 sm:py-6 px-4 sm:px-6 lg:px-8">
+                    <InsightsPage />
+                  </div>
                 </Layout>
               </PrivateRoute>
             }
           />
 
-            {/* ★ [추가] AI 분석 페이지 라우트 */}
+          {/* ★ [추가] AI 분석 페이지 라우트 */}
           <Route
             path="/analysis"
             element={
               <PrivateRoute>
                 <Layout>
-                  <MarketingAnalysis />
+                  <div className="max-w-7xl mx-auto py-3 sm:py-6 px-4 sm:px-6 lg:px-8">
+                    <MarketingAnalysis />
+                  </div>
                 </Layout>
               </PrivateRoute>
             }
           />
-
 
           <Route
             path="/dummy-data"
             element={
               <PrivateRoute>
                 <Layout>
-                  <DummyDataPage />
+                  <div className="max-w-7xl mx-auto py-3 sm:py-6 px-4 sm:px-6 lg:px-8">
+                    <DummyDataPage />
+                  </div>
                 </Layout>
               </PrivateRoute>
             }
@@ -279,7 +324,9 @@ function App() {
             element={
               <PrivateRoute>
                 <Layout>
-                  <DataManagementPage />
+                  <div className="max-w-7xl mx-auto py-3 sm:py-6 px-4 sm:px-6 lg:px-8">
+                    <DataManagementPage />
+                  </div>
                 </Layout>
               </PrivateRoute>
             }
@@ -290,7 +337,9 @@ function App() {
             element={
               <PrivateRoute>
                 <Layout>
-                  <AdvancedModelTestPage />
+                  <div className="max-w-7xl mx-auto py-3 sm:py-6 px-4 sm:px-6 lg:px-8">
+                    <AdvancedModelTestPage />
+                  </div>
                 </Layout>
               </PrivateRoute>
             }
@@ -301,7 +350,9 @@ function App() {
             element={
               <PrivateRoute>
                 <Layout>
-                  <OpenaiModelTestPage />
+                  <div className="max-w-7xl mx-auto py-3 sm:py-6 px-4 sm:px-6 lg:px-8">
+                    <OpenaiModelTestPage />
+                  </div>
                 </Layout>
               </PrivateRoute>
             }
@@ -312,7 +363,9 @@ function App() {
             element={
               <PrivateRoute>
                 <Layout>
-                  <MyPage />
+                  <div className="max-w-7xl mx-auto py-3 sm:py-6 px-4 sm:px-6 lg:px-8">
+                    <MyPage />
+                  </div>
                 </Layout>
               </PrivateRoute>
             }
@@ -323,14 +376,16 @@ function App() {
             element={
               <PrivateRoute>
                 <Layout>
-                  <EmailReportPage />
+                  <div className="max-w-7xl mx-auto py-3 sm:py-6 px-4 sm:px-6 lg:px-8">
+                    <EmailReportPage />
+                  </div>
                 </Layout>
               </PrivateRoute>
             }
           />
 
-          {/* Default Route */}
-          <Route path="/" element={<Navigate to="/dashboard" replace />} />
+          {/* 잘못된 경로 접속 시 메인 페이지('/')로 리다이렉트 */}
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </BrowserRouter>
     </QueryClientProvider>
