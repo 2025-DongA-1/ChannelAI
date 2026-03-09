@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import { 
@@ -7,11 +8,33 @@ import {
   ArrowRight, 
   TrendingUp, 
   Zap,
-  ShieldCheck
+  ShieldCheck,
+  ChevronDown
 } from 'lucide-react';
 
 export default function MainPage() {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  
+  const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(null);
+
+  const faqs = [
+    {
+      q: "모든 기능이 무료인가요?",
+      a: "Plan BE의 핵심인 '통합 대시보드'와 '기본 AI 예산 진단'은 소상공인 사장님들을 위해 무료로 제공됩니다! 다만, 더 깊이 있는 '프리미엄 AI 상세 리포트'와 매일/매주 편하게 받아보시는 '리포트 자동 발송 서비스'는 합리적인 가격의 구독제로 운영될 예정입니다."
+    },
+    {
+      q: "어떤 광고 매체들을 연동할 수 있나요?",
+      a: "현재 네이버 검색광고, 메타(페이스북/인스타그램), 구글 애즈 연동을 기본적으로 지원합니다. 또한 소상공인 필수 매체인 '당근마켓 광고' 데이터도 연동하여 한곳에서 모아보실 수 있습니다."
+    },
+    {
+      q: "광고 계정 연동 시 제 정보는 안전한가요?",
+      a: "물론입니다! Plan BE는 오직 광고 '성과 데이터'만을 읽기 전용으로 안전하게 수집합니다. 사장님의 개인정보나 결제/카드 정보는 시스템에 절대 저장되지 않으니 안심하셔도 됩니다."
+    },
+    {
+      q: "데이터가 업데이트되는 주기는 어떻게 되나요?",
+      a: "Plan BE의 '연동' 메뉴에서 동기화 버튼을 누르시면 그 즉시 최신 데이터로 업데이트됩니다! 실시간 성과가 궁금할 때마다 버튼 한 번으로 빠르고 정확하게 데이터를 모아보세요."
+    }
+  ];
 
   return (
     <div className="flex flex-col min-h-screen bg-white">
@@ -31,7 +54,8 @@ export default function MainPage() {
           
           <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold text-gray-900 tracking-tight mb-8 leading-tight">
             마케팅 예산 누수, <br className="hidden sm:block" />
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-indigo-600">
+            {/* 💡 [수정됨] inline-block과 mt-4를 추가하여 위아래 줄 간격을 시원하게 띄웠습니다! */}
+            <span className="inline-block mt-4 text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-indigo-600">
               AI가 완벽하게 막아드립니다.
             </span>
           </h1>
@@ -155,8 +179,8 @@ export default function MainPage() {
       <section className="py-24 bg-gray-900 text-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
-            <h2 className="text-3xl md:text-4xl font-bold mb-4">도입부터 분석까지, 단 3단계</h2>
-            <p className="text-gray-400 text-lg">어렵고 복잡한 설정은 없습니다. 지금 바로 시작해 보세요.</p>
+            <h2 className="text-3xl md:text-4xl font-bold mb-4">Plan BE, 이렇게 100% 활용하세요!</h2>
+            <p className="text-gray-400 text-lg">가입부터 수익률 상승까지, 사장님이 하실 일은 딱 3가지입니다.</p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8 relative">
@@ -168,9 +192,9 @@ export default function MainPage() {
               <div className="w-24 h-24 mx-auto bg-gray-800 border-4 border-gray-900 rounded-full flex items-center justify-center mb-6 shadow-xl">
                 <Zap className="w-10 h-10 text-blue-400" />
               </div>
-              <h3 className="text-xl font-bold mb-3">1. 간편 연동</h3>
+              <h3 className="text-xl font-bold mb-3">Step 1. 계정 연동하기</h3>
               <p className="text-gray-400 leading-relaxed text-sm px-4">
-                클릭 몇 번으로 기존에 사용하시던 네이버, 메타, 구글 광고 계정을 안전하게 연결하세요.
+                좌측 <strong className="text-white">[연동]</strong> 메뉴에서 네이버, 메타, 구글 등 사용 중인 광고 계정을 클릭 몇 번으로 간편하게 연결하세요.
               </p>
             </div>
 
@@ -179,9 +203,9 @@ export default function MainPage() {
               <div className="w-24 h-24 mx-auto bg-blue-600 border-4 border-gray-900 rounded-full flex items-center justify-center mb-6 shadow-xl">
                 <Sparkles className="w-10 h-10 text-white" />
               </div>
-              <h3 className="text-xl font-bold mb-3 text-blue-400">2. AI 자동 분석</h3>
+              <h3 className="text-xl font-bold mb-3 text-blue-400">Step 2. AI 분석 버튼 누르기</h3>
               <p className="text-gray-400 leading-relaxed text-sm px-4">
-                Plan BE의 AI가 지난 데이터들을 샅샅이 분석하여 예산 누수 지점을 정확히 찾아냅니다.
+                데이터가 모이면 <strong className="text-white">[인사이트]</strong> 탭으로 이동해 'AI 분석 실행하기' 버튼을 누르고 우리 가게만의 진단 리포트를 받으세요.
               </p>
             </div>
 
@@ -190,16 +214,52 @@ export default function MainPage() {
               <div className="w-24 h-24 mx-auto bg-gray-800 border-4 border-gray-900 rounded-full flex items-center justify-center mb-6 shadow-xl">
                 <TrendingUp className="w-10 h-10 text-green-400" />
               </div>
-              <h3 className="text-xl font-bold mb-3">3. 최적화 적용</h3>
+              <h3 className="text-xl font-bold mb-3">Step 3. 액션 플랜 적용하기</h3>
               <p className="text-gray-400 leading-relaxed text-sm px-4">
-                AI가 제안하는 맞춤형 액션 플랜대로 예산을 분배하고 상승하는 수익률(ROAS)을 경험하세요.
+                AI가 콕 집어준 매체별 <strong className="text-white">예산 증감 가이드</strong>에 따라 실제 광고비를 수정하고 ROAS(수익률)가 오르는 걸 확인하세요!
               </p>
             </div>
           </div>
         </div>
       </section>
 
-      {/* 5. Final CTA (최종 행동 유도) */}
+      {/* 5. FAQ (자주 묻는 질문) 섹션 */}
+      <section className="py-24 bg-white border-t border-gray-100">
+        <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center mb-16">
+            <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">자주 묻는 질문</h2>
+            <p className="text-lg text-gray-600">Plan BE 도입 전 사장님들이 가장 많이 물어보시는 질문들이에요.</p>
+          </div>
+          
+          <div className="space-y-4">
+            {faqs.map((faq, index) => (
+              <div 
+                key={index} 
+                className="border border-gray-200 rounded-2xl overflow-hidden transition-all duration-200 hover:border-blue-300 bg-white shadow-sm"
+              >
+                <button
+                  onClick={() => setOpenFaqIndex(openFaqIndex === index ? null : index)}
+                  className="w-full flex items-center justify-between p-6 text-left hover:bg-gray-50 transition-colors focus:outline-none"
+                >
+                  <span className="font-bold text-gray-900 pr-4 text-lg">{faq.q}</span>
+                  <ChevronDown 
+                    className={`w-5 h-5 text-gray-500 transition-transform duration-300 flex-shrink-0 ${openFaqIndex === index ? 'rotate-180 text-blue-600' : ''}`} 
+                  />
+                </button>
+                <div 
+                  className={`overflow-hidden transition-all duration-300 ease-in-out ${openFaqIndex === index ? 'max-h-96 opacity-100' : 'max-h-0 opacity-0'}`}
+                >
+                  <div className="p-6 pt-0 text-gray-600 leading-relaxed border-t border-gray-100 bg-gray-50">
+                    {faq.a}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* 6. Final CTA (최종 행동 유도) */}
       <section className="py-24 bg-blue-600 text-center px-4">
         <div className="max-w-3xl mx-auto">
           <ShieldCheck className="w-16 h-16 text-blue-200 mx-auto mb-6" />
@@ -212,7 +272,7 @@ export default function MainPage() {
           </p>
           {!isAuthenticated && (
             <Link to="/register" className="inline-flex items-center justify-center px-8 py-4 text-lg font-bold text-blue-600 bg-white hover:bg-gray-50 rounded-xl transition shadow-xl hover:-translate-y-1">
-              Plan BE 100% 무료로 시작하기
+              Plan BE 무료로 체험하기
               <ArrowRight className="ml-2 w-5 h-5" />
             </Link>
           )}
