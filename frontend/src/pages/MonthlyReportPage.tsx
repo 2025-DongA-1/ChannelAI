@@ -232,7 +232,6 @@ const TAB_LABELS = ["종합 현황", "채널별 분석", "추이 분석"];
       const renderedH = (imgH * CONTENT_W) / imgW;
 
       let yOffset = 0;
-      let isTabFirstPage = true;
 
       while (yOffset < renderedH) {
         // ── 페이지 추가 ──
@@ -285,7 +284,6 @@ const TAB_LABELS = ["종합 현황", "채널별 분석", "추이 분석"];
         );
 
         yOffset += sliceH;
-        isTabFirstPage = false;
       }
     }
 
