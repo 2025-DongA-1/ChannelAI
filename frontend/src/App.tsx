@@ -22,13 +22,10 @@ import EmailReportPage from './pages/EmailReportPage';
 import MonthlyReportPage from './pages/MonthlyReportPage';
 import MarketingAnalysis from './pages/MarketingAnalysis';
 import logo from "./assets/logo_crop.png";
-// 💡 [추가됨] 방금 새로 만든 MainPage 컴포넌트를 불러옵니다!
 import MainPage from './pages/MainPage';
 
 // Placeholder components (to be created)
 const AccountsPage = () => <div className="p-8">계정 관리 (구현 필요)</div>;
-
-// 💡 (주의) App.tsx 내부에 있던 임시 MainPage 컴포넌트는 삭제했습니다! (이제 외부 파일에서 불러옵니다)
 
 // Simple Layout Component
 const Layout = ({ children }: { children: React.ReactNode }) => {
@@ -57,8 +54,6 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
     { to: '/integration', label: '연동' },
     { to: '/analysis', label: 'AI 예산 분석' },
     { to: '/insights', label: '인사이트' },
-    //{ to: '/monthly-report', label: '월간 보고서' },
-    //{ to: '/dummy-data', label: '테스트 센터' },
   ];
 
   return (
@@ -67,7 +62,8 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between h-14 sm:h-16">
             <div className="flex items-center">
-              <Link to={isAuthenticated ? "/dashboard" : "/"} className="flex items-center">
+              {/* 💡 [수정됨] 로고 클릭 시 무조건 메인 화면('/')으로 이동하도록 수정했습니다! */}
+              <Link to="/" className="flex items-center">
                 <img
                   src={logo}
                   alt="PLAN BE"
@@ -184,7 +180,6 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
           </div>
         )}
       </nav>
-      {/* 💡 [수정됨] Layout이 감싸는 화면이 화면 전체 높이를 차지하도록 수정 */}
       <main className="flex-grow w-full">{children}</main>
     </div>
   );
@@ -294,7 +289,6 @@ function App() {
             }
           />
 
-          {/* ★ [추가] AI 분석 페이지 라우트 */}
           <Route
             path="/analysis"
             element={
@@ -321,7 +315,6 @@ function App() {
             }
           />
 
-          {/* ★ [추가] 원본 데이터 관리 페이지 라우트 */}
           <Route
             path="/data-management"
             element={
@@ -347,7 +340,7 @@ function App() {
               </PrivateRoute>
             }
           />
-          {/* [2026-03-05 16:15] 수정 이유: OpenAI 모델 전용 테스트 페이지 접속 라우트 */}
+          
           <Route
             path="/openai-model-test"
             element={
@@ -399,7 +392,6 @@ function App() {
             }
           />
 
-          {/* 잘못된 경로 접속 시 메인 페이지('/')로 리다이렉트 */}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </BrowserRouter>
