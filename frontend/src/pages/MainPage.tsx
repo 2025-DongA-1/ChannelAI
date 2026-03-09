@@ -5,7 +5,7 @@ import {
   Target, 
   Sparkles, 
   ArrowRight, 
-  CheckCircle2, 
+  // 💡 [수정됨] 사용하지 않는 CheckCircle2 삭제!
   TrendingUp, 
   Zap,
   ShieldCheck
