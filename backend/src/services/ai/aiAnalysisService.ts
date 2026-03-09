@@ -59,7 +59,7 @@ export class AIAnalysisService {
           model: 'gpt-4o-mini',
           messages: [{ role: 'user', content: prompt }],
           temperature: 0.5,
-          max_tokens: 400,
+          max_tokens: 2500,
         }, {
           headers: {
             'Content-Type': 'application/json',

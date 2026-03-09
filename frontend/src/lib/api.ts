@@ -315,3 +315,17 @@ export const metricAPI = {
   // 다수 메트릭 일괄 삭제
   deleteBulkMetrics: (ids: number[]) => api.post('/metrics/bulk-delete', { ids }),
 };
+
+// 🎨 AI 소재 에이전트 관련 API 함수 모음
+export const creativeAPI = {
+  // 광고 소재 패키지 생성 (FormData: 텍스트 필드 + 파일 업로드)
+  generate: (formData: FormData) =>
+    api.post('/ai/creative/generate', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: 120000, // LLM 응답 대기 2분
+    }),
+  // 생성 이력 조회
+  getHistory: () => api.get('/ai/creative/history'),
+  // 특정 생성 결과 상세 조회
+  getDetail: (id: number) => api.get(`/ai/creative/${id}`),
+};

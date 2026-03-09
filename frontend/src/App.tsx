@@ -20,6 +20,7 @@ import AdvancedModelTestPage from './pages/AdvancedModelTestPage';
 import OpenaiModelTestPage from './pages/OpenaiModelTestPage';
 import EmailReportPage from './pages/EmailReportPage';
 import MarketingAnalysis from './pages/MarketingAnalysis';
+import CreativeAgentPage from './pages/CreativeAgentPage';
 import logo from "./assets/logo_crop.png";
 
 
@@ -50,6 +51,7 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
     { to: '/dashboard', label: '대시보드' },
     { to: '/campaigns', label: '캠페인 & 예산' },
     { to: '/integration', label: '연동' },
+    { to: '/creative', label: 'AI 소재' },
     { to: '/analysis', label: 'AI 예산 분석' },
     { to: '/insights', label: '인사이트' },
   ];
@@ -233,6 +235,17 @@ function App() {
               <PrivateRoute>
                 <Layout>
                   <IntegrationPage />
+                </Layout>
+              </PrivateRoute>
+            }
+          />
+
+          <Route
+            path="/creative"
+            element={
+              <PrivateRoute>
+                <Layout>
+                  <CreativeAgentPage />
                 </Layout>
               </PrivateRoute>
             }

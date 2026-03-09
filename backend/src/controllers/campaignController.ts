@@ -4,9 +4,10 @@ import { AuthRequest } from '../middlewares/auth';
 
 // 캠페인 목록 조회
 export const getCampaigns = async (req: Request, res: Response) => {
-  const client = await pool.connect();
+  let client;
   
   try {
+    client = await pool.connect();
     const userId = (req as AuthRequest).user?.id;
     const { platform, status, page = 1, limit = 10 } = req.query;
     
@@ -26,7 +27,7 @@ export const getCampaigns = async (req: Request, res: Response) => {
         agg.total_clicks
       FROM campaigns c
       JOIN marketing_accounts ma ON c.marketing_account_id = ma.id
-      JOIN (
+      LEFT JOIN (
         SELECT campaign_id,
                MIN(metric_date) as start_date,
                MAX(metric_date) as end_date,
@@ -95,15 +96,16 @@ export const getCampaigns = async (req: Request, res: Response) => {
       message: '캠페인 목록 조회 중 오류가 발생했습니다.',
     });
   } finally {
-    client.release();
+    if (client) client.release();
   }
 };
 
 // 캠페인 상세 조회
 export const getCampaignById = async (req: Request, res: Response) => {
-  const client = await pool.connect();
-  
+  let client;
+
   try {
+    client = await pool.connect();
     const userId = (req as AuthRequest).user?.id;
     const { id } = req.params;
     
@@ -120,6 +122,7 @@ export const getCampaignById = async (req: Request, res: Response) => {
     );
     
     if (result.rows.length === 0) {
+      if (client) client.release();
       return res.status(404).json({
         error: 'CAMPAIGN_NOT_FOUND',
         message: '캠페인을 찾을 수 없습니다.',
@@ -146,15 +149,16 @@ export const getCampaignById = async (req: Request, res: Response) => {
       message: '캠페인 조회 중 오류가 발생했습니다.',
     });
   } finally {
-    client.release();
+    if (client) client.release();
   }
 };
 
 // 캠페인 생성
 export const createCampaign = async (req: Request, res: Response) => {
-  const client = await pool.connect();
+  let client;
   
   try {
+    client = await pool.connect();
     const userId = (req as AuthRequest).user?.id;
     const {
       marketing_account_id,
@@ -167,6 +171,7 @@ export const createCampaign = async (req: Request, res: Response) => {
     
     // 입력 검증
     if (!marketing_account_id || !campaign_name || !external_campaign_id) {
+      if (client) client.release();
       return res.status(400).json({
         error: 'INVALID_INPUT',
         message: '필수 항목을 입력해주세요.',
@@ -180,6 +185,7 @@ export const createCampaign = async (req: Request, res: Response) => {
     );
     
     if (accountCheck.rows.length === 0) {
+      if (client) client.release();
       return res.status(403).json({
         error: 'FORBIDDEN',
         message: '해당 마케팅 계정에 대한 권한이 없습니다.',
@@ -217,15 +223,16 @@ export const createCampaign = async (req: Request, res: Response) => {
       message: '캠페인 생성 중 오류가 발생했습니다.',
     });
   } finally {
-    client.release();
+    if (client) client.release();
   }
 };
 
 // 캠페인 수정
 export const updateCampaign = async (req: Request, res: Response) => {
-  const client = await pool.connect();
+  let client;
   
   try {
+    client = await pool.connect();
     const userId = (req as AuthRequest).user?.id;
     const { id } = req.params;
     const {
@@ -244,6 +251,7 @@ export const updateCampaign = async (req: Request, res: Response) => {
     );
     
     if (authCheck.rows.length === 0) {
+      if (client) client.release();
       return res.status(404).json({
         error: 'CAMPAIGN_NOT_FOUND',
         message: '캠페인을 찾을 수 없습니다.',
@@ -272,15 +280,16 @@ export const updateCampaign = async (req: Request, res: Response) => {
       message: '캠페인 수정 중 오류가 발생했습니다.',
     });
   } finally {
-    client.release();
+    if (client) client.release();
   }
 };
 
 // 캠페인 삭제
 export const deleteCampaign = async (req: Request, res: Response) => {
-  const client = await pool.connect();
+  let client;
   
   try {
+    client = await pool.connect();
     const userId = (req as AuthRequest).user?.id;
     const { id } = req.params;
     
@@ -293,16 +302,22 @@ export const deleteCampaign = async (req: Request, res: Response) => {
     );
     
     if (authCheck.rows.length === 0) {
+      if (client) client.release();
       return res.status(404).json({
         error: 'CAMPAIGN_NOT_FOUND',
         message: '캠페인을 찾을 수 없습니다.',
       });
     }
     
+    // ON DELETE CASCADE가 설정되어 있다고 가정하거나,
+    // 필요하다면 metrics > creatives > ad groups > campaign 순으로 삭제해야 함
+    
+    // 여기서는 간단히 delete
     await client.query('DELETE FROM campaigns WHERE id = ?', [id]);
     
     res.json({
       message: '캠페인이 삭제되었습니다.',
+      campaignId: id
     });
   } catch (error) {
     console.error('Delete campaign error:', error);
@@ -311,15 +326,16 @@ export const deleteCampaign = async (req: Request, res: Response) => {
       message: '캠페인 삭제 중 오류가 발생했습니다.',
     });
   } finally {
-    client.release();
+    if (client) client.release();
   }
 };
 
 // 캠페인 메트릭 조회
 export const getCampaignMetrics = async (req: Request, res: Response) => {
-  const client = await pool.connect();
+  let client;
   
   try {
+    client = await pool.connect();
     const userId = (req as AuthRequest).user?.id;
     const { id } = req.params;
     const { start_date, end_date, limit = 1000 } = req.query;
@@ -333,6 +349,7 @@ export const getCampaignMetrics = async (req: Request, res: Response) => {
     );
     
     if (authCheck.rows.length === 0) {
+      if (client) client.release();
       return res.status(404).json({
         error: 'CAMPAIGN_NOT_FOUND',
         message: '캠페인을 찾을 수 없습니다.',
@@ -361,15 +378,17 @@ export const getCampaignMetrics = async (req: Request, res: Response) => {
     const result = await client.query(query, params);
     
     res.json({
+      cnt: result.rows.length,
       metrics: result.rows,
     });
   } catch (error) {
-    console.error('Get campaign metrics error:', error);
+    console.error('Get metrics error:', error);
     res.status(500).json({
       error: 'SERVER_ERROR',
-      message: '캠페인 메트릭 조회 중 오류가 발생했습니다.',
+      message: '메트릭 조회 중 오류가 발생했습니다.',
     });
   } finally {
-    client.release();
+    if (client) client.release();
   }
 };
+
