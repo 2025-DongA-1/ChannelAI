@@ -397,7 +397,7 @@ function MarketingAnalysis() {
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
                   {/* 왼쪽: 제목과 버튼 */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-                    <h3 style={{ fontSize: '1.3rem', margin: 0, color: '#333' }}>📉 AI 매체별 성과 예측 시뮬레이션</h3>
+                    <h3 style={{ fontSize: '1.3rem', margin: 0, color: '#333' }}>📉 AI 플랫폼별 성과 예측 시뮬레이션</h3>
                     <div style={{ display: 'flex', backgroundColor: '#f1f3f5', borderRadius: '20px', padding: '4px' }}>
                       <button 
                         onClick={() => handlePeriodChange(7)}
@@ -428,7 +428,7 @@ function MarketingAnalysis() {
                   
                   {/* 오른쪽 텅 빈 공간에 뱃지 형태로 Tip */}
                   <div style={{ fontSize: '0.85rem', color: '#0984e3', backgroundColor: '#e3f2fd', padding: '6px 14px', borderRadius: '20px', fontWeight: 'bold' }}>
-                    💡 Tip. 선이나 매체명에 마우스를 올려보세요!
+                    💡 Tip. 선이나 플랫폼명에 마우스를 올려보세요!
                   </div>
                 </div>
 
@@ -475,7 +475,7 @@ function MarketingAnalysis() {
               }}>
                   {/* 파이 차트 */}
                   <div style={{ textAlign: 'center', minWidth:0, overflow: 'hidden'}}>
-                    <h3 style={{ fontSize: '1.2rem', marginBottom: '20px', color: '#333' }}>💰 채널별 예산 추천 비율</h3>
+                    <h3 style={{ fontSize: '1.2rem', marginBottom: '20px', color: '#333' }}>💰 플랫폼별 예산 추천 비율</h3>
                     <div style={{ height: '300px', width: '100%', position: 'relative' }}>
                       {mounted && (
                         <ResponsiveContainer width="100%" height="100%" minWidth={10} minHeight={10} debounce={50}>
@@ -503,7 +503,7 @@ function MarketingAnalysis() {
 
                   {/* 막대 차트 */}
                   <div style={{ borderLeft: '1px solid #f1f3f5', paddingLeft: '50px', minWidth:0, overflow: 'hidden' }}>
-                    <h3 style={{ fontSize: '1.2rem', marginBottom: '20px', color: '#333' }}>📈 매체별 예측 효율 (ROAS)</h3>
+                    <h3 style={{ fontSize: '1.2rem', marginBottom: '20px', color: '#333' }}>📈 플랫폼별 예측 효율 (ROAS)</h3>
                     <div style={{ height: '300px', width: '100%', position: 'relative' }}>
                       {mounted && (
                         <ResponsiveContainer width="100%" height="100%" minWidth={10} minHeight={10} debounce={50}>
