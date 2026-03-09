@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useAuthStore } from '../store/authStore';
 import { integrationAPI } from '../lib/api';
-import { FileSpreadsheet, Plus, Download, Database, Trash2, AlertCircle, RefreshCw, Brain, Mail } from 'lucide-react';
+import { FileSpreadsheet, Plus, Download, Database, Trash2, AlertCircle, RefreshCw, Brain, Mail, Link2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 // 🌟 1. DB의 상세 메트릭 컬럼들을 모두 포함하도록 인터페이스 확장!
@@ -255,6 +255,21 @@ const DummyDataPage: React.FC = () => {
     setFormData({ date: new Date().toISOString().split('T')[0], media: 'meta', cost: 0, impressions: 0, clicks: 0, conversions: 0, revenue: 0 });
   };
 
+  const handleMockConnect = async (platform: string) => {
+    if (!token) return alert('로그인이 필요합니다.');
+    if (!confirm(`${platform.toUpperCase()} 매체를 '플랜비 테스트 계정'으로 임시 연동하시겠습니까?`)) return;
+
+    try {
+      const response = await integrationAPI.mockConnect(platform);
+      if (response.data.success) {
+        alert(`✅ ${response.data.message}`);
+      }
+    } catch (err: any) {
+      console.error(err);
+      alert(`❌ 연동 실패: ${err.response?.data?.error || err.message}`);
+    }
+  };
+
   const clearData = () => { if (confirm('모든 데이터를 삭제하시겠습니까?')) setData([]); };
 
   const getCampaignSummary = () => {
@@ -344,7 +359,6 @@ const DummyDataPage: React.FC = () => {
                 랜덤 데이터 생성 설정
             </h2>
             <div className="grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
-                {/* 🌟 플랫폼 선택 드롭다운 추가 */}
                 <div className="space-y-1">
                     <label className="text-xs font-bold text-gray-500 uppercase">매체 선택</label>
                     <select 
@@ -371,6 +385,38 @@ const DummyDataPage: React.FC = () => {
                 <button onClick={handleGenerateDummy} className="px-6 py-2 bg-blue-50 text-blue-600 border border-blue-200 rounded-xl font-bold hover:bg-blue-100 transition whitespace-nowrap h-[42px]">
                   랜덤 생성
                 </button>
+            </div>
+        </div>
+
+        {/* 🥕 플랜비 테스트 계정 임시 연동 섹션 추가 */}
+        <div className="bg-white p-6 rounded-2xl shadow-sm border border-orange-100 bg-gradient-to-br from-white to-orange-50/30">
+            <h2 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
+                <Link2 className="text-orange-500" size={24} />
+                매체별 임시 연동 서비스 (PlanB)
+            </h2>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {[
+                  { id: 'google', name: 'Google Ads', icon: '🔍', color: 'bg-red-50 text-red-700 border-red-100 hover:bg-red-100' },
+                  { id: 'meta', name: 'Meta Ads', icon: '📘', color: 'bg-blue-50 text-blue-700 border-blue-100 hover:bg-blue-100' },
+                  { id: 'naver', name: 'Naver Ads', icon: '🟢', color: 'bg-green-50 text-green-700 border-green-100 hover:bg-green-100' }
+                ].map((platform) => (
+                  <button
+                    key={platform.id}
+                    onClick={() => handleMockConnect(platform.id)}
+                    className={`flex flex-col items-center justify-center p-4 rounded-2xl border transition group ${platform.color}`}
+                  >
+                    <span className="text-3xl mb-2 group-hover:scale-110 transition-transform">{platform.icon}</span>
+                    <span className="font-bold">{platform.name}</span>
+                    <span className="text-[10px] mt-1 opacity-70">임시 연동 실행</span>
+                  </button>
+                ))}
+            </div>
+            <div className="mt-4 p-3 bg-white/60 border border-orange-100 rounded-xl text-xs text-orange-800 flex items-start gap-2">
+              <AlertCircle size={16} className="mt-0.5 flex-shrink-0" />
+              <p>
+                <b>임시 연동이란?</b> 실제 OAuth 인증 과정 없이, 시스템에 미리 정의된 <b>'플랜비 테스트 계정'</b> 정보를 강제 등록합니다.<br/>
+                연동 완료 후 대시보드 및 연동 페이지에서 <b>표준화된 테스트 계정(ID: 492-331-XXXX 등)</b>을 확인할 수 있습니다.
+              </p>
             </div>
         </div>
 
