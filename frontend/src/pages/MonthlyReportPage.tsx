@@ -8,7 +8,7 @@ import {
 import { LayoutDashboard, DownloadCloud } from 'lucide-react';
 import { api } from '../lib/api';
 import html2canvas from 'html2canvas';
-import jsPDF from 'jspdf';
+import { jsPDF } from 'jspdf'; // [2026-03-09 09:22] jspdf 타입 호환성을 위해 named import 형식으로 수정
 
 // ─── 유틸 ────────────────────────────────────────────────────────────────────
 const PLATFORM_COLORS: Record<string, string> = { meta: "#3b82f6", google: "#ef4444", naver: "#22c55e", karrot: "#f97316" };
@@ -209,12 +209,15 @@ export default function MonthlyReportPage() {
     const MARGIN = 10;
     const CONTENT_W = A4_W - MARGIN * 2;
 
+const TAB_LABELS = ["종합 현황", "채널별 분석", "추이 분석"];
     let isFirstPage = true;
 
-    for (const ref of TAB_REFS) {
+    for (let i = 0; i < TAB_REFS.length; i++) {
+      const ref = TAB_REFS[i];
       const el = ref.current;
       if (!el) continue;
 
+      // ── 탭 콘텐츠 캡처 ──
       const canvas = await html2canvas(el, {
         scale: 2,
         useCORS: true,
@@ -225,14 +228,44 @@ export default function MonthlyReportPage() {
 
       const imgW = canvas.width;
       const imgH = canvas.height;
+      const HEADER_H = 16;   // 헤더 띠 높이(mm)
       const renderedH = (imgH * CONTENT_W) / imgW;
 
       let yOffset = 0;
+      let isTabFirstPage = true;
+
       while (yOffset < renderedH) {
+        // ── 페이지 추가 ──
         if (!isFirstPage) pdf.addPage();
         isFirstPage = false;
 
-        const sliceH    = Math.min(A4_H - MARGIN * 2, renderedH - yOffset);
+        // ── 상단 파란 헤더 띠 ──
+        pdf.setFillColor(37, 99, 235);                      // blue-600
+        pdf.rect(0, 0, A4_W, HEADER_H, 'F');
+
+        // 좌측: ChannelAI
+        pdf.setTextColor(255, 255, 255);
+        pdf.setFontSize(8);
+        pdf.setFont('helvetica', 'bold');
+        pdf.text('ChannelAI', MARGIN, 10.5);
+
+        // 가운데: 탭 이름
+        pdf.setFontSize(10);
+        pdf.text(TAB_LABELS[i], A4_W / 2, 10.5, { align: 'center' });
+
+        // 우측: 선택 월
+        pdf.setFontSize(8);
+        pdf.setFont('helvetica', 'normal');
+        pdf.text(selectedMonth, A4_W - MARGIN, 10.5, { align: 'right' });
+
+        // 헤더 아래 얇은 구분선
+        pdf.setDrawColor(147, 197, 253);                    // blue-300
+        pdf.setLineWidth(0.2);
+        pdf.line(0, HEADER_H, A4_W, HEADER_H);
+
+        // ── 콘텐츠 이미지 슬라이스 ──
+        const pageContentH = A4_H - HEADER_H - MARGIN;     // 헤더 제외 실제 콘텐츠 높이
+        const sliceH    = Math.min(pageContentH, renderedH - yOffset);
         const srcY      = (yOffset / renderedH) * imgH;
         const srcSliceH = (sliceH / renderedH) * imgH;
 
@@ -246,14 +279,16 @@ export default function MonthlyReportPage() {
           slice.toDataURL('image/jpeg', 0.92),
           'JPEG',
           MARGIN,
-          MARGIN,
+          HEADER_H + 2,   // 헤더 바로 아래부터 시작
           CONTENT_W,
           sliceH
         );
 
         yOffset += sliceH;
+        isTabFirstPage = false;
       }
     }
+
 
     pdf.save(`ChannelAI_통합리포트_${selectedMonth}.pdf`);
 
@@ -422,7 +457,6 @@ export default function MonthlyReportPage() {
 
           {/* ===== 탭 1: 종합 현황 ===== */}
           <div ref={overviewRef} className={`${(activeTab === "overview" || isExporting) ? "block" : "hidden"} animate-fade-in-up space-y-6 ${isExporting ? 'mb-24 page-break-after' : ''}`}>
-// ... (leave code between them intact, but updating the classes. Wait, I shouldn't replace lines 404 to 610 with just a tiny snippet. Let me use multi_replace for accuracy.)
 
 
               {/* KPI 카드 */}
@@ -534,7 +568,7 @@ export default function MonthlyReportPage() {
           </div>
 
           {/* ===== 탭 2: 채널별 분석 ===== */}
-          <div  className={`${(activeTab === "platform" || isExporting) ? "block" : "hidden"} animate-fade-in-up space-y-6 ${isExporting ? 'mb-24 page-break-after' : ''}`}>
+          <div ref={platformRef} className={`${(activeTab === "platform" || isExporting) ? "block" : "hidden"} animate-fade-in-up space-y-6 ${isExporting ? 'mb-24 page-break-after' : ''}`}>
               {/* 채널별 KPI 카드 */}
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
                 {Object.entries(cur.platforms).map(([k, v]: any) => (

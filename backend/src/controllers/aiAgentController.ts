@@ -709,6 +709,7 @@ export const generateLLMInsights = async (req: AuthRequest, res: Response) => {
       });
     }
 
+    // [2026-03-09 09:22] 현재 분석 효율성과 비용 최적화를 위해 OpenAI의 'gpt-4o-mini' 모델을 수동으로 지정하여 사용 중입니다.
     const model = new ChatOpenAI({
       modelName: 'gpt-4o-mini', 
       temperature: 0.2, 
@@ -795,6 +796,7 @@ export const generatePlatformInsights = async (req: AuthRequest, res: Response) 
       });
     }
 
+    // [2026-03-09 09:22] 매체별 성과 비교 분석을 위해 'gpt-4o-mini' 모델을 사용하며, 데이터의 객관성을 위해 온도를 낮게 설정했습니다.
     const model = new ChatOpenAI({
       modelName: 'gpt-4o-mini', 
       temperature: 0.2, // 날카로운 데이터 분석을 위해 창의성 억제

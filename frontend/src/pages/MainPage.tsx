@@ -5,7 +5,6 @@ import {
   Target, 
   Sparkles, 
   ArrowRight, 
-  CheckCircle2, 
   TrendingUp, 
   Zap,
   ShieldCheck

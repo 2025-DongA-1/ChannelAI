@@ -57,6 +57,8 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
     { to: '/integration', label: '연동' },
     { to: '/analysis', label: 'AI 예산 분석' },
     { to: '/insights', label: '인사이트' },
+    //{ to: '/monthly-report', label: '월간 보고서' },
+    //{ to: '/dummy-data', label: '테스트 센터' },
   ];
 
   return (
