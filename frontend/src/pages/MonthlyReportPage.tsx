@@ -5,7 +5,8 @@ import {
   RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis,
   Cell, PieChart, Pie
 } from "recharts";
-import { LayoutDashboard, DownloadCloud } from 'lucide-react';
+// [2026-03-11 12:07] 이메일 전송 버튼용 Mail 아이콘 추가
+import { LayoutDashboard, DownloadCloud, Mail } from 'lucide-react';
 import { api } from '../lib/api';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf'; // [2026-03-09 09:22] jspdf 타입 호환성을 위해 named import 형식으로 수정
@@ -141,7 +142,8 @@ export default function MonthlyReportPage() {
   // PDF 내보내기 중인지 여부 (모든 탭을 렌더링하기 위함)
   const [isExporting, setIsExporting] = useState(false);
   
-  // 리포트 렌더 영역 요소를 추적하기 위한 ref
+  // 서버를 통한 이메일 백그라운드 발송 상태
+  const [isSendingServerEmail, setIsSendingServerEmail] = useState(false);
   // const reportRef = useRef<HTMLDivElement>(null);
 
   // 리포트 렌더 영역 요소를 추적하기 위한 ref
@@ -155,20 +157,35 @@ export default function MonthlyReportPage() {
   const TAB_REFS = [overviewRef, platformRef, trendRef];
 
   const reportRef = useRef<HTMLDivElement>(null);
+  
+  // (위에서 이미 isExporting 선언함)
+
   /**
    * 컴포넌트 최초 마운트 시, API에서 월별 리포트 데이터를 호출하여 가공 및 상태에 저장합니다.
    */
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const res = await api.get('/report/monthly?startMonth=2025-08&endMonth=2026-03');
+        const now = new Date();
+        const toMonthStr = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+        const endMonth = toMonthStr(now);
+        const startMonth = toMonthStr(new Date(now.getFullYear(), now.getMonth() - 5, 1));
+        const res = await api.get(`/report/monthly?startMonth=${startMonth}&endMonth=${endMonth}`);
         if (res.data?.success && res.data?.data) {
           const mData = res.data.data;
           setMonthlyData(mData);
           const sorted = Object.keys(mData).sort();
           setMONTHS(sorted);
-          if (sorted.length > 0) {
-            setSelectedMonth(sorted[sorted.length - 1]);
+          
+          // URL 파라미터 확인 (?month=2026-02&export=true)
+          const params = new URLSearchParams(window.location.search);
+          const urlMonth = params.get('month');
+          const finalMonth = mData[urlMonth || ''] ? urlMonth! : (sorted[sorted.length - 1] || '');
+          if (finalMonth) setSelectedMonth(finalMonth);
+
+          // export=true 이면 렌더링 후 자동 캡처
+          if (params.get('export') === 'true' && finalMonth) {
+            setTimeout(() => autoExportPDF(finalMonth), 1500);
           }
         }
       } catch (err) {
@@ -179,6 +196,69 @@ export default function MonthlyReportPage() {
     };
     fetchData();
   }, []);
+
+  // [2026-03-11 12:45] 백엔드 Puppeteer 스크래핑용 자동 PDF 변환 로직
+  const autoExportPDF = async (month: string) => {
+    setIsExporting(true);
+    await new Promise(resolve => setTimeout(resolve, 2000)); // 차트 애니메이션 대기
+    try {
+      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+      const A4_W = 210, A4_H = 297, MARGIN = 10, CONTENT_W = A4_W - MARGIN * 2;
+      const TAB_LABELS = ["Overview", "Channel Analysis", "Trend Analysis"];
+      let isFirstPage = true;
+
+      for (let i = 0; i < TAB_REFS.length; i++) {
+        const ref = TAB_REFS[i];
+        if (!ref.current) continue;
+
+        const canvas = await html2canvas(ref.current, {
+          scale: 2, useCORS: true, backgroundColor: '#ffffff', logging: false, windowWidth: 1280,
+        });
+
+        const imgW = canvas.width, imgH = canvas.height, HEADER_H = 16;
+        const renderedH = (imgH * CONTENT_W) / imgW;
+        let yOffset = 0;
+
+        while (yOffset < renderedH) {
+          if (!isFirstPage) pdf.addPage();
+          isFirstPage = false;
+
+          pdf.setFillColor(37, 99, 235);
+          pdf.rect(0, 0, A4_W, HEADER_H, 'F');
+          pdf.setTextColor(255, 255, 255);
+          pdf.setFontSize(8);
+          pdf.setFont('helvetica', 'bold');
+          pdf.text('ChannelAI', MARGIN, 10.5);
+          pdf.setFontSize(10);
+          pdf.text(TAB_LABELS[i], A4_W / 2, 10.5, { align: 'center' });
+          pdf.setFontSize(8);
+          pdf.setFont('helvetica', 'normal');
+          pdf.text(month, A4_W - MARGIN, 10.5, { align: 'right' });
+          pdf.setDrawColor(147, 197, 253);
+          pdf.setLineWidth(0.2);
+          pdf.line(0, HEADER_H, A4_W, HEADER_H);
+
+          const pageContentH = A4_H - HEADER_H - MARGIN;
+          const sliceH = Math.min(pageContentH, renderedH - yOffset);
+          const srcY = (yOffset / renderedH) * imgH;
+          const srcSliceH = (sliceH / renderedH) * imgH;
+
+          const slice = document.createElement('canvas');
+          slice.width = imgW;
+          slice.height = Math.round(srcSliceH);
+          const ctx = slice.getContext('2d')!;
+          ctx.drawImage(canvas, 0, srcY, imgW, srcSliceH, 0, 0, imgW, Math.round(srcSliceH));
+
+          pdf.addImage(slice.toDataURL('image/jpeg', 0.92), 'JPEG', MARGIN, HEADER_H + 2, CONTENT_W, sliceH);
+          yOffset += sliceH;
+        }
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setIsExporting(false);
+    }
+  };
 
   /**
    * 사용자가 현재 보고 있는 월(selectedMonth)을 변경하면,
@@ -298,6 +378,98 @@ const TAB_LABELS = ["Overview", "Channel Analysis", "Trend Analysis"];
   }
 };
 
+  // [2026-03-11 12:07] 현재 보고서를 PDF로 생성한 뒤, 입력한 이메일로 전송
+  const [isSendingEmail, setIsSendingEmail] = useState(false);
+  const handleSendEmail = async () => {
+    const email = prompt('보고서를 전송할 이메일 주소를 입력하세요:');
+    if (!email || !email.trim()) return;
+
+    setIsSendingEmail(true);
+    setIsExporting(true); // 탭 DOM 강제 렌더
+
+    await new Promise(resolve => setTimeout(resolve, 1500));
+
+    try {
+      // 동일한 PDF 생성 로직
+      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+      const A4_W = 210;
+      const A4_H = 297;
+      const MARGIN = 10;
+      const CONTENT_W = A4_W - MARGIN * 2;
+      const TAB_LABELS = ["Overview", "Channel Analysis", "Trend Analysis"];
+      let isFirstPage = true;
+
+      for (let i = 0; i < TAB_REFS.length; i++) {
+        const ref = TAB_REFS[i];
+        const el = ref.current;
+        if (!el) continue;
+
+        const canvas = await html2canvas(el, {
+          scale: 2, useCORS: true, backgroundColor: '#ffffff', logging: false, windowWidth: 1280,
+        });
+
+        const imgW = canvas.width;
+        const imgH = canvas.height;
+        const HEADER_H = 16;
+        const renderedH = (imgH * CONTENT_W) / imgW;
+        let yOffset = 0;
+
+        while (yOffset < renderedH) {
+          if (!isFirstPage) pdf.addPage();
+          isFirstPage = false;
+
+          pdf.setFillColor(37, 99, 235);
+          pdf.rect(0, 0, A4_W, HEADER_H, 'F');
+          pdf.setTextColor(255, 255, 255);
+          pdf.setFontSize(8);
+          pdf.setFont('helvetica', 'bold');
+          pdf.text('ChannelAI', MARGIN, 10.5);
+          pdf.setFontSize(10);
+          pdf.text(TAB_LABELS[i], A4_W / 2, 10.5, { align: 'center' });
+          pdf.setFontSize(8);
+          pdf.setFont('helvetica', 'normal');
+          pdf.text(selectedMonth, A4_W - MARGIN, 10.5, { align: 'right' });
+          pdf.setDrawColor(147, 197, 253);
+          pdf.setLineWidth(0.2);
+          pdf.line(0, HEADER_H, A4_W, HEADER_H);
+
+          const pageContentH = A4_H - HEADER_H - MARGIN;
+          const sliceH = Math.min(pageContentH, renderedH - yOffset);
+          const srcY = (yOffset / renderedH) * imgH;
+          const srcSliceH = (sliceH / renderedH) * imgH;
+
+          const slice = document.createElement('canvas');
+          slice.width = imgW;
+          slice.height = Math.round(srcSliceH);
+          const ctx = slice.getContext('2d')!;
+          ctx.drawImage(canvas, 0, srcY, imgW, srcSliceH, 0, 0, imgW, Math.round(srcSliceH));
+
+          pdf.addImage(slice.toDataURL('image/jpeg', 0.92), 'JPEG', MARGIN, HEADER_H + 2, CONTENT_W, sliceH);
+          yOffset += sliceH;
+        }
+      }
+
+      // PDF를 Blob으로 → FormData로 서버에 업로드
+      const pdfBlob = pdf.output('blob');
+      const formData = new FormData();
+      formData.append('pdf', pdfBlob, `ChannelAI_통합리포트_${selectedMonth}.pdf`);
+      formData.append('email', email.trim());
+      formData.append('month', selectedMonth);
+
+      const res = await api.post('/report/send-pdf', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      alert(res.data.message || '이메일 전송 완료!');
+
+    } catch (err) {
+      console.error('이메일 전송 실패:', err);
+      alert('이메일 전송에 실패했습니다.');
+    } finally {
+      setIsExporting(false);
+      setIsSendingEmail(false);
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="min-h-[calc(100vh-64px)] bg-gray-50 flex items-center justify-center">
@@ -412,23 +584,71 @@ const TAB_LABELS = ["Overview", "Channel Analysis", "Trend Analysis"];
                 </select>
               </div>
               
-              <button 
-                onClick={handleDownloadPDF}
-                disabled={isExporting}
-                className="print:hidden flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold shadow-sm transition-all bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {isExporting ? (
-                  <>
-                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                    PDF 생성 및 렌더링 중...
-                  </>
-                ) : (
-                  <>
-                    <DownloadCloud size={18} />
-                    PDF 문서 다중 탭(전체) 저장
-                  </>
-                )}
-              </button>
+              <div className="flex gap-2">
+                <button 
+                  onClick={handleSendEmail}
+                  disabled={isExporting || isSendingServerEmail}
+                  className="print:hidden flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold shadow-sm transition-all bg-green-500 text-white hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isSendingEmail ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                      직접 캡처 중...
+                    </>
+                  ) : (
+                    <>
+                      <Mail size={18} />
+                      직접 캡처하여 전송 (PDF 확인용)
+                    </>
+                  )}
+                </button>
+                <button 
+                  onClick={async () => {
+                    const email = prompt('보고서를 전송할 이메일 주소를 입력하세요 (서버 발송):');
+                    if (!email || !email.trim()) return;
+                    setIsSendingServerEmail(true);
+                    try {
+                      const res = await api.post('/report/send-to', { email: email.trim() });
+                      alert(res.data.message || '서버 발송 요청이 전달되었습니다.');
+                    } catch(err) {
+                      alert('서버 발송 요청 실패');
+                    } finally {
+                      setIsSendingServerEmail(false);
+                    }
+                  }}
+                  disabled={isExporting || isSendingEmail || isSendingServerEmail}
+                  className="print:hidden flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold shadow-sm transition-all bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isSendingServerEmail ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                      서버 발송 중...
+                    </>
+                  ) : (
+                    <>
+                      <Mail size={18} />
+                      서버에서 이메일 전송
+                    </>
+                  )}
+                </button>
+                <button 
+                  onClick={handleDownloadPDF}
+                  disabled={isExporting || isSendingServerEmail}
+                  className="print:hidden flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold shadow-sm transition-all bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isExporting && !isSendingEmail ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                      PDF 렌더링 중...
+                    </>
+                  ) : (
+                    <>
+                      <DownloadCloud size={18} />
+                      PDF 문서 전체 저장
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
           </div>
 

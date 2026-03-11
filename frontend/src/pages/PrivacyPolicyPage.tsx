@@ -9,10 +9,10 @@ const PrivacyPolicyPage: React.FC = () => {
         <div className="space-y-8 text-gray-700">
           <section>
             <p className="mb-4">
-              <strong>마지막 업데이트:</strong> 2026년 1월 29일
+              <strong>마지막 업데이트:</strong> 2026년 3월 11일
             </p>
             <p className="mb-4">
-              NKLE("회사", "저희" 또는 "우리")는 귀하의 개인정보 보호를 중요하게 생각합니다. 
+              ChannelAI("회사", "저희" 또는 "우리")는 귀하의 개인정보 보호를 중요하게 생각합니다. 
               본 개인정보처리방침은 귀하가 우리의 멀티채널 마케팅 플랫폼("서비스")을 사용할 때 
               수집, 사용, 공개하는 정보에 대해 설명합니다.
             </p>
@@ -192,7 +192,7 @@ const PrivacyPolicyPage: React.FC = () => {
             <h2 className="text-2xl font-semibold text-gray-900 mb-4">12. 연락처</h2>
             <p className="mb-3">개인정보 관련 문의사항이 있으시면 연락주시기 바랍니다:</p>
             <div className="bg-gray-50 p-4 rounded-lg">
-              <p><strong>서비스명:</strong> NKLE 멀티채널 마케팅 플랫폼</p>
+              <p><strong>서비스명:</strong> PlanBe 멀티채널 마케팅 플랫폼</p>
               <p><strong>이메일:</strong> anchursoo@naver.com</p>
               <p><strong>App ID:</strong> 1946347369607018</p>
               <p className="mt-2 text-sm text-gray-600">

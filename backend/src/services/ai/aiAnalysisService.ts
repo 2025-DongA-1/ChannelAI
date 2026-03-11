@@ -34,7 +34,7 @@ export class AIAnalysisService {
           model: 'llama-3.3-70b-versatile',
           messages: [{ role: 'user', content: prompt }],
           temperature: 0.5,
-          max_tokens: 400,
+          max_tokens: 2500,
         });
         const content = completion.choices[0]?.message?.content ?? '';
         console.log(`[AI Service] Groq response received (${content.length} chars)`);
