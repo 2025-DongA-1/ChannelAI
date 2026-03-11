@@ -66,6 +66,8 @@ export default function CreativeAgentPage() {
   const docInputRef = useRef<HTMLInputElement>(null);
   const imgInputRef = useRef<HTMLInputElement>(null);
 
+  const [selectedHistoryResult, setSelectedHistoryResult] = useState<CreativeResult | null>(null);
+
   // --- Tutorial State ---
   const [showTour, setShowTour] = useState(false);
   const [tourStep, setTourStep] = useState(0);
@@ -211,10 +213,32 @@ export default function CreativeAgentPage() {
       alert('상품명과 타겟 고객은 필수 입력 항목입니다.');
       return;
     }
+    setSelectedHistoryResult(null); // 새로운 생성 시 이전 내역 초기화
     generateMutation.mutate();
   };
 
-  const result: CreativeResult | null = generateMutation.data?.data || null;
+  // 실제 출력할 결과: 이력 선택 값이 있으면 우선 표시, 없으면 새 생성 결과
+  const result: CreativeResult | null = selectedHistoryResult || generateMutation.data?.data || null;
+
+  // 생성 이력 상세 조회
+  const loadHistoryDetail = async (id: number) => {
+    try {
+      const res = await creativeAPI.getDetail(id);
+      const data = res.data?.data;
+      if (data) {
+        setSelectedHistoryResult({
+          uspAnalysis: data.usp_analysis,
+          copies: data.generated_copies,
+          visualGuide: data.visual_guide,
+          strategy: data.strategy_summary,
+          complianceNotes: data.compliance_notes,
+        });
+      }
+    } catch (error) {
+      console.error('이력 상세 정보 로드 실패:', error);
+      alert('이력 정보를 불러오는 데 실패했습니다.');
+    }
+  };
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
@@ -484,7 +508,11 @@ export default function CreativeAgentPage() {
               </h3>
               <div className="space-y-2">
                 {historyQuery.data.slice(0, 5).map((h: any) => (
-                  <div key={h.id} className="flex items-center justify-between text-sm bg-gray-50 px-3 py-2 rounded-lg">
+                  <button 
+                    key={h.id} 
+                    onClick={() => loadHistoryDetail(h.id)}
+                    className="w-full text-left flex items-center justify-between text-sm bg-gray-50 hover:bg-violet-50 transition-colors px-3 py-2 rounded-lg"
+                  >
                     <div>
                       <span className="font-medium text-gray-800">{h.product_name}</span>
                       <span className="text-gray-400 ml-2">({h.business_type})</span>
@@ -492,7 +520,7 @@ export default function CreativeAgentPage() {
                     <span className="text-xs text-gray-400">
                       {new Date(h.created_at).toLocaleDateString('ko-KR')}
                     </span>
-                  </div>
+                  </button>
                 ))}
               </div>
             </div>
