@@ -55,6 +55,7 @@ export class AIAnalysisService {
     // --- OpenAI ---
     if (activeProvider === 'openai' && this.openaiKey) {
       try {
+        // [2026-03-09 09:22] 서비스 레이어에서 직접 API 호출 시에도 'gpt-4o-mini' 모델을 명시하여 일관된 결과를 얻도록 설정했습니다.
         const res = await axios.post('https://api.openai.com/v1/chat/completions', {
           model: 'gpt-4o-mini',
           messages: [{ role: 'user', content: prompt }],

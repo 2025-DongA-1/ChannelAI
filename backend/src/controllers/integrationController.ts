@@ -1316,3 +1316,63 @@ export const exportCSV = async (req: any, res: any) => {
     client.release();
   }
 };
+
+/**
+ * 플랜비 테스트 계정 임시 연동 서비스 (Mock Connect)
+ * POST /api/v1/integration/mock-connect
+ * body: { platform }
+ */
+export const mockConnectPlatform = async (req: AuthRequest, res: Response) => {
+  try {
+    const { platform } = req.body;
+    const userId = req.user?.id;
+
+    if (!platform) {
+      return res.status(400).json({ error: '플랫폼 정보가 필요합니다.' });
+    }
+
+    // 매체별 고정 데이터 설정
+    const mockDataMap: Record<string, { external_id: string; account_name: string }> = {
+      google: { external_id: '492-331-9082', account_name: '플랜비 테스트 계정' },
+      meta: { external_id: 'act_662910484', account_name: '플랜비 테스트 계정' },
+      naver: { external_id: '1234567', account_name: '플랜비 테스트 계정' },
+      karrot: { external_id: 'planb_test_01', account_name: '플랜비 테스트 계정' }
+    };
+
+    const mockInfo = mockDataMap[platform];
+    if (!mockInfo) {
+      return res.status(400).json({ error: '지원하지 않는 플랫폼입니다.' });
+    }
+
+    // marketing_accounts 테이블에 강제 삽입/업데이트
+    await pool.query(`
+      INSERT INTO marketing_accounts (
+        user_id, channel_code, external_account_id, account_name,
+        connection_status
+      ) VALUES (?, ?, ?, ?, 1)
+      ON DUPLICATE KEY UPDATE
+        account_name = VALUES(account_name),
+        connection_status = 1,
+        updated_at = NOW()
+    `, [
+      userId,
+      platform,
+      mockInfo.external_id,
+      mockInfo.account_name
+    ]);
+
+    return res.json({
+      success: true,
+      message: `${platform.toUpperCase()} 임시 연동이 완료되었습니다.`,
+      data: {
+        platform,
+        account_id: mockInfo.external_id,
+        account_name: mockInfo.account_name,
+        status: '✅ 연동 완료'
+      }
+    });
+  } catch (error) {
+    console.error('Mock Connect Error:', error);
+    res.status(500).json({ error: '임시 연동 처리 중 서버 오류가 발생했습니다.' });
+  }
+};

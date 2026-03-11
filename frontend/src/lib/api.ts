@@ -253,6 +253,10 @@ export const integrationAPI = {
   // 📥 CSV 파일 다운로드 (Blob 형식으로 받음)
   exportCSV: () =>
     api.get('/integration/export/csv', { responseType: 'blob' }), // blob: 바이너리 파일 데이터
+
+  // 🧪 플랜비 테스트 계정 임시 연동 서비스 (Mock Connect)
+  mockConnect: (platform: string) =>
+    api.post('/integration/mock-connect', { platform }),
 };
 
 // 💰 예산 관련 API 함수 모음

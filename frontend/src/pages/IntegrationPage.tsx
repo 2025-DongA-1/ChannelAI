@@ -317,8 +317,8 @@ export default function IntegrationPage() {
             to="/dummy-data" 
             className="flex items-center justify-center px-3 sm:px-4 py-2 sm:py-3 bg-indigo-50 text-indigo-600 rounded-xl border border-indigo-200 font-medium hover:bg-indigo-100 transition w-full sm:w-auto text-xs sm:text-base"
           >
-            <FileSpreadsheet className="w-4 h-4 mr-2" />
-            테스트 데이터 생성
+          <FileSpreadsheet className="w-4 h-4 mr-2" />
+          테스트 데이터 생성
           </Link>
         </div>
       </div>

@@ -1,12 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
 import {
   PieChart, Pie, Cell, Tooltip, Legend,
   BarChart, Bar, LabelList, XAxis, YAxis, CartesianGrid, ResponsiveContainer,
   LineChart, Line
 } from 'recharts';
 import { useQuery } from '@tanstack/react-query'; // 데이터 가져오는 훅
-import { dashboardAPI } from '@/lib/api';
+import { dashboardAPI, api } from '@/lib/api';
 // import './App.css'; // 필요하다면 주석 해제
 import { useAuthStore } from '@/store/authStore';
 
@@ -172,15 +171,11 @@ function MarketingAnalysis() {
       // 백엔드 요청
       const cleanBudget = Number(budget.toString().replace(/,/g, ''));
       
-      // ✅ 환경변수에서 FastAPI 주소를 가져옴
-      //    - 로컬 개발 시: VITE_AI_API_URL이 없으면 → http://localhost:5000 (로컬 FastAPI)
-      //    - 서버 배포 후: VITE_AI_API_URL=https://channelai.kro.kr:5000 (또는 프록시 경로)
-      const AI_API_URL = import.meta.env.VITE_AI_API_URL || 'http://localhost:5000';
-      
       console.log("🚀 [보안 검문] 현재 로그인의 주인공 ID:", user?.id);
 
-      const response = await axios.post(`${AI_API_URL}/api/v1/ai/recommend`, {
-        user_id : user?.id, // user_id 추가
+      // [2026-03-06] 로컬과 운영 서버 모두 Node.js(3000포트) 환경의 단일 통신 경로로 일원화
+      const response = await api.post(`/ai/recommend`, {
+        user_id : user?.id,
         total_budget: cleanBudget,
         features: features,
         history_data : dailyData,

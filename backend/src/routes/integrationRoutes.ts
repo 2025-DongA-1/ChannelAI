@@ -13,7 +13,8 @@ import {
   crawlKarrotAdResult,
   crawlKarrotAdResultManual,
   deleteKarrotManualCampaign,
-  updateKarrotManualCampaign
+  updateKarrotManualCampaign,
+  mockConnectPlatform
 } from '../controllers/integrationController';
 import { authenticate } from '../middlewares/auth';
 
@@ -59,6 +60,7 @@ router.post('/connect/:platform', authenticate, connectPlatform);
 // router.post('/sync/campaigns/:accountId', authenticate, syncCampaigns); // 제거: syncCampaigns 미존재
 router.post('/sync/metrics/:campaignId', authenticate, syncMetrics);
 router.post('/sync/all', authenticate, syncAllMetrics);
+router.post('/mock-connect', authenticate, mockConnectPlatform);
 
 // CSV 업로드 ( Ad-Mate 기능 이식 )
 router.post('/upload/csv', authenticate, upload.single('file'), uploadCSV);
