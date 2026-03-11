@@ -294,12 +294,14 @@ const startServer = async () => {
 
     // ── cron 스케줄 등록 ───────────────────────────────────────────────
     if (emailEnabled) {
-      // 주간 리포트: 매주 월요일 오전 9시 (기본)
+      // 주간 리포트: 매주 월요일 오전 9시 (기본) - [사용 안함]
+      /*
       cron.schedule('0 9 * * 1', async () => {
         console.log('⏰ [CRON] 주간 리포트 발송 시작');
         await sendWeeklyReports();
       }, { timezone: 'Asia/Seoul' });
       console.log('📅 주간 리포트 스케줄 등록: 매주 월요일 오전 9시');
+      */
 
       // 일간 리포트: 매일 오전 9시 (ENABLE_DAILY_REPORT=true 일 때만 활성화)
       if (process.env.ENABLE_DAILY_REPORT === 'true') {

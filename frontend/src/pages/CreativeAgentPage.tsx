@@ -4,7 +4,7 @@ import { creativeAPI, campaignAPI } from '@/lib/api';
 import {
   Sparkles, Upload, FileText, Image, Send, Copy, ChevronDown, ChevronUp,
   CheckCircle2, AlertCircle, Loader2, Clock, Palette, LayoutTemplate, Shield,
-  Database, PlusCircle, RefreshCw, BarChart3
+  PlusCircle, BarChart3
 } from 'lucide-react';
 
 interface CreativeResult {
