@@ -1,0 +1,85 @@
+1. 요구사항 정의서
+사용자가 서비스에 가입하려면 이메일, 비밀번호를 입력해야 하며, 이름 등 프로필 정보는 사용자 프로필로 저장되어야 한다.
+사용자는 사용자ID로 식별한다.
+사용자는 구독 Plan 정보를 가질 수 있어야 하며, 서비스는 이를 사용자 프로필로 저장해야 한다.
+사용자는 사업자번호를 통해 중복없이 관리되어야 하며, 사업자번호는 사용자 프로필로 저장되어야 한다.
+시스템은 사용자 인증을 위해 사용자 단위 토큰(리프레시 토큰)과 마케팅 계정 연동 토큰(채널 인증 토큰)을 저장하고 관리해야 한다.
+마케팅 계정은 마케팅 계정ID로 식별한다.
+사용자는 하나 이상의 마케팅 계정을 서비스에 연동할 수 있어야 한다.
+연동 완료된 마케팅 계정은 반드시 하나의 사용자에게 귀속되어야 한다.
+마케팅 계정은 채널코드, 계정명, 외부계정ID, 인증토큰 정보를 포함해야 하며, 채널 정보는 채널 마스터로 관리되어야 한다.
+동일 사용자가 동일 채널의 외부 계정을 중복 연동하지 않도록 제약 조건을 적용해야 한다.
+캠페인은 캠페인ID로 식별한다.
+시스템은 마케팅 계정별로 캠페인 정보를 등록 및 관리할 수 있어야 한다.
+캠페인은 캠페인명, 상태, 목적, 시작일, 종료일 정보를 포함해야 한다.
+캠페인은 배정예산 및 단위비용 정보를 저장해야 한다.
+등록된 캠페인은 반드시 하나의 마케팅 계정에 소속되어야 한다.
+캠페인 성과는 성과ID로 식별한다.
+시스템은 캠페인별 성과 데이터를 일자 기준으로 저장해야 하며, 필요 시 시간(hour) 단위로도 저장할 수 있어야 한다.
+성과 데이터는 노출수, 클릭수, 비용, 전환수, 매출을 포함해야 하며, CTR/CPC/CPM/전환율/CPA/ROAS/ROI 및 소셜 반응(좋아요/공유/댓글/저장)을 저장할 수 있어야 한다.
+캠페인 성과는 캠페인ID를 참조하여 연결되어야 한다.
+시스템은 성과 데이터 기반으로 매출정보를 저장할 수 있어야 한다.
+시스템은 사용자ID + 채널코드 + 기준일자 단위로 채널별 일간 성과 데이터를 통합 조회할 수 있는 View를 제공해야 한다.
+채널 성과 데이터는 채널코드, 기준일자, 노출수, 클릭수, 비용, 전환수, 매출액을 포함해야 하며, 채널명은 채널 마스터 조인으로 조회할 수 있어야 한다.
+사용자는 채널 단위로 광고 효율을 비교할 수 있어야 한다.
+인사이트는 인사이트ID로 식별한다.
+시스템은 사용자별 광고 성과 기반 인사이트를 생성할 수 있어야 한다.
+인사이트는 유형, 제목, 내용, 생성일시 정보를 포함해야 한다.
+인사이트는 우선순위 및 읽음여부를 관리할 수 있어야 한다.
+사용자가 인사이트를 적용했는지 여부를 기록해야 한다.
+리포트는 리포트ID로 식별한다.
+시스템은 사용자 요청 또는 자동화에 의해 리포트를 생성할 수 있어야 한다.
+리포트는 기준 시작일, 종료일, 설정값을 포함해야 한다.
+리포트 파일은 파일경로 형태로 저장되어야 한다.
+사용자는 리포트를 다운로드하거나 조회할 수 있어야 한다.
+예산은 로그ID로 식별한다.
+시스템은 마케팅 계정단위로 예산 최적화 실행로그를 저장해야 한다.
+예산 실행은 실행시간과 성공/실패 여부, 수행시간을 포함해야 한다.
+예산 수행 결과 메시지를 사용자에게 제공해야 한다.
+시스템은 광고 플랫폼 데이터 수집 실행이력을 로그로 저장해야 한다.
+로그에는 실행시각, 생성일시,  성공/실패 여부, 수집건수, 오류메시지를 포함해야 한다.
+데이터 수집 실패 시 오류메시지를 기반으로 관리자 또는 사용자에게 알림을 제공해야 한다.
+
+
+2. 객체 정의서
+객체 명	속성 명
+사용자(users)	id(PK), email(UK), password_hash, role, provider(UK1), provider_id(UK1), created_at, updated_at, last_login, is_active, refresh_token
+사용자프로필(user_profiles)	id(PK), user_id(FK, UK1), name, business_number(UK), company_name, plan, phone_number, created_at, updated_at
+채널(channels)	id(PK), name(UK), channel_code(UK), display_name, icon_url, is_active
+마케팅계정
+(marketing_accounts)	id(PK), user_id(FK, UK1), channel_code(FK, UK1), account_name, access_token, auth_token, refresh_token, external_account_id(UK1), connection_status, created_at, updated_at
+캠페인(campaigns)	id(PK), marketing_account_id(FK, UK1), external_campaign_id(UK1), campaign_name, platform, status, objective, daily_budget, total_budget, start_date, end_date, created_at, updated_at, unit_cost
+캠페인성과
+(campaign_metrics)	id(PK), campaign_id(FK, UK1), metric_date(UK1), hour(UK1), impressions, clicks, ctr, cost, cpc, cpm, conversions, conversion_rate, cpa, revenue, roas, roi, likes, shares, comments, saves, created_at, updated_at
+채널별성과
+(channel_performance_daily)
+(View)	user_id, channel_code, metric_date, total_spend, total_impressions, total_clicks, total_conversions, total_revenue
+인사이트(insights)	id(PK), user_id(FK), type, title, content, priority, is_read, is_applied, created_at
+리포트(reports)	id(PK), user_id(FK), start_date, end_date, file_path, settings, created_at
+예산(budgets)	id(PK), marketing_account_id(FK), executed_at, success, duration_ms, error_message, created_at
+예산설정(budget_settings)	id(PK), user_id(FK), total_budget, daily_budget, status
+데이터동기화로그
+(data_sync_logs)	id(PK), marketing_account_id(FK), sync_type, status, records_synced, error_message, started_at, completed_at, created_at
+
+
+
+
+
+객체 명	속성 명
+사용자(users)	id(PK), email(UK), password_hash, role, provider(UK1), provider_id(UK1), created_at, updated_at, last_login, is_active, refresh_token
+사용자프로필(user_profiles)	id(PK), user_id(FK, UK1), name, business_number(UK), company_name, plan, phone_number, created_at, updated_at
+채널(channels)	id(PK), name(UK), channel_code(UK), display_name, icon_url, is_active
+마케팅계정
+(marketing_accounts)	id(PK), user_id(FK, UK1), channel_code(FK, UK1), account_name, access_token, auth_token, refresh_token, external_account_id(UK1), connection_status, created_at, updated_at
+캠페인(campaigns)	id(PK), marketing_account_id(FK, UK1), external_campaign_id(UK1), campaign_name, platform, status, objective, daily_budget, total_budget, start_date, end_date, created_at, updated_at, unit_cost
+캠페인성과
+(campaign_metrics)	id(PK), campaign_id(FK, UK1), metric_date(UK1), hour(UK1), impressions, clicks, ctr, cost, cpc, cpm, conversions, conversion_rate, cpa, revenue, roas, roi, likes, shares, comments, saves, created_at, updated_at
+채널별성과
+(channel_performance_daily)
+(View)	user_id, channel_code, metric_date, total_spend, total_impressions, total_clicks, total_conversions, total_revenue
+인사이트(insights)	id(PK), user_id(FK), type, title, content, priority, is_read, is_applied, created_at
+리포트(reports)	id(PK), user_id(FK), start_date, end_date, file_path, settings, created_at
+예산(budgets)	id(PK), marketing_account_id(FK), executed_at, success, duration_ms, error_message, created_at
+예산설정(budget_settings)	id(PK), user_id(FK), total_budget, daily_budget, status
+데이터동기화로그
+(data_sync_logs)	id(PK), marketing_account_id(FK), sync_type, status, records_synced, error_message, started_at, completed_at, created_at
