@@ -66,6 +66,71 @@ export default function CreativeAgentPage() {
   const docInputRef = useRef<HTMLInputElement>(null);
   const imgInputRef = useRef<HTMLInputElement>(null);
 
+  // --- Tutorial State ---
+  const [showTour, setShowTour] = useState(false);
+  const [tourStep, setTourStep] = useState(0);
+  const [targetRect, setTargetRect] = useState({ x: 0, y: 0, w: 0, h: 0 });
+
+  const TOUR_STEPS = [
+    { id: 'tour-mode', text: '기존 캠페인을 개선할지, 새로운 상품의 소재를 만들지 모드를 선택하세요. 기존 캠페인을 선택한다면 광고 성과를 기반 변수로 활용하여 광고 성과를 분석할 수 있습니다.' },
+    { id: 'tour-form', text: '상품에 대한 기본적인 정보와 타겟, 목적을 입력해주세요.' },
+    { id: 'tour-upload', text: '상품 소개서나 기존 광고 이미지를 업로드하면 AI가 더 정교하게 분석합니다.' },
+    { id: 'tour-submit', text: '모든 입력을 마쳤다면 생성하기 버튼을 눌러 AI 소재 에이전트를 실행하세요!' }
+  ];
+
+  useEffect(() => {
+    setShowTour(true);
+  }, []);
+
+  useEffect(() => {
+    if (!showTour) return;
+    
+    const updateRect = () => {
+      const currentId = TOUR_STEPS[tourStep]?.id;
+      if (!currentId) return;
+      const el = document.getElementById(currentId);
+      if (el) {
+        const rect = el.getBoundingClientRect();
+        // 스크롤이 필요할 경우
+        if (rect.top < 60 || rect.bottom > window.innerHeight) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          setTimeout(() => {
+            const newRect = el.getBoundingClientRect();
+            setTargetRect({ x: newRect.left - 8, y: newRect.top - 8, w: newRect.width + 16, h: newRect.height + 16 });
+          }, 400); // 스크롤 애니메이션 대기
+        } else {
+          setTargetRect({ x: rect.left - 8, y: rect.top - 8, w: rect.width + 16, h: rect.height + 16 });
+        }
+      }
+    };
+
+    updateRect();
+    window.addEventListener('resize', updateRect);
+    window.addEventListener('scroll', updateRect);
+    
+    // 모드가 바뀌면 form 크기가 바뀌므로 rect 재계산
+    const timer = setTimeout(updateRect, 100);
+
+    return () => {
+      window.removeEventListener('resize', updateRect);
+      window.removeEventListener('scroll', updateRect);
+      clearTimeout(timer);
+    };
+  }, [tourStep, showTour, mode]);
+
+  const handleNextTour = () => {
+    if (tourStep < TOUR_STEPS.length - 1) {
+      setTourStep(prev => prev + 1);
+    } else {
+      handleCloseTour();
+    }
+  };
+
+  const handleCloseTour = () => {
+    setShowTour(false);
+  };
+  // ----------------------
+
   // 캠페인 목록 조회 (기존 캠페인 모드용)
   const campaignsQuery = useQuery({
     queryKey: ['campaigns-list'],
@@ -146,6 +211,7 @@ export default function CreativeAgentPage() {
   };
 
   return (
+    <>
     <div className="space-y-4 sm:space-y-6 p-2 sm:p-6">
       {/* Header */}
       <div className="flex items-center gap-3">
@@ -167,7 +233,7 @@ export default function CreativeAgentPage() {
           <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 sm:p-6">
             
             {/* 탭 토글 */}
-            <div className="flex bg-gray-100 p-1 rounded-lg mb-6">
+            <div id="tour-mode" className="flex bg-gray-100 p-1 rounded-lg mb-6">
               <button
                 type="button"
                 onClick={() => setMode('existing')}
@@ -193,7 +259,7 @@ export default function CreativeAgentPage() {
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-4">
-              
+              <div id="tour-form" className="space-y-4">
               {/* 기존 캠페인 선택 (Existing 모드일 때만) */}
               {mode === 'existing' && (
                 <div className="bg-violet-50 p-4 rounded-lg border border-violet-100">
@@ -317,9 +383,10 @@ export default function CreativeAgentPage() {
                   placeholder="경쟁사 대비 차별점, 프로모션 정보 등"
                 />
               </div>
+              </div>
 
               {/* ─── 파일 업로드 영역 ─── */}
-              <div className="border-t border-gray-200 pt-4 space-y-3">
+              <div id="tour-upload" className="border-t border-gray-200 pt-4 space-y-3">
                 <h3 className="text-sm font-semibold text-gray-800 flex items-center gap-1.5">
                   <Upload className="w-4 h-4" /> 
                   {mode === 'existing' ? '추가 정보 업로드 (선택)' : '파일 업로드 (선택)'}
@@ -379,9 +446,10 @@ export default function CreativeAgentPage() {
               </div>
 
               <button
+                id="tour-submit"
                 type="submit"
                 disabled={generateMutation.isPending || (mode === 'existing' && !selectedCampaignId)}
-                className="w-full py-3 bg-gradient-to-r from-violet-600 to-fuchsia-600 text-white rounded-lg font-semibold hover:from-violet-700 hover:to-fuchsia-700 disabled:opacity-50 flex items-center justify-center gap-2 transition-all"
+                className="w-full py-3 bg-gradient-to-r from-violet-600 to-fuchsia-600 text-white rounded-lg font-semibold hover:from-violet-700 hover:to-fuchsia-700 disabled:opacity-50 flex items-center justify-center gap-2 transition-all shadow-md"
               >
                 {generateMutation.isPending ? (
                   <><Loader2 className="w-5 h-5 animate-spin" /> AI 소재 생성 중...</>
@@ -396,7 +464,7 @@ export default function CreativeAgentPage() {
 
           {/* 생성 이력 */}
           {historyQuery.data && historyQuery.data.length > 0 && (
-            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 sm:p-6">
+            <div id="tour-history" className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 sm:p-6">
               <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-1.5">
                 <Clock className="w-4 h-4" /> 최근 생성 이력
               </h3>
@@ -565,8 +633,84 @@ export default function CreativeAgentPage() {
           )}
         </div>
       </div>
-    </div>
-  );
+    </div>    
+    {/* 튜토리얼 오버레이 */}
+    {showTour && TOUR_STEPS[tourStep] && (
+      <div className="fixed inset-0 z-[100] pointer-events-auto flex items-center justify-center">
+        {/* SVG Mask for Hole-Punch Effect */}
+        <svg className="absolute inset-0 w-full h-full pointer-events-none">
+          <defs>
+            <mask id="tour-hole">
+              <rect width="100%" height="100%" fill="white" />
+              <rect 
+                x={targetRect.x} 
+                y={targetRect.y} 
+                width={targetRect.w} 
+                height={targetRect.h} 
+                rx="12" 
+                fill="black" 
+                className="transition-all duration-500 ease-in-out" 
+              />
+            </mask>
+          </defs>
+          <rect width="100%" height="100%" fill="rgba(0,0,0,0.6)" mask="url(#tour-hole)" className="transition-all duration-500" />
+        </svg>
+
+        {/* 하이라이트된 영역 툴팁 */}
+        <div 
+          className="absolute z-[101] transition-all duration-500 ease-in-out flex flex-col mt-4"
+          style={{
+            top: targetRect.y + targetRect.h,
+            left: Math.max(16, targetRect.x + targetRect.w / 2 - 150),
+            width: 300,
+          }}
+        >
+          <div className="bg-white rounded-xl shadow-2xl p-5 relative animate-in fade-in zoom-in duration-300">
+            {/* 꼬리표 */}
+            <div className="absolute -top-2 left-1/2 -translate-x-1/2 w-4 h-4 bg-white rotate-45" />
+            <div className="relative z-10">
+              <p className="text-[15px] leading-relaxed text-gray-800 font-medium whitespace-pre-wrap">
+                {TOUR_STEPS[tourStep].text}
+              </p>
+              <div className="mt-5 flex items-center justify-between">
+                <div className="flex gap-1">
+                  {TOUR_STEPS.map((_, i) => (
+                    <div 
+                      key={i} 
+                      className={`h-2 rounded-full transition-all duration-300 ${
+                        i === tourStep ? 'w-4 bg-violet-600' : 'w-2 bg-gray-200'
+                      }`}
+                    />
+                  ))}
+                </div>
+                <button 
+                  onClick={handleNextTour}
+                  className="bg-violet-600 hover:bg-violet-700 text-white px-5 py-2 rounded-lg text-sm font-semibold transition-all hover:scale-105 active:scale-95 flex items-center gap-1 shadow-md shadow-violet-200"
+                >
+                  {tourStep === TOUR_STEPS.length - 1 ? (
+                    <>시작하기 <CheckCircle2 className="w-4 h-4" /></>
+                  ) : (
+                    <>다음 챕터</>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* 생략/바로 사용하기 버튼 */}
+        <div className="absolute bottom-8 left-1/2 -translate-x-1/2 z-[102]">
+          <button 
+            onClick={handleCloseTour}
+            className="group flex items-center gap-2 bg-white/10 hover:bg-white/20 backdrop-blur-md border border-white/30 text-white px-8 py-3.5 rounded-full font-bold text-lg shadow-xl transition-all hover:scale-105 active:scale-95"
+          >
+            튜토리얼 건너뛰기
+            <Send className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+          </button>
+        </div>
+      </div>
+    )}
+    </>  );
 }
 
 // ─── 서브 컴포넌트 ─────────────────
