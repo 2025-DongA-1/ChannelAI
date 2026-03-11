@@ -262,6 +262,15 @@ jobs:
 
             ENVEOF
 
+            # ========== 3.5. 기존 프로세스 종료 및 node_modules 정리 ==========
+            pm2 delete marketing-api 2>/dev/null || true
+            sleep 2
+            rm -rf /opt/marketing-platform/backend/node_modules
+            rm -f /opt/marketing-platform/backend/package-lock.json
+            echo ">> node_modules 정리 완료"
+
+            cd /opt/marketing-platform/backend
+
             # ========== 4. 의존성 설치 ==========
             npm install --include=dev --no-audit --no-fund
 
