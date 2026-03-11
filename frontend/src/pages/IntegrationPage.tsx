@@ -3,10 +3,18 @@
 import { useState, useRef, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api, accountAPI, integrationAPI } from '@/lib/api';
-import { Link2, CheckCircle, XCircle, RefreshCw, AlertCircle, UploadCloud, FileSpreadsheet, Key, X, Eye, EyeOff } from 'lucide-react';
+// [2026-03-11 11:04] 데이터 관리 페이지 링크용 Database 아이콘 추가
+import { Link2, CheckCircle, XCircle, RefreshCw, AlertCircle, UploadCloud, FileSpreadsheet, Key, X, Eye, EyeOff, Database } from 'lucide-react';
 import { Link, useSearchParams } from 'react-router-dom';
+// [2026-03-11 11:21] 유저/어드민 권한 분리를 위해 authStore import
+import { useAuthStore } from '../store/authStore';
 
 export default function IntegrationPage() {
+  // [2026-03-11 11:21] 유저 role 확인 (role === 'user'이면 CSV 업로드, 테스트 데이터 생성 버튼 숨김)
+  const user = useAuthStore((state) => state.user);
+  const isAdmin = user?.role !== 'user';
+  // [디버그] 브라우저 콘솔(F12)에서 role 값 확인용 - 확인 후 삭제
+  console.log('[IntegrationPage] user:', user, '| role:', user?.role, '| isAdmin:', isAdmin);
   // 수정 상태 관리 (반드시 함수 내부에서 선언)
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editForm, setEditForm] = useState<any>({});
@@ -298,28 +306,41 @@ export default function IntegrationPage() {
           </p>
         </div>
         <div className="flex flex-wrap gap-2 w-full md:w-auto">
-          <input 
-            type="file" 
-            ref={fileInputRef} 
-            onChange={handleFileChange} 
-            accept=".csv" 
-            className="hidden" 
-          />
-          <button
-            onClick={triggerFileInput}
-            disabled={isUploading}
-            className="flex items-center justify-center px-3 sm:px-4 py-2 sm:py-3 bg-blue-600 text-white rounded-xl font-medium hover:bg-blue-700 transition shadow-md w-full sm:w-auto text-xs sm:text-base disabled:opacity-50"
-          >
-            {isUploading ? <RefreshCw className="w-4 h-4 mr-2 animate-spin" /> : <UploadCloud className="w-4 h-4 mr-2" />}
-            {isUploading ? '업로드 중...' : 'CSV 업로드'}
-          </button>
+          {/* [2026-03-11 11:26] 데이터 관리 버튼 - role에 관계없이 항상 표시 */}
           <Link 
-            to="/dummy-data" 
-            className="flex items-center justify-center px-3 sm:px-4 py-2 sm:py-3 bg-indigo-50 text-indigo-600 rounded-xl border border-indigo-200 font-medium hover:bg-indigo-100 transition w-full sm:w-auto text-xs sm:text-base"
+            to="/data-management" 
+            className="flex items-center justify-center px-3 sm:px-4 py-2 sm:py-3 bg-blue-50 text-blue-600 rounded-xl border border-blue-200 font-medium hover:bg-blue-100 transition w-full sm:w-auto text-xs sm:text-base"
           >
-          <FileSpreadsheet className="w-4 h-4 mr-2" />
-          테스트 데이터 생성
+            <Database className="w-4 h-4 mr-2" />
+            데이터 관리
           </Link>
+          {/* [2026-03-11 11:21] role === 'user'이면 CSV 업로드, 테스트 데이터 생성 버튼 숨김 */}
+          {isAdmin && (
+            <>
+              <input 
+                type="file" 
+                ref={fileInputRef} 
+                onChange={handleFileChange} 
+                accept=".csv" 
+                className="hidden" 
+              />
+              <button
+                onClick={triggerFileInput}
+                disabled={isUploading}
+                className="flex items-center justify-center px-3 sm:px-4 py-2 sm:py-3 bg-blue-600 text-white rounded-xl font-medium hover:bg-blue-700 transition shadow-md w-full sm:w-auto text-xs sm:text-base disabled:opacity-50"
+              >
+                {isUploading ? <RefreshCw className="w-4 h-4 mr-2 animate-spin" /> : <UploadCloud className="w-4 h-4 mr-2" />}
+                {isUploading ? '업로드 중...' : 'CSV 업로드'}
+              </button>
+              <Link 
+                to="/dummy-data" 
+                className="flex items-center justify-center px-3 sm:px-4 py-2 sm:py-3 bg-indigo-50 text-indigo-600 rounded-xl border border-indigo-200 font-medium hover:bg-indigo-100 transition w-full sm:w-auto text-xs sm:text-base"
+              >
+                <FileSpreadsheet className="w-4 h-4 mr-2" />
+                테스트 데이터 생성
+              </Link>
+            </>
+          )}
         </div>
       </div>
 

@@ -1,12 +1,32 @@
-import { useState } from 'react';
+// [2026-03-11 11:12] CSV 업로드 기능 추가를 위해 useRef, UploadCloud, integrationAPI 추가
+import { useState, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { metricAPI } from '../lib/api';
-import { RefreshCw, Search, Trash2, Edit2, X, Check, FileSpreadsheet, Database } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { metricAPI, integrationAPI } from '../lib/api';
+import { RefreshCw, Search, Trash2, Edit2, X, Check, UploadCloud, Database } from 'lucide-react';
 
 export default function DataManagementPage() {
   const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState('');
+
+  // [2026-03-11 11:12] CSV 업로드 기능 추가
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isUploading, setIsUploading] = useState(false);
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setIsUploading(true);
+    try {
+      await integrationAPI.uploadCSV(file);
+      alert('CSV 업로드가 완료되었습니다!');
+      queryClient.invalidateQueries({ queryKey: ['metrics-all'] });
+    } catch (err: any) {
+      alert(err?.response?.data?.error || 'CSV 업로드에 실패했습니다.');
+    } finally {
+      setIsUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
   
   // 체크박스 선택 및 수정 상태 관리
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
@@ -126,20 +146,29 @@ export default function DataManagementPage() {
     <div className="space-y-6 p-6">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
+          {/* [2026-03-11 11:12] 페이지 이름 '데이터 관리'로 변경, 테스트 데이터 생성 센터 버튼 제거, CSV 업로드 추가 */}
           <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-2">
             <Database className="w-8 h-8 text-blue-600" />
-            원본 데이터 관리
+            데이터 관리
           </h1>
           <p className="text-gray-600 mt-1">DB에 적재된 광고 성과 로우(Raw) 데이터를 직접 확인하고 편집·삭제합니다.</p>
         </div>
         <div className="flex gap-2">
-          <Link 
-            to="/dummy-data" 
-            className="flex items-center justify-center px-4 py-2 bg-white text-gray-700 rounded-xl border border-gray-200 font-medium hover:bg-gray-50 transition shadow-sm"
+          <input 
+            type="file" 
+            ref={fileInputRef} 
+            onChange={handleFileChange} 
+            accept=".csv" 
+            className="hidden" 
+          />
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            disabled={isUploading}
+            className="flex items-center px-4 py-2 bg-green-50 border border-green-200 text-green-700 rounded-xl font-medium hover:bg-green-100 transition shadow-sm disabled:opacity-50"
           >
-            <FileSpreadsheet className="w-4 h-4 mr-2" />
-            테스트 데이터 생성 센터
-          </Link>
+            {isUploading ? <RefreshCw className="w-4 h-4 mr-2 animate-spin" /> : <UploadCloud className="w-4 h-4 mr-2" />}
+            {isUploading ? '업로드 중...' : 'CSV 업로드'}
+          </button>
           <button
             onClick={() => refetch()}
             className="flex items-center px-4 py-2 bg-blue-50 border border-blue-200 text-blue-600 rounded-xl font-medium hover:bg-blue-100 transition shadow-sm"
