@@ -96,10 +96,24 @@ export default function CreativeAgentPage() {
           el.scrollIntoView({ behavior: 'smooth', block: 'center' });
           setTimeout(() => {
             const newRect = el.getBoundingClientRect();
-            setTargetRect({ x: newRect.left - 8, y: newRect.top - 8, w: newRect.width + 16, h: newRect.height + 16 });
+            let height = newRect.height;
+            if (currentId === 'tour-form' && window.innerWidth < 768) {
+              const bizEl = document.getElementById('tour-business');
+              if (bizEl) {
+                height = bizEl.getBoundingClientRect().bottom - newRect.top;
+              }
+            }
+            setTargetRect({ x: newRect.left - 8, y: newRect.top - 8, w: newRect.width + 16, h: height + 16 });
           }, 400); // 스크롤 애니메이션 대기
         } else {
-          setTargetRect({ x: rect.left - 8, y: rect.top - 8, w: rect.width + 16, h: rect.height + 16 });
+          let height = rect.height;
+          if (currentId === 'tour-form' && window.innerWidth < 768) {
+            const bizEl = document.getElementById('tour-business');
+            if (bizEl) {
+              height = bizEl.getBoundingClientRect().bottom - rect.top;
+            }
+          }
+          setTargetRect({ x: rect.left - 8, y: rect.top - 8, w: rect.width + 16, h: height + 16 });
         }
       }
     };
@@ -309,7 +323,7 @@ export default function CreativeAgentPage() {
               )}
 
               {/* 업종 */}
-              <div>
+              <div id="tour-business">
                 <label className="block text-sm font-medium text-gray-700 mb-1">업종 {mode === 'new' && '*'}</label>
                 <select
                   value={formData.businessType}
@@ -660,25 +674,39 @@ export default function CreativeAgentPage() {
         <div 
           className="absolute z-[101] transition-all duration-500 ease-in-out flex flex-col"
           style={{
-            ...(tourStep === 2 
-              // 3번째 스텝(인덱스 2): 스포트라이트 우측
-              ? { top: targetRect.y, left: targetRect.x + targetRect.w + 20, width: 300 }
-              // 4번째 스텝(인덱스 3): 스포트라이트 상단
-              : tourStep === 3
-              ? { top: Math.max(16, targetRect.y - 180), left: Math.max(16, targetRect.x + targetRect.w / 2 - 150), width: 300 }
-              // 기본: 스포트라이트 하단
-              : { top: targetRect.y + targetRect.h + 16, left: Math.max(16, targetRect.x + targetRect.w / 2 - 150), width: 300 }
-            )
+            ...(() => {
+              const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
+              const screenWidth = typeof window !== 'undefined' ? window.innerWidth : 360;
+              const boxWidth = Math.min(300, screenWidth - 32);
+              
+              // 화면 밖으로 나가지 않도록 left 위치 보정
+              let leftPos = targetRect.x + targetRect.w / 2 - boxWidth / 2;
+              leftPos = Math.max(16, Math.min(leftPos, screenWidth - boxWidth - 16));
+
+              if (tourStep === 2) {
+                // 3번째 스텝: 데스크톱은 우측, 모바일은 상단으로 배치 (생성 이력 없는 사용자 잘림 방지)
+                if (!isMobile) {
+                  return { top: targetRect.y, left: targetRect.x + targetRect.w + 20, width: boxWidth };
+                }
+                return { top: Math.max(16, targetRect.y - 180), left: leftPos, width: boxWidth };
+              } else if (tourStep === 3) {
+                // 4번째 스텝: 스포트라이트 상단
+                return { top: Math.max(16, targetRect.y - 180), left: leftPos, width: boxWidth };
+              } else {
+                // 기본 (1, 2번째 스텝): 스포트라이트 하단
+                return { top: targetRect.y + targetRect.h + 16, left: leftPos, width: boxWidth };
+              }
+            })()
           }}
         >
-          <div className="bg-white rounded-xl shadow-2xl p-5 relative animate-in fade-in zoom-in duration-300">
+          <div className="bg-white rounded-xl shadow-2xl p-4 sm:p-5 relative animate-in fade-in zoom-in duration-300">
             {/* 동적 위치 꼬리표 */}
             <div className={`absolute w-4 h-4 bg-white rotate-45 transition-all duration-300 ${
-              tourStep === 2 
-                ? "top-8 -left-2" 
-                : tourStep === 3 
-                ? "-bottom-2 left-1/2 -translate-x-1/2" 
-                : "-top-2 left-1/2 -translate-x-1/2"
+              tourStep === 2 && !(typeof window !== 'undefined' && window.innerWidth < 768)
+                ? "top-8 -left-2" // 데스크톱 3번째 스텝 (왼쪽을 향함)
+                : (tourStep === 3 || (tourStep === 2 && (typeof window !== 'undefined' && window.innerWidth < 768)))
+                ? "-bottom-2 left-1/2 -translate-x-1/2" // 모바일 3번째 & 모든 환경 4번째 (아래를 향함)
+                : "-top-2 left-1/2 -translate-x-1/2" // 그 외 (위로 향함)
             }`} />
             <div className="relative z-10">
               <p className="text-[15px] leading-relaxed text-gray-800 font-medium whitespace-pre-wrap">
@@ -711,18 +739,19 @@ export default function CreativeAgentPage() {
         </div>
 
         {/* 생략/바로 사용하기 버튼 */}
-        <div className="absolute bottom-8 left-1/2 -translate-x-1/2 z-[102]">
+        <div className="absolute bottom-6 sm:bottom-8 left-1/2 -translate-x-1/2 z-[102] w-full px-4 flex justify-center">
           <button 
             onClick={handleCloseTour}
-            className="group flex items-center gap-2 bg-white/10 hover:bg-white/20 backdrop-blur-md border border-white/30 text-white px-8 py-3.5 rounded-full font-bold text-lg shadow-xl transition-all hover:scale-105 active:scale-95"
+            className="group flex items-center justify-center gap-2 bg-white/10 hover:bg-white/20 backdrop-blur-md border border-white/30 text-white px-6 sm:px-8 py-3 sm:py-3.5 rounded-full font-bold text-sm sm:text-lg shadow-xl transition-all hover:scale-105 active:scale-95 w-full max-w-[280px] sm:max-w-none"
           >
             튜토리얼 건너뛰기
-            <Send className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+            <Send className="w-4 h-4 sm:w-5 sm:h-5 group-hover:translate-x-1 transition-transform" />
           </button>
         </div>
       </div>
     )}
-    </>  );
+    </>
+  );
 }
 
 // ─── 서브 컴포넌트 ─────────────────
