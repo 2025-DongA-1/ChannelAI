@@ -91,8 +91,9 @@ export const sendEmail = async (
 ): Promise<void> => {
   // ── Resend API ─────────────────────────────────────────────────────────
   if (mode === 'resend' && resendClient) {
+    const fromAddress = process.env.EMAIL_FROM || 'onboarding@resend.dev';
     const resendPayload: any = {
-      from: 'ChannelAI 리포트 <report@channelai.kro.kr>',
+      from: `ChannelAI 리포트 <${fromAddress}>`,
       to: [to],
       subject,
       html,

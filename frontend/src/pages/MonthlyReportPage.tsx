@@ -142,7 +142,8 @@ export default function MonthlyReportPage() {
   // PDF 내보내기 중인지 여부 (모든 탭을 렌더링하기 위함)
   const [isExporting, setIsExporting] = useState(false);
   
-  // 리포트 렌더 영역 요소를 추적하기 위한 ref
+  // 서버를 통한 이메일 백그라운드 발송 상태
+  const [isSendingServerEmail, setIsSendingServerEmail] = useState(false);
   // const reportRef = useRef<HTMLDivElement>(null);
 
   // 리포트 렌더 영역 요소를 추적하기 위한 ref
@@ -165,7 +166,11 @@ export default function MonthlyReportPage() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const res = await api.get('/report/monthly?startMonth=2025-08&endMonth=2026-03');
+        const now = new Date();
+        const toMonthStr = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+        const endMonth = toMonthStr(now);
+        const startMonth = toMonthStr(new Date(now.getFullYear(), now.getMonth() - 5, 1));
+        const res = await api.get(`/report/monthly?startMonth=${startMonth}&endMonth=${endMonth}`);
         if (res.data?.success && res.data?.data) {
           const mData = res.data.data;
           setMonthlyData(mData);
@@ -582,24 +587,53 @@ const TAB_LABELS = ["Overview", "Channel Analysis", "Trend Analysis"];
               <div className="flex gap-2">
                 <button 
                   onClick={handleSendEmail}
-                  disabled={isExporting}
-                  className="print:hidden flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold shadow-sm transition-all bg-green-600 text-white hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                  disabled={isExporting || isSendingServerEmail}
+                  className="print:hidden flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold shadow-sm transition-all bg-green-500 text-white hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {isSendingEmail ? (
                     <>
                       <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                      이메일 전송 중...
+                      직접 캡처 중...
                     </>
                   ) : (
                     <>
                       <Mail size={18} />
-                      이메일 전송
+                      직접 캡처하여 전송 (PDF 확인용)
+                    </>
+                  )}
+                </button>
+                <button 
+                  onClick={async () => {
+                    const email = prompt('보고서를 전송할 이메일 주소를 입력하세요 (서버 발송):');
+                    if (!email || !email.trim()) return;
+                    setIsSendingServerEmail(true);
+                    try {
+                      const res = await api.post('/report/send-to', { email: email.trim() });
+                      alert(res.data.message || '서버 발송 요청이 전달되었습니다.');
+                    } catch(err) {
+                      alert('서버 발송 요청 실패');
+                    } finally {
+                      setIsSendingServerEmail(false);
+                    }
+                  }}
+                  disabled={isExporting || isSendingEmail || isSendingServerEmail}
+                  className="print:hidden flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold shadow-sm transition-all bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isSendingServerEmail ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                      서버 발송 중...
+                    </>
+                  ) : (
+                    <>
+                      <Mail size={18} />
+                      서버에서 이메일 전송
                     </>
                   )}
                 </button>
                 <button 
                   onClick={handleDownloadPDF}
-                  disabled={isExporting}
+                  disabled={isExporting || isSendingServerEmail}
                   className="print:hidden flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold shadow-sm transition-all bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {isExporting && !isSendingEmail ? (
