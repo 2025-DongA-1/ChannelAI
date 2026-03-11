@@ -24,10 +24,13 @@ const daysAgo = (n: number) => { const d = new Date(); d.setDate(d.getDate() - n
 
 // ── DB에서 사용자 리포트 데이터 수집 ──────────────────────────────────────
 const gatherReportData = async (userId: number, startDate: string, endDate: string): Promise<ReportData | null> => {
-  // 사용자 기본 정보
-  const userResult = await pool.query('SELECT name FROM users WHERE id = ?', [userId]);
+  // [2026-03-11 11:48] name은 user_profiles 테이블에 있으므로 JOIN 필요 (ER_BAD_FIELD_ERROR 수정)
+  const userResult = await pool.query(
+    'SELECT up.name FROM users u LEFT JOIN user_profiles up ON up.user_id = u.id WHERE u.id = ?',
+    [userId]
+  );
   if (!userResult.rows.length) return null;
-  const userName: string = userResult.rows[0].name;
+  const userName: string = userResult.rows[0].name || '사용자';
 
   // 광고 성과 집계
   const result = await pool.query(

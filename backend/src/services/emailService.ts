@@ -76,16 +76,35 @@ export const verifyEmailConnection = async (): Promise<boolean> => {
   }
 };
 
-/** 이메일 전송 함수 */
-export const sendEmail = async (to: string, subject: string, html: string): Promise<void> => {
+// [2026-03-11 12:02] 첨부 파일 인터페이스 추가
+interface EmailAttachment {
+  filename: string;
+  content: Buffer;
+}
+
+/** 이메일 전송 함수 (첨부 파일 지원) */
+export const sendEmail = async (
+  to: string,
+  subject: string,
+  html: string,
+  attachments?: EmailAttachment[]
+): Promise<void> => {
   // ── Resend API ─────────────────────────────────────────────────────────
   if (mode === 'resend' && resendClient) {
-    const { error } = await resendClient.emails.send({
+    const resendPayload: any = {
       from: 'ChannelAI 리포트 <report@channelai.kro.kr>',
       to: [to],
       subject,
       html,
-    });
+    };
+    // [2026-03-11 12:02] PDF 첨부 파일 추가
+    if (attachments && attachments.length > 0) {
+      resendPayload.attachments = attachments.map(a => ({
+        filename: a.filename,
+        content: a.content.toString('base64'),
+      }));
+    }
+    const { error } = await resendClient.emails.send(resendPayload);
     if (error) {
       console.error(`  ❌ Resend 발송 실패 (${to}):`, error);
       throw new Error(error.message);
@@ -100,12 +119,21 @@ export const sendEmail = async (to: string, subject: string, html: string): Prom
     return;
   }
 
-  const info = await transporter.sendMail({
+  const mailOptions: any = {
     from: `"ChannelAI 리포트" <${mode === 'ethereal' ? 'report@channelai.com' : process.env.SMTP_USER}>`,
     to,
     subject,
     html,
-  });
+  };
+  // [2026-03-11 12:02] Nodemailer 첨부 파일 추가
+  if (attachments && attachments.length > 0) {
+    mailOptions.attachments = attachments.map(a => ({
+      filename: a.filename,
+      content: a.content,
+    }));
+  }
+
+  const info = await transporter.sendMail(mailOptions);
 
   if (mode === 'ethereal') {
     const previewUrl = nodemailer.getTestMessageUrl(info);
