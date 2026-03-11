@@ -12,7 +12,7 @@ const TermsOfServicePage: React.FC = () => {
               <strong>마지막 업데이트:</strong> 2026년 1월 29일
             </p>
             <p className="mb-4">
-              본 약관은 NKLE("회사", "저희" 또는 "우리")가 제공하는 
+              본 약관은 ChannelAI("회사", "저희" 또는 "우리")가 제공하는 
               멀티채널 마케팅 플랫폼("서비스")의 이용 조건을 규정합니다. 
               서비스를 이용함으로써 귀하는 본 약관에 동의하는 것으로 간주됩니다.
             </p>
@@ -21,7 +21,7 @@ const TermsOfServicePage: React.FC = () => {
           <section>
             <h2 className="text-2xl font-semibold text-gray-900 mb-4">1. 서비스 설명</h2>
             <p className="mb-3">
-              NKLE 멀티채널 마케팅 플랫폼은 소상공인 및 마케팅 실무자를 위한 
+              PlanBe 멀티채널 마케팅 플랫폼은 소상공인 및 마케팅 실무자를 위한 
               통합 광고 성과 관리 도구입니다.
             </p>
             <h3 className="text-xl font-semibold text-gray-800 mb-3 mt-4">1.1 주요 기능</h3>
@@ -300,7 +300,7 @@ const TermsOfServicePage: React.FC = () => {
           <section>
             <h2 className="text-2xl font-semibold text-gray-900 mb-4">13. 연락처 및 고객 지원</h2>
             <div className="bg-gray-50 p-4 rounded-lg">
-              <p><strong>서비스명:</strong> NKLE 멀티채널 마케팅 플랫폼</p>
+              <p><strong>서비스명:</strong> PlanBe 멀티채널 마케팅 플랫폼</p>
               <p><strong>이메일:</strong> anchursoo@naver.com</p>
               <p><strong>App ID:</strong> 1946347369607018</p>
               <p className="mt-3">

@@ -658,16 +658,28 @@ export default function CreativeAgentPage() {
 
         {/* 하이라이트된 영역 툴팁 */}
         <div 
-          className="absolute z-[101] transition-all duration-500 ease-in-out flex flex-col mt-4"
+          className="absolute z-[101] transition-all duration-500 ease-in-out flex flex-col"
           style={{
-            top: targetRect.y + targetRect.h,
-            left: Math.max(16, targetRect.x + targetRect.w / 2 - 150),
-            width: 300,
+            ...(tourStep === 2 
+              // 3번째 스텝(인덱스 2): 스포트라이트 우측
+              ? { top: targetRect.y, left: targetRect.x + targetRect.w + 20, width: 300 }
+              // 4번째 스텝(인덱스 3): 스포트라이트 상단
+              : tourStep === 3
+              ? { top: Math.max(16, targetRect.y - 180), left: Math.max(16, targetRect.x + targetRect.w / 2 - 150), width: 300 }
+              // 기본: 스포트라이트 하단
+              : { top: targetRect.y + targetRect.h + 16, left: Math.max(16, targetRect.x + targetRect.w / 2 - 150), width: 300 }
+            )
           }}
         >
           <div className="bg-white rounded-xl shadow-2xl p-5 relative animate-in fade-in zoom-in duration-300">
-            {/* 꼬리표 */}
-            <div className="absolute -top-2 left-1/2 -translate-x-1/2 w-4 h-4 bg-white rotate-45" />
+            {/* 동적 위치 꼬리표 */}
+            <div className={`absolute w-4 h-4 bg-white rotate-45 transition-all duration-300 ${
+              tourStep === 2 
+                ? "top-8 -left-2" 
+                : tourStep === 3 
+                ? "-bottom-2 left-1/2 -translate-x-1/2" 
+                : "-top-2 left-1/2 -translate-x-1/2"
+            }`} />
             <div className="relative z-10">
               <p className="text-[15px] leading-relaxed text-gray-800 font-medium whitespace-pre-wrap">
                 {TOUR_STEPS[tourStep].text}
