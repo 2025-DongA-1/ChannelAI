@@ -151,7 +151,7 @@ def build_pro_report(
     """
     리포트 구성:
     📢 Executive Summary
-    🔍 매체별 정밀 진단 (현상 → 데이터 근거 → 전략 → 기대효과)
+    🔍 플랫폼별 정밀 진단 (현상 → 데이터 근거 → 전략 → 기대효과)
     ✅ 실행 가이드 (액션 아이템)
     ⚠️ 한계/면책
     """
@@ -200,9 +200,9 @@ def build_pro_report(
     
     lines = []
     lines.append(f"🎯 사장님을 위한 AI 핵심 요약: 현재 가장 효율이 좋은 **{best_name}**에 예산을 집중하여 **매출을 극대화**하는 것을 추천합니다.")
-    lines.append(f"2순위 추천 매체인 **{second_best_name}**보다 예상 수익률이 **{gap_vs_2nd:.1f}%p** 더 높기 때문입니다.")
+    lines.append(f"2순위 추천 플랫폼인 **{second_best_name}**보다 예상 수익률이 **{gap_vs_2nd:.1f}%p** 더 높기 때문입니다.")
     lines.append("")
-    lines.append("🔍 매체별 정밀 진단 (현상 → 데이터 근거 → 전략 → 기대효과)")
+    lines.append("🔍 플랫폼별 정밀 진단 (현상 → 데이터 근거 → 전략 → 기대효과)")
 
     # 비교/근거용: 평균 ROAS
     avg_roas = float(np.mean(roas)) if len(roas) else 0.0

@@ -209,7 +209,7 @@ export default function MonthlyReportPage() {
     const MARGIN = 10;
     const CONTENT_W = A4_W - MARGIN * 2;
 
-const TAB_LABELS = ["종합 현황", "채널별 분석", "추이 분석"];
+const TAB_LABELS = ["Overview", "Channel Analysis", "Trend Analysis"];
     let isFirstPage = true;
 
     for (let i = 0; i < TAB_REFS.length; i++) {
