@@ -2,19 +2,23 @@ import sys
 import json
 import pandas as pd
 import numpy as np
+import xgboost as xgb
 from scipy.optimize import linprog
 import os
+from datetime import datetime
 import joblib
 
 # JSON 파싱 에러 방지
 import warnings
 warnings.filterwarnings("ignore")
 
-# ==========================================
-# ★ [NEW] 8:2 하이브리드 앙상블 모델 설정값
-# ==========================================
-ENSEMBLE_MODEL_FILENAME = 'ensemble_roas_model.pkl'
-SCALER_FILENAME = 'roas_scaler.pkl'
+# 앙상블 라이브러리 및 설정값
+
+RIDGE_MODEL_FILENAME = 'baseline_ridge_model.joblib'
+USE_ENSEMBLE = True     # True : XGB + Ridge 가중 평균 / False : XGB 우선(Ridge 폴백만) 
+XGB_WEIGHT = 0.5        # XGBoost의 비중 (비선형 디테일)
+RIDGE_WEIGHT = 0.5      # Ridge의 비중 (안정성 및 제동 장치)
+
 
 # [추가] Windows(팀원) 환경에서 한글 깨짐 방지를 위한 입출력 강제 UTF-8 설정
 if sys.stdout.encoding.lower() != 'utf-8':
@@ -183,11 +187,14 @@ def build_pro_report(
     gap_vs_2nd = float(roas[top1] - roas[top2])
 
     # 제약조건 요약
+    # (현 코드의 bounds 룰을 사람이 이해하기 쉬운 형태로)
     min_per = min_budget_default
     if total_budget < len(roas) * min_per:
         min_per = 0
     max_per = int(total_budget * max_ratio_default)
 
+    # 채널별 “진단 문장” 만들기
+    
     # 2등 매체의 이름을 변수로 추출
     second_best_name = channel_display[top2]
     
@@ -248,6 +255,8 @@ def build_pro_report(
     lines.append(f"• 채널별 예산은 최소 **{int(min_per):,}원**(총예산이 작으면 0원) ~ 최대 **{int(max_per):,}원**(총예산의 {int(max_ratio_default*100)}%) 범위 제약을 적용했습니다.")
     lines.append(f"• 예측 ROAS는 이상치 방지를 위해 **{int(clip_min)}% ~ {int(clip_max)}%** 범위로 클리핑되었습니다.")
 
+    
+
     # 프론트 파싱을 위해 줄바꿈으로 구조 유지
     return "\n".join(lines)
 
@@ -278,7 +287,7 @@ def main():
         log(json.dumps({"error": f"데이터 수신 실패: {str(e)}"}, ensure_ascii=False))
         sys.exit(1)
 
-    # 변수 추출 (리스트/객체 모두 대응하는 안전한 코드)
+    # [수정] 변수 추출 (리스트/객체 모두 대응하는 안전한 코드)
     if isinstance(data, list):
         features_list = data
         total_budget = 500000
@@ -289,10 +298,12 @@ def main():
         duration = data.get('duration', 7)
 
     # ==========================================
-    # [중요] ensemble_model.py와 컬럼(피처) 정합 맞추기 (ROAS_3d_trend 삭제됨)
+    # [중요] train_model_v2.py와 컬럼(피처) 정합 맞추기
+    # - 학습에서는 channel_* 사용
+    # - predict에서도 최종적으로 channel_*로 맞춘다
     # ==========================================
     model_columns = [
-        '비용', 'CPC', 'CTR', 
+        '비용', 'CPC', 'CTR', 'ROAS_3d_trend',
         'trend_score',
         'channel_naver', 'channel_meta', 'channel_google', 'channel_karrot'
     ]
@@ -303,33 +314,49 @@ def main():
         cost = float(total_budget) / 4.0
         current_roas = item.get('ROAS', 200)
 
-        # 채널 구분
+        # --------------------------------------------------------------------
+        # 🛠️ [개선] 채널별 현실적인 베이스라인 세팅 (디펜스 무기)
+        # --------------------------------------------------------------------
         channel_naver = item.get('channel_naver', item.get('채널명_Naver', 0))
         channel_meta = item.get('channel_meta', item.get('채널명_Meta', 0))
         channel_google = item.get('channel_google', item.get('채널명_Google', 0))
         channel_karrot = item.get('channel_karrot', item.get('채널명_Karrot', 0))
 
-        # 채널별 현실적인 CPC 및 기본 CTR (도메인 지식 반영)
+        # 1. 채널별 현실적인 CPC 및 기본 CTR (도메인 지식 반영)
         if channel_naver == 1:
-            base_cpc, base_ctr = 800, 2.5
+            base_cpc = 800  # 검색 광고 특성상 다소 높음
+            base_ctr = 2.5
         elif channel_google == 1:
-            base_cpc, base_ctr = 600, 1.8
+            base_cpc = 600
+            base_ctr = 1.8
         elif channel_meta == 1:
-            base_cpc, base_ctr = 400, 1.2
+            base_cpc = 400  # 노출 위주라 단가는 낮지만
+            base_ctr = 1.2  # 클릭률도 낮음
         elif channel_karrot == 1:
-            base_cpc, base_ctr = 300, 3.0
+            base_cpc = 300  # 지역 기반, 단가 저렴
+            base_ctr = 3.0  # 타겟팅이 좁아 클릭률은 높음
         else:
-            base_cpc, base_ctr = 500, 1.5
+            base_cpc = 500
+            base_ctr = 1.5
 
-        # 임의성 부여
+        # 2. 임의성 부여 (고정값 탈피)
+        # 약간의 랜덤성을 더해 매번 똑같은 결과가 나오는 것을 방지
         cpc = base_cpc * np.random.uniform(0.9, 1.1)
         ctr = base_ctr * np.random.uniform(0.9, 1.1)
+        
+        # 3. ROAS 변화율 적용
+        roas_3d = float(current_roas) * np.random.uniform(0.95, 1.05)
+        
+        # 4. 트렌드 점수 
+        # (프론트에서 못 받으면, 30~80 사이의 랜덤 값으로 대체하여 시뮬레이션 현실성 확보)
         trend_score = item.get('trend_score', np.random.randint(30, 80))
+        # --------------------------------------------------------------------
 
         row = {
             '비용': float(cost),
             'CPC': float(cpc),
             'CTR': float(ctr),
+            'ROAS_3d_trend': float(roas_3d),
             'trend_score': float(trend_score),
             'channel_naver': int(channel_naver),
             'channel_meta': int(channel_meta),
@@ -340,11 +367,12 @@ def main():
 
     df = pd.DataFrame(processed_data)
 
+    # 만약 데이터가 비어있다면 에러 처리
     if df.empty:
         log(json.dumps({"error": "분석할 데이터가 없습니다."}, ensure_ascii=False))
         sys.exit(1)
 
-    # 컬럼 순서 강제 맞춤
+    # 컬럼 순서 강제 맞춤 (학습때와 동일하게)
     try:
         X = df[model_columns]
     except KeyError as e:
@@ -355,33 +383,68 @@ def main():
         }, ensure_ascii=False))
         sys.exit(1)
 
-    # ==========================================
-    # ★ [NEW] 8:2 앙상블 모델 로드 및 예측 로직
-    # ==========================================
+    # [AI 모델 로드 및 예측]  ✅ XGB + Ridge(옵션) 앙상블/폴백
     try:
         script_dir = os.path.dirname(os.path.abspath(__file__))
+
+        # ✅ 클리핑 범위(공통)
         CLIP_MIN = 50.0
         CLIP_MAX = 800.0
 
-        # 1. 모델과 스케일러 경로 확인
-        ensemble_path = os.path.join(script_dir, ENSEMBLE_MODEL_FILENAME)
-        scaler_path = os.path.join(script_dir, SCALER_FILENAME)
+        # --------------------------
+        # (1) XGBoost 예측 (기본)
+        # --------------------------
+        predicted_roas_xgb = None
+        try:
+            model = xgb.Booster()
+            model_path = os.path.join(script_dir, 'optimal_budget_xgb_model.json')
+            model.load_model(model_path)
 
-        if not os.path.exists(ensemble_path) or not os.path.exists(scaler_path):
-            raise FileNotFoundError("앙상블 모델(.pkl) 또는 스케일러(.pkl) 파일을 찾을 수 없습니다.")
+            # 컬럼명 유지(DMatrix + feature_names 고정)
+            dtest = xgb.DMatrix(X.values, feature_names=model_columns)
+            predicted_roas_xgb = model.predict(dtest)
 
-        # 2. 모델 및 스케일러 로드
-        ensemble_model = joblib.load(ensemble_path)
-        scaler = joblib.load(scaler_path)
+            # 비현실 튐 방지
+            predicted_roas_xgb = clip_predicted_roas(predicted_roas_xgb, min_roas=CLIP_MIN, max_roas=CLIP_MAX)
 
-        # 3. 필수! 데이터 정규화(Scaling)
-        X_scaled = pd.DataFrame(scaler.transform(X), columns=X.columns)
+        except Exception as e:
+            log(json.dumps({"warn": f"XGB 예측 실패: {str(e)}"}, ensure_ascii=False))
+            predicted_roas_xgb = None
 
-        # 4. 하이브리드 예측 수행
-        predicted_roas = ensemble_model.predict(X_scaled)
-        
-        # 5. 비현실 튐 방지 클리핑
-        predicted_roas = clip_predicted_roas(predicted_roas, min_roas=CLIP_MIN, max_roas=CLIP_MAX)
+        # --------------------------
+        # (2) Ridge 예측 (있으면 사용)
+        # --------------------------
+        predicted_roas_ridge = None
+        ridge_path = os.path.join(script_dir, RIDGE_MODEL_FILENAME)
+
+        if os.path.exists(ridge_path):
+            try:
+                ridge_model = joblib.load(ridge_path)
+                # ✅ Ridge 파이프라인은 DataFrame 입력을 권장 (스케일러 포함)
+                predicted_roas_ridge = ridge_model.predict(X)
+                predicted_roas_ridge = clip_predicted_roas(predicted_roas_ridge, min_roas=CLIP_MIN, max_roas=CLIP_MAX)
+
+            except Exception as e:
+                log(json.dumps({"warn": f"Ridge 예측 실패: {str(e)}"}, ensure_ascii=False))
+                predicted_roas_ridge = None
+        else:
+            # Ridge 파일이 없으면 조용히 넘어감
+            predicted_roas_ridge = None
+
+        # --------------------------
+        # (3) 앙상블 / 폴백 결정
+        # --------------------------
+        if predicted_roas_xgb is not None and predicted_roas_ridge is not None:
+            if USE_ENSEMBLE:
+                predicted_roas = (XGB_WEIGHT * predicted_roas_xgb) + (RIDGE_WEIGHT * predicted_roas_ridge)
+            else:
+                predicted_roas = predicted_roas_xgb
+        elif predicted_roas_xgb is not None:
+            predicted_roas = predicted_roas_xgb
+        elif predicted_roas_ridge is not None:
+            predicted_roas = predicted_roas_ridge
+        else:
+            raise RuntimeError("모델 로드/예측 실패: XGB와 Ridge 모두 예측 실패")
 
     except Exception as e:
         log(json.dumps({"error": f"모델 로드/예측 실패: {str(e)}"}, ensure_ascii=False))
@@ -390,20 +453,25 @@ def main():
     # [선형 계획법 - 예산 최적화]
     try:
         n = len(predicted_roas)
+
         c = [-float(r) for r in predicted_roas]
         A_eq = [[1] * n]
         b_eq = [float(total_budget)]
 
-        # 예산 규모에 따른 다이나믹 제약 조건
+        # ★ [수정됨] 예산 규모에 따른 '다이나믹 제약 조건' (시각적 다이나믹함 확보)
+        # =========================================================
         budget_num = float(total_budget)
         
         if budget_num <= 300000:
+            # [소액 예산] 최소 보장 없음, 1등에게 최대 60% 몰아주기 (집중 전략)
             MIN_BUDGET_DEFAULT = 0
             MAX_RATIO_DEFAULT = 0.60
         elif budget_num <= 1000000:
+            # [중급 예산] 최소 5% 보장, 최대 45% 제한 (점진적 분산)
             MIN_BUDGET_DEFAULT = budget_num * 0.05
             MAX_RATIO_DEFAULT = 0.45
         else:
+            # [고액 예산] 최소 15% 강제 보장, 최대 35% 제한 (완벽한 포트폴리오 분산)
             MIN_BUDGET_DEFAULT = budget_num * 0.15
             MAX_RATIO_DEFAULT = 0.35
         
@@ -418,9 +486,10 @@ def main():
 
         if result.success:
             allocated_budget = result.x
+
             real_expected_revenue = np.sum(allocated_budget * (predicted_roas / 100.0))
 
-            # 컨설팅 리포트 생성
+            # ✅ [PRO] 컨설팅 리포트 생성
             report_text = build_pro_report(
                 total_budget=total_budget,
                 allocated_budget=allocated_budget,
@@ -435,6 +504,7 @@ def main():
 
             # duration 적용 히스토리 생성
             history_data = generate_past_history(predicted_roas, duration=duration)
+            log("predicted_roas:", predicted_roas)
             
             output = {
                 "status": "success",
@@ -449,7 +519,7 @@ def main():
             output = {"status": "failed", "reason": "최적화 실패", "detail": str(result.message)}
 
     except Exception as e:
-        log(json.dumps({"error": f"최적화 연산 실패: {str(e)}"}, ensure_ascii=False))
+        log(json.dumps({"error": f"최적화 계산 실패: {str(e)}"}, ensure_ascii=False))
         sys.exit(1)
 
     # ✅ stdout에는 JSON만 1번 출력 (Node 파싱 안정)
