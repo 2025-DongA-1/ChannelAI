@@ -86,26 +86,35 @@ export const triggerSendToEmail = async (req: AuthRequest, res: Response) => {
         console.log(`  🌐 보고서 페이지 접속 중: ${reportUrl}`);
 
         let pdfBuffer: Buffer | null = null;
+        let browser;
         try {
-          const browser = await puppeteer.launch({
+          browser = await puppeteer.launch({
             headless: true,
             args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
           });
           const page = await browser.newPage();
 
-          // 뷰포트 설정 (보고서 페이지 기준)
-          await page.setViewport({ width: 1280, height: 900, deviceScaleFactor: 1.5 });
+          // 뷰포트 설정 (긴 페이지 대응)
+          await page.setViewport({ width: 1400, height: 2000, deviceScaleFactor: 2 });
 
           // localStorage에 토큰 세팅 (인증 우회)
           await page.evaluateOnNewDocument((token: string) => {
             (globalThis as any).localStorage.setItem('token', token);
           }, tempToken);
 
-          // 보고서 페이지 접속 후 데이터 로딩 대기
-          await page.goto(reportUrl, { waitUntil: 'networkidle0', timeout: 30000 });
+          // 보고서 페이지 접속
+          await page.goto(reportUrl, { waitUntil: 'networkidle0', timeout: 45000 });
 
-          // 차트 애니메이션 완료 대기 (2초)
-          await new Promise(resolve => setTimeout(resolve, 2000));
+          // 🛡️ 데이터 렌더링 확인 (차트나 성과 카드가 나타날 때까지 대기)
+          try {
+            await page.waitForSelector('.recharts-responsive-container, .bg-white.border.border-gray-100', { timeout: 15000 });
+            console.log('  ✅ 데이터 렌더링 확인됨');
+          } catch (e) {
+            console.warn('  ⚠️ 데이터 렌더링 대기 시간 초과');
+          }
+
+          // 애니메이션 및 최종 로딩 대기
+          await new Promise(resolve => setTimeout(resolve, 3000));
 
           // 페이지 전체 PDF 캡처
           const pdf = await page.pdf({
@@ -114,10 +123,11 @@ export const triggerSendToEmail = async (req: AuthRequest, res: Response) => {
             margin: { top: '10mm', bottom: '10mm', left: '10mm', right: '10mm' },
           });
           pdfBuffer = Buffer.from(pdf);
-          await browser.close();
           console.log(`  📎 PDF 캡처 완료 (${pdfBuffer.length} bytes)`);
         } catch (pdfErr) {
-          console.error('  ⚠️ PDF 캡처 실패 (이메일은 본문만 발송):', pdfErr);
+          console.error('  ⚠️ PDF 캡처 실패:', pdfErr);
+        } finally {
+          if (browser) await browser.close();
         }
 
         // 5. 이메일 본문 (간단한 알림)
@@ -133,13 +143,13 @@ export const triggerSendToEmail = async (req: AuthRequest, res: Response) => {
     <div style="padding:36px 40px;">
       <p style="color:#374151;font-size:16px;margin:0 0 16px;">안녕하세요, <strong>${userName}</strong>님 👋</p>
       <p style="color:#6b7280;font-size:14px;line-height:1.8;margin:0 0 24px;">
-        <strong>${lastMonthStr}</strong> 광고 성과 보고서가 준비되었습니다.<br>
-        아래 첨부된 PDF 파일에서 상세한 성과 내역을 확인하실 수 있습니다.
+        신청하신 <strong>${lastMonthStr}</strong> 성과 보고서가 준비되었습니다.<br>
+        실제 서비스 화면과 동일한 지표를 첨부된 PDF 파일에서 확인하실 수 있습니다.
       </p>
       <div style="background:#f8faff;border:1px solid #dbeafe;border-radius:12px;padding:20px;margin-bottom:24px;">
-        <p style="margin:0;font-size:13px;color:#1e40af;font-weight:600;">📎 첨부 파일</p>
+        <p style="margin:0;font-size:13px;color:#1e40af;font-weight:600;">📎 첨부 파일 확인</p>
         <p style="margin:6px 0 0;font-size:13px;color:#374151;">ChannelAI_월별보고서_${lastMonthStr}.pdf</p>
-        <p style="margin:4px 0 0;font-size:12px;color:#9ca3af;">월별 성과 보고서 페이지 전체 내용 포함</p>
+        <p style="margin:4px 0 0;font-size:12px;color:#9ca3af;">차트 및 상세 지표가 포함된 공식 리포트입니다.</p>
       </div>
     </div>
     <div style="background:#f9fafb;padding:20px 40px;text-align:center;border-top:1px solid #e5e7eb;">
@@ -224,8 +234,11 @@ export const getMonthlyReportData = async (req: AuthRequest, res: Response) => {
       ORDER BY month ASC
     `, [userId, startMonth, endMonth]);
 
-    // [2026-03-12 15:32] 캠페인별 성과 추가 - 월별 보고서에 캠페인 탭 데이터 제공
-    // 3. 월별/캠페인별 상세 성과 데이터
+    /**
+     * [2026-03-12 16:08] 수정 이유: 월별 보고서 캠페인 성과 탭 데이터 제공
+     * 상세 설명: 캠페인별 광고비, 노출, 클릭, 전환, ROAS 등을 집계하여 프론트엔드 리포트 페이지의 
+     * '캠페인별 성과' 탭에서 상세 표 및 차트를 구성할 수 있도록 데이터를 추출 및 가공함.
+     */
     const { rows: campaignRows } = await pool.query(`
       SELECT
         DATE_FORMAT(cm.metric_date, '%Y-%m')                              AS month,

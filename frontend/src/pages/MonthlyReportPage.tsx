@@ -149,16 +149,28 @@ export default function MonthlyReportPage() {
 
   // 리포트 렌더 영역 요소를 추적하기 위한 ref
   
-  // ↓ 각 탭별 캡처용 ref
+  /**
+   * [2026-03-12 16:05] 수정 이유: 리포트 캡처 및 정렬을 위한 필수 객체 선언부
+   * 상세 설명: 각 탭별(종합, 채널, 추이, 캠페인) DOM 요소를 참조하여 PDF 캡처 시 활용하며, 
+   * 캠페인 데이터의 실시간 정렬(Sort) 및 가공을 위한 Hook들임. Early Return 규칙 준수를 위해 최상단에 배치.
+   */
   const overviewRef  = useRef<HTMLDivElement>(null);
   const platformRef  = useRef<HTMLDivElement>(null);
   const trendRef     = useRef<HTMLDivElement>(null);
-  // [2026-03-12 15:32] 캠페인별 성과 탭 ref 추가
   const campaignRef  = useRef<HTMLDivElement>(null);
-
   const TAB_REFS = [overviewRef, platformRef, trendRef, campaignRef];
-
   const reportRef = useRef<HTMLDivElement>(null);
+
+  const [campaignSort, setCampaignSort] = useState<{ key: string; asc: boolean }>({ key: 'cost', asc: false });
+  const campaigns = useMemo(() => {
+    const list: any[] = (monthlyData[selectedMonth] as any)?.campaigns || [];
+    return [...list].sort((a: any, b: any) => {
+      const aVal = a[campaignSort.key] ?? 0;
+      const bVal = b[campaignSort.key] ?? 0;
+      if (typeof aVal === 'string') return campaignSort.asc ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
+      return campaignSort.asc ? aVal - bVal : bVal - aVal;
+    });
+  }, [monthlyData, selectedMonth, campaignSort]);
   
   // (위에서 이미 isExporting 선언함)
 
@@ -206,7 +218,7 @@ export default function MonthlyReportPage() {
     try {
       const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
       const A4_W = 210, A4_H = 297, MARGIN = 10, CONTENT_W = A4_W - MARGIN * 2;
-      const TAB_LABELS = ["Overview", "Channel Analysis", "Trend Analysis"];
+      const TAB_LABELS = ["종합 성과 현황", "채널별 분석 데이터", "기간별 성과 추이", "캠페인별 상세 성과"];
       let isFirstPage = true;
 
       for (let i = 0; i < TAB_REFS.length; i++) {
@@ -291,7 +303,7 @@ export default function MonthlyReportPage() {
     const MARGIN = 10;
     const CONTENT_W = A4_W - MARGIN * 2;
 
-const TAB_LABELS = ["Overview", "Channel Analysis", "Trend Analysis"];
+const TAB_LABELS = ["종합 성과 현황", "채널별 분석 데이터", "기간별 성과 추이", "캠페인별 상세 성과"];
     let isFirstPage = true;
 
     for (let i = 0; i < TAB_REFS.length; i++) {
@@ -398,7 +410,7 @@ const TAB_LABELS = ["Overview", "Channel Analysis", "Trend Analysis"];
       const A4_H = 297;
       const MARGIN = 10;
       const CONTENT_W = A4_W - MARGIN * 2;
-      const TAB_LABELS = ["Overview", "Channel Analysis", "Trend Analysis"];
+      const TAB_LABELS = ["종합 성과 현황", "채널별 분석 데이터", "기간별 성과 추이", "캠페인별 상세 성과"];
       let isFirstPage = true;
 
       for (let i = 0; i < TAB_REFS.length; i++) {
@@ -535,19 +547,6 @@ const TAB_LABELS = ["Overview", "Channel Analysis", "Trend Analysis"];
     { id:"campaign", label:"📋 캠페인별 성과" },
   ];
 
-  // [2026-03-12 15:32] 캠페인 탭 - 정렬 상태 관리
-  const [campaignSort, setCampaignSort] = useState<{ key: string; asc: boolean }>({ key: 'cost', asc: false });
-
-  // 선택 월의 캠페인 목록 - 정렬 적용
-  const campaigns = useMemo(() => {
-    const list: any[] = monthlyData[selectedMonth]?.campaigns || [];
-    return [...list].sort((a, b) => {
-      const aVal = a[campaignSort.key] ?? 0;
-      const bVal = b[campaignSort.key] ?? 0;
-      if (typeof aVal === 'string') return campaignSort.asc ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
-      return campaignSort.asc ? aVal - bVal : bVal - aVal;
-    });
-  }, [monthlyData, selectedMonth, campaignSort]);
 
   return (
     <div className="min-h-[calc(100vh-64px)] bg-gray-50 flex flex-col">
@@ -1037,8 +1036,8 @@ const TAB_LABELS = ["Overview", "Channel Analysis", "Trend Analysis"];
             </div>
           </div>
 
-          {/* ===== 탭 4: 캠페인별 성과 ===== */}
-          {/* [2026-03-12 15:32] 인사이트 페이지 스타일로 캠페인별 성과 섹션 추가 */}
+          {/* [2026-03-12 16:02] 수정 이유: 인사이트 페이지 양식에 맞춘 캠페인 성과 탭 구현
+              상세 설명: 캠페인별 광고 성과를 채널, 비용, 노출, 클릭, 전환, ROAS 지표로 세분화하여 리포팅함. */}
           <div ref={campaignRef} className={`${(activeTab === "campaign" || isExporting) ? "block" : "hidden"} animate-fade-in-up space-y-6 ${isExporting ? 'mb-24 page-break-after' : ''}`}>
 
             {campaigns.length === 0 ? (
@@ -1048,50 +1047,79 @@ const TAB_LABELS = ["Overview", "Channel Analysis", "Trend Analysis"];
               </div>
             ) : (
               <>
-                {/* 캠페인 TOP 카드 (광고비 상위 4개) */}
-                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+                {/* [2026-03-12 16:02] 수정 이유: 가독성 강화를 위한 수직 리스트(Row) 레이아웃 변경
+                    상세 설명: 기존 그리드 방식에서 가로형 리스트 방식으로 변경하여 긴 캠페인명을 수용하고 지표 비교를 용이하게 함. */}
+                <div className="flex flex-col gap-4">
                   {campaigns.slice(0, 4).map((c: any, idx: number) => {
                     const pColor = PLATFORM_COLORS[c.platform] || '#6b7280';
                     return (
-                      <div key={c.campaign_id} className="bg-white border rounded-2xl p-5 shadow-sm relative overflow-hidden group hover:shadow-md transition" style={{ borderColor: `${pColor}33` }}>
-                        <div className="absolute inset-0 opacity-0 group-hover:opacity-10 transition-opacity pointer-events-none" style={{ background: `linear-gradient(135deg, ${pColor} 0%, transparent 60%)` }} />
-                        {/* 순위 뱃지 */}
-                        <div className="absolute top-3 right-3 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-white" style={{ background: pColor }}>{idx + 1}</div>
-                        <div className="flex items-center gap-2 mb-3">
-                          <div style={{ width: 10, height: 10, borderRadius: '50%', background: pColor }} />
-                          <span className="text-xs font-semibold px-2 py-0.5 rounded-full text-white" style={{ background: pColor }}>{PLATFORM_LABELS[c.platform] || c.platform}</span>
-                          {/* 상태 뱃지 */}
-                          <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
-                            c.status === 'active' ? 'bg-green-100 text-green-700' :
-                            c.status === 'paused' ? 'bg-yellow-100 text-yellow-700' :
-                            'bg-gray-100 text-gray-500'
-                          }`}>
-                            {c.status === 'active' ? '진행중' : c.status === 'paused' ? '일시정지' : c.status}
-                          </span>
-                        </div>
-                        <p className="text-sm font-bold text-gray-800 mb-3 truncate" title={c.campaign_name}>{c.campaign_name}</p>
-                        <div className="space-y-2">
-                          {[
-                            { l: '광고비', v: fmtKRW(c.cost) },
-                            { l: '전환수', v: `${c.conversions.toLocaleString()}건` },
-                            { l: 'ROAS',  v: `${c.roas}%` },
-                          ].map(item => (
-                            <div key={item.l} className="flex justify-between items-center">
-                              <span className="text-xs text-gray-500 font-semibold">{item.l}</span>
-                              <span className="text-sm font-bold text-gray-800">{item.v}</span>
+                      <div 
+                        key={c.campaign_id} 
+                        className="bg-white border rounded-2xl p-6 shadow-sm relative overflow-hidden group hover:shadow-md transition flex flex-col md:flex-row items-center gap-8" 
+                        style={{ borderColor: `${pColor}33` }}
+                      >
+                        {/* 배경 그라데이션 효과 (가로 방향) */}
+                        <div className="absolute inset-0 opacity-0 group-hover:opacity-10 transition-opacity pointer-events-none" style={{ background: `linear-gradient(90deg, ${pColor} 0%, transparent 40%)` }} />
+                        
+                        {/* 1. 순위 및 플랫폼 정보 */}
+                        <div className="flex items-center gap-5 min-w-[240px]">
+                          <div className="w-12 h-12 rounded-full flex items-center justify-center text-xl font-black text-white shadow-lg" style={{ background: pColor }}>
+                            {idx + 1}
+                          </div>
+                          <div className="flex flex-col gap-1">
+                            <div className="flex items-center gap-2">
+                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full text-white uppercase" style={{ background: pColor }}>
+                                {PLATFORM_LABELS[c.platform] || c.platform}
+                              </span>
+                              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                                c.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'
+                              }`}>
+                                {c.status === 'active' ? '● ACTIVE' : '○ PAUSED'}
+                              </span>
                             </div>
-                          ))}
+                            <p className="text-base font-bold text-gray-900 truncate max-w-[180px]" title={c.campaign_name}>
+                              {c.campaign_name}
+                            </p>
+                          </div>
                         </div>
-                        {/* 예산 비중 바 */}
-                        <div className="mt-3 pt-3 border-t border-gray-100">
-                          <div className="flex justify-between items-center mb-1">
-                            <span className="text-xs text-gray-400 font-bold">전체 대비 비중</span>
-                            <span className="text-sm font-extrabold" style={{ color: pColor }}>
+
+                        {/* 2. 주요 지표 데이터 (가로 배치) */}
+                        <div className="flex-grow grid grid-cols-2 lg:grid-cols-4 gap-6 w-full py-2">
+                          <div>
+                            <p className="text-[10px] text-gray-400 font-bold uppercase mb-1 tracking-wider">광고비</p>
+                            <p className="text-base font-black text-gray-800">{fmtKRW(c.cost)}</p>
+                          </div>
+                          <div>
+                            <p className="text-[10px] text-gray-400 font-bold uppercase mb-1 tracking-wider">노출 / 클릭</p>
+                            <p className="text-sm font-bold text-gray-700">{fmt(c.impressions)} / <span className="text-blue-500">{fmt(c.clicks)}</span></p>
+                          </div>
+                          <div>
+                            <p className="text-[10px] text-gray-400 font-bold uppercase mb-1 tracking-wider">전환수</p>
+                            <p className="text-base font-black text-indigo-600">{c.conversions.toLocaleString()}건</p>
+                          </div>
+                          <div>
+                            <p className="text-[10px] text-gray-400 font-bold uppercase mb-1 tracking-wider">ROAS 효율</p>
+                            <p className={`text-base font-black ${
+                              c.roas >= 300 ? 'text-green-600' : c.roas >= 100 ? 'text-amber-500' : 'text-red-500'
+                            }`}>
+                              {c.roas}%
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* 3. 예산 비중 바 (우측 배치) */}
+                        <div className="min-w-[180px] w-full md:w-auto border-t md:border-t-0 md:border-l border-gray-100 pt-4 md:pt-0 md:pl-8">
+                          <div className="flex justify-between items-center mb-2">
+                            <span className="text-[11px] text-gray-400 font-black">전체 예산 비중</span>
+                            <span className="text-sm font-black" style={{ color: pColor }}>
                               {cur.cost > 0 ? Math.round(c.cost / cur.cost * 100) : 0}%
                             </span>
                           </div>
-                          <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                            <div style={{ width: `${cur.cost > 0 ? Math.round(c.cost / cur.cost * 100) : 0}%`, background: pColor }} className="h-full rounded-full transition-all" />
+                          <div className="w-full md:w-32 h-2.5 bg-gray-100 rounded-full overflow-hidden shadow-inner">
+                            <div 
+                              style={{ width: `${cur.cost > 0 ? Math.round(c.cost / cur.cost * 100) : 0}%`, background: pColor }} 
+                              className="h-full rounded-full transition-all duration-700 ease-out" 
+                            />
                           </div>
                         </div>
                       </div>
