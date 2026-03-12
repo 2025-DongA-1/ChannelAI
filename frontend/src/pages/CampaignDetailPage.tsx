@@ -95,6 +95,13 @@ export default function CampaignDetailPage() {
     }
   }, [showTour, currentStep]);
 
+  useEffect(() => {
+    if (showTour) {
+      updateRect();
+    }
+    // eslint-disable-next-line
+  }, [currentStep]);
+
   // 🌟 캠페인 이름 수정 상태 추가
   const [isEditingName, setIsEditingName] = useState(false);
   const [editedName, setEditedName] = useState('');
@@ -226,7 +233,7 @@ export default function CampaignDetailPage() {
   };
 
   return (
-    
+    <>
       <div className="space-y-6 p-2 sm:p-4 md:p-6 relative">
         {/* Header */}
         <div id="tour-campaign-header" className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-4">
@@ -296,6 +303,7 @@ export default function CampaignDetailPage() {
             onClick={() => {
               setShowTour(true);
               setCurrentStep(0);
+              setTimeout(updateRect, 0); // Force update after opening
             }}
             className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-500 to-indigo-600 text-white rounded-lg hover:from-purple-600 hover:to-indigo-700 transition shadow-sm font-medium"
           >
@@ -362,7 +370,7 @@ export default function CampaignDetailPage() {
       </div>
 
       {/* Performance Summary */}
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-4 md:grid-cols-2 lg:grid-cols-4 lg:gap-6">
+      <div id="tour-metrics" className="grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-4 md:grid-cols-2 lg:grid-cols-4 lg:gap-6">
         <div className="bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-gray-100">
           <div className="flex items-center justify-between mb-2">
             <p className="text-sm text-gray-500">총 노출수</p>
@@ -397,7 +405,7 @@ export default function CampaignDetailPage() {
       </div>
 
       {/* Performance Chart */}
-      <div className="bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-gray-100">
+      <div id="tour-chart" className="bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-gray-100">
         <h2 className="text-lg font-semibold text-gray-900 mb-4">성과 추이</h2>
         <ResponsiveContainer width="100%" height={300}>
           <LineChart data={chartData}>
@@ -414,7 +422,7 @@ export default function CampaignDetailPage() {
       </div>
 
       {/* Daily Metrics Table */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+      <div id="tour-daily-table" className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
         <div className="p-4 sm:p-6 border-b border-gray-100">
           <h2 className="text-lg font-semibold text-gray-900">일별 성과 데이터</h2>
         </div>
@@ -474,5 +482,119 @@ export default function CampaignDetailPage() {
         </div>
       </div>
     </div>
+    
+    {/* --- 튜토리얼 오버레이 --- */}
+    {showTour && TOUR_STEPS[currentStep] && (
+      <div className="fixed inset-0 z-[100] pointer-events-auto">
+        <svg className="absolute inset-0 w-full h-full pointer-events-none">
+          <defs>
+            <mask id="tour-campaign-detail-hole">
+              <rect width="100%" height="100%" fill="white" />
+              {targetRect && (
+                <rect
+                  x={targetRect.x - 8}
+                  y={targetRect.y - 8}
+                  width={targetRect.width + 16}
+                  height={targetRect.height + 16}
+                  fill="black"
+                  rx="12"
+                  className="transition-all duration-500 ease-in-out"
+                />
+              )}
+            </mask>
+          </defs>
+          <rect
+            width="100%"
+            height="100%"
+            fill="rgba(0,0,0,0.6)"
+            mask="url(#tour-campaign-detail-hole)"
+            className="transition-all duration-500"
+          />
+        </svg>
+
+        {targetRect && (
+          <div
+            className="absolute z-[101] transition-all duration-500 ease-in-out"
+            style={{
+              ...(() => {
+                const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
+                const screenWidth = typeof window !== 'undefined' ? window.innerWidth : 360;
+                const boxWidth = Math.min(320, screenWidth - 32);
+                let leftPos = targetRect.x + targetRect.width / 2 - boxWidth / 2;
+                leftPos = Math.max(16, Math.min(leftPos, screenWidth - boxWidth - 16));
+
+                const position = TOUR_STEPS[currentStep].position;
+                if (position === 'top') {
+                  const topPos = targetRect.y - (isMobile ? 180 : 190);
+                  return { top: Math.max(16, topPos), left: leftPos, width: boxWidth };
+                }
+                return { top: targetRect.y + targetRect.height + 24, left: leftPos, width: boxWidth };
+              })()
+            }}
+          >
+            <div className="bg-white rounded-xl shadow-2xl p-4 sm:p-5 relative animate-in fade-in zoom-in duration-300">
+              <div className={`absolute w-4 h-4 bg-white rotate-45 transition-all duration-300 ${
+                TOUR_STEPS[currentStep].position === 'top'
+                  ? "-bottom-2 left-1/2 -translate-x-1/2"
+                  : "-top-2 left-1/2 -translate-x-1/2"
+              }`} />
+
+              <div className="relative z-10 flex flex-col gap-3">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center font-bold text-indigo-600">
+                    {currentStep + 1}
+                  </div>
+                  <span className="font-bold text-gray-900 text-lg">
+                    {TOUR_STEPS[currentStep].title}
+                  </span>
+                </div>
+
+                <p className="text-gray-600 text-sm sm:text-base leading-relaxed break-keep">
+                  {TOUR_STEPS[currentStep].description}
+                </p>
+
+                <div className="flex items-center justify-between mt-2 pt-3 border-t border-gray-100">
+                  <span className="text-xs font-medium text-gray-400">
+                    {currentStep + 1} / {TOUR_STEPS.length}
+                  </span>
+
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setShowTour(false)}
+                      className="px-3 py-1.5 text-xs sm:text-sm text-gray-500 hover:bg-gray-100 rounded-lg transition-colors"
+                    >
+                      건너뛰기
+                    </button>
+
+                    {currentStep < TOUR_STEPS.length - 1 ? (
+                      <button
+                        onClick={() => {
+                          setCurrentStep(prev => {
+                            const next = prev + 1;
+                            setTimeout(updateRect, 0);
+                            return next;
+                          });
+                        }}
+                        className="flex items-center gap-1 px-3 py-1.5 text-xs sm:text-sm bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition"
+                      >
+                        다음 <Send className="w-3 h-3" />
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => setShowTour(false)}
+                        className="flex items-center gap-1 px-3 py-1.5 text-xs sm:text-sm bg-green-600 text-white rounded-lg hover:bg-green-700 transition"
+                      >
+                        시작하기 <CheckCircle2 className="w-3 h-3" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    )}
+    </>
   );
 }

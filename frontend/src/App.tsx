@@ -81,6 +81,7 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
                   <Link
                     key={link.to}
                     to={link.to}
+                    id={`nav-menu-${link.to.replace('/', '')}`}
                     className={`text-sm font-medium transition-colors ${
                       location.pathname === link.to
                         ? 'text-blue-600'
@@ -144,6 +145,8 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
                   <Link
                     key={link.to}
                     to={link.to}
+                    id={`nav-menu-mobile-${link.to.replace('/', '')}`}
+                    onClick={() => setMobileMenuOpen(false)}
                     className={`block px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
                       location.pathname === link.to
                         ? 'bg-blue-50 text-blue-600'
