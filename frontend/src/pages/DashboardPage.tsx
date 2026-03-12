@@ -23,13 +23,15 @@ export default function DashboardPage() {
   const [selectedCampaignId, setSelectedCampaignId] = useState<string>('all');
   const [showDatePicker, setShowDatePicker] = useState(false);
 
-  // --- Navigation Tutorial State ---
+  // --- Navigation & Dashboard Tutorial State ---
+  const [tourType, setTourType] = useState<'nav' | 'dashboard'>('nav');
   const [showSplash, setShowSplash] = useState(false);
+  const [splashOpacity, setSplashOpacity] = useState(0);
   const [showTour, setShowTour] = useState(false);
   const [currentTourStep, setCurrentTourStep] = useState(0);
   const [targetRect, setTargetRect] = useState<DOMRect | null>(null);
 
-  const TOUR_STEPS = [
+  const NAV_TOUR_STEPS = [
     {
       targetId: 'nav-menu-integration',
       title: '광고 플랫폼 연동',
@@ -57,12 +59,28 @@ export default function DashboardPage() {
     }
   ];
 
+  const DASH_TOUR_STEPS = [
+    { targetId: 'dashboard-date-filter', title: '기간 설정', content: '조회하고 싶은 기간을 설정하여 데이터를 확인할 수 있습니다.' },
+    { targetId: 'dashboard-tabs', title: '탭 전환', content: '전체 성과와 개별 캠페인 성과를 각각 상세히 확인할 수 있습니다.' },
+    { targetId: 'dashboard-metrics', title: '핵심 지표 요약', content: '총 노출수, 클릭수, 광고비, 전환수 등 주요 성과 수치를 한눈에 파악하세요.' },
+    { targetId: 'dashboard-performance', title: '광고 효율 지표', content: 'CTR, CPC, ROAS 등 현재 마케팅 성과가 좋은지 나쁜지 벤치마크 진단을 통해 확인하세요.' },
+    { targetId: 'dashboard-ai-trend', title: 'AI 트렌드 분석', content: '소규모 자본에 맞춰, 수익률(ROAS)이 가장 높은 매체에 최적인 예산 분배를 제안합니다. 분석 실행하기 버튼을 클릭해보세요!' }
+  ];
+
+  const TOUR_STEPS = tourType === 'nav' ? NAV_TOUR_STEPS : DASH_TOUR_STEPS;
+
   const updateRect = () => {
     if (!showTour) return;
     const step = TOUR_STEPS[currentTourStep];
     if (!step) { setTargetRect(null); return; }
-    const mobileId = step.targetId.replace('nav-menu-', 'nav-menu-mobile-');
-    const el = document.getElementById(step.targetId) || document.getElementById(mobileId);
+    
+    // For navigation items, we might need to fallback to mobile IDs
+    let el = document.getElementById(step.targetId);
+    if (!el && step.targetId.startsWith('nav-menu-')) {
+      const mobileId = step.targetId.replace('nav-menu-', 'nav-menu-mobile-');
+      el = document.getElementById(mobileId);
+    }
+    
     if (el) {
       setTargetRect(el.getBoundingClientRect());
     } else {
@@ -78,28 +96,48 @@ export default function DashboardPage() {
       window.removeEventListener('resize', updateRect);
       window.removeEventListener('scroll', updateRect);
     };
-  }, [showTour, currentTourStep]);
+  }, [showTour, currentTourStep, tourType]);
 
   useEffect(() => {
     // If we want auto-show on first load
     const tourDone = localStorage.getItem('dashboard_tour_done');
-    if (!tourDone) {
-      setShowSplash(true);
-      setTimeout(() => {
-        setShowSplash(false);
+    if (!tourDone && isTutorialModeEnabled) {
+      setTourType('nav');
+      playSplash(() => {
         setShowTour(true);
         localStorage.setItem('dashboard_tour_done', 'true');
-      }, 1500);
+      });
     }
-  }, []);
+  }, [isTutorialModeEnabled]);
 
-  const handleStartTour = () => {
+  const playSplash = (callback: () => void) => {
     setShowSplash(true);
+    setSplashOpacity(0);
+    // Fade in
+    setTimeout(() => setSplashOpacity(1), 50);
+    // Wait, then fade out
+    setTimeout(() => setSplashOpacity(0), 1800);
+    // Unmount after fade out
     setTimeout(() => {
       setShowSplash(false);
+      callback();
+    }, 2300);
+  };
+
+  const handleStartTour = () => {
+    setTourType('nav');
+    playSplash(() => {
       setCurrentTourStep(0);
       setShowTour(true);
-    }, 1500);
+    });
+  };
+
+  const handleStartDashTour = () => {
+    setActiveTab('overall');
+    setTourType('dashboard');
+    setCurrentTourStep(0);
+    setShowTour(true);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
 
@@ -301,223 +339,6 @@ export default function DashboardPage() {
   };
 
 
-  {/* --- Tutorial Overlay & Splash --- */}
-  {showSplash && createPortal(
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-blue-600 bg-opacity-95 text-white p-6 transition-opacity duration-500">
-      <div className="text-center animate-fade-in-up max-w-lg">
-        <h2 className="text-2xl md:text-4xl font-bold mb-4">소규모 마케터를 위한<br/>AI 마케팅 예산 집행 도우미</h2>
-        <div className="mx-auto mt-6 bg-white text-blue-600 font-extrabold text-3xl md:text-5xl py-3 px-8 rounded-full shadow-lg inline-block">PlanBe</div>
-      </div>
-    </div>,
-    document.body
-  )}
-  
-  {showTour && createPortal(
-    <div className="fixed inset-0 z-[90] pointer-events-auto">
-      <svg className="absolute inset-0 w-full h-full pointer-events-none" xmlns="http://www.w3.org/2000/svg">
-        <defs>
-          <mask id="nav-tour-mask">
-            <rect width="100%" height="100%" fill="white" />
-            {targetRect && (
-              <rect
-                x={targetRect.left - 8}
-                y={targetRect.top - 8}
-                width={targetRect.width + 16}
-                height={targetRect.height + 16}
-                rx="8"
-                fill="black"
-              />
-            )}
-          </mask>
-        </defs>
-        <rect width="100%" height="100%" fill="rgba(0,0,0,0.6)" mask="url(#nav-tour-mask)" />
-      </svg>
-      {targetRect && (
-        <div
-          className="absolute bg-white rounded-xl p-5 shadow-2xl w-72 md:w-80 border-2 border-blue-500 transition-all duration-300 z-[95]"
-          style={{
-            top: targetRect.bottom + 20,
-            left: Math.max(10, Math.min(window.innerWidth - 330, targetRect.left - 100))
-          }}
-        >
-          <div className="flex justify-between items-center mb-2">
-            <h3 className="font-bold text-gray-900 border-b-2 border-blue-200 pb-1">{TOUR_STEPS[currentTourStep].title}</h3>
-            <span className="text-xs bg-blue-100 text-blue-600 px-2 py-0.5 rounded-full font-bold">
-              {currentTourStep + 1} / {TOUR_STEPS.length}
-            </span>
-          </div>
-          <p className="text-sm text-gray-600 mb-5 leading-relaxed">{TOUR_STEPS[currentTourStep].content}</p>
-          <div className="flex justify-between items-center">
-            <button
-              onClick={() => setShowTour(false)}
-              className="text-xs text-gray-400 hover:text-gray-600 transition"
-            >
-              건너뛰기
-            </button>
-            <div className="flex gap-2">
-              {currentTourStep > 0 && (
-                <button
-                  onClick={() => setCurrentTourStep((p) => p - 1)}
-                  className="px-3 py-1.5 text-xs bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition"
-                >
-                  이전
-                </button>
-              )}
-              {currentTourStep < TOUR_STEPS.length - 1 ? (
-                <button
-                  onClick={() => setCurrentTourStep((p) => p + 1)}
-                  className="px-4 py-1.5 text-xs bg-blue-600 text-white rounded shadow-sm hover:bg-blue-700 transition"
-                >
-                  다음
-                </button>
-              ) : (
-                <button
-                  onClick={() => setShowTour(false)}
-                  className="px-4 py-1.5 text-xs bg-green-500 text-white rounded shadow-sm hover:bg-green-600 transition font-bold"
-                >
-                  시작하기
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-      {currentTourStep === TOUR_STEPS.length - 1 && targetRect && (
-          <div 
-             className="absolute bg-white rounded-xl p-6 shadow-2xl w-80 md:w-96 text-center transform -translate-x-1/2 -translate-y-1/2 z-[100]" 
-             style={{ top: '50%', left: '50%' }}
-          >
-             <h3 className="text-xl font-bold text-gray-900 mb-2">튜토리얼을 완료했습니다!</h3>
-             <p className="text-sm text-gray-600 mb-6">이제 PlanBe의 모든 기능을 활용해 보세요.</p>
-             <div className="flex gap-3 justify-center">
-                <button 
-                  onClick={() => setShowTour(false)} 
-                  className="flex-1 py-2 px-4 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 font-medium transition"
-                >
-                  대시보드 보기
-                </button>
-                <button 
-                  onClick={() => { setShowTour(false); document.getElementById('nav-menu-integration')?.click(); }}
-                  className="flex-1 py-2 px-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium shadow-md transition"
-                >
-                  매체 연동하러 가기
-                </button>
-             </div>
-          </div>
-      )}
-    </div>,
-    document.body
-  )}
-
-  {/* --- Tutorial Overlay & Splash --- */}
-  {showSplash && createPortal(
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-blue-600 text-white p-6 transition-opacity duration-500">
-      <div className="text-center animate-fade-in-up max-w-lg">
-        <h2 className="text-2xl md:text-4xl font-bold mb-4">소규모 마케터를 위한<br/>AI 마케팅 예산 집행 도우미</h2>
-        <div className="mx-auto mt-6 bg-white text-blue-600 font-extrabold text-3xl md:text-5xl py-3 px-8 rounded-full shadow-lg inline-block">PlanBe</div>
-      </div>
-    </div>,
-    document.body
-  )}
-  
-  {showTour && createPortal(
-    <div className="fixed inset-0 z-[90] pointer-events-auto">
-      <svg className="absolute inset-0 w-full h-full pointer-events-none" xmlns="http://www.w3.org/2000/svg">
-        <defs>
-          <mask id="nav-tour-mask">
-            <rect width="100%" height="100%" fill="white" />
-            {targetRect && currentTourStep < TOUR_STEPS.length && (
-              <rect
-                x={targetRect.left - 8}
-                y={targetRect.top - 8}
-                width={targetRect.width + 16}
-                height={targetRect.height + 16}
-                rx="8"
-                fill="black"
-              />
-            )}
-          </mask>
-        </defs>
-        <rect width="100%" height="100%" fill="rgba(0,0,0,0.6)" mask="url(#nav-tour-mask)" />
-      </svg>
-      {targetRect && currentTourStep < TOUR_STEPS.length && (
-        <div
-          className="absolute bg-white rounded-xl p-5 shadow-2xl w-72 md:w-80 border-2 border-blue-500 transition-all duration-300 z-[95]"
-          style={{
-            top: targetRect.bottom + 20,
-            left: Math.max(10, Math.min(window.innerWidth - 330, targetRect.left - 100))
-          }}
-        >
-          <div className="flex justify-between items-center mb-2">
-            <h3 className="font-bold text-gray-900 border-b-2 border-blue-200 pb-1">{TOUR_STEPS[currentTourStep].title}</h3>
-            <span className="text-xs bg-blue-100 text-blue-600 px-2 py-0.5 rounded-full font-bold">
-              {currentTourStep + 1} / {TOUR_STEPS.length}
-            </span>
-          </div>
-          <p className="text-sm text-gray-600 mb-5 leading-relaxed whitespace-pre-line">{TOUR_STEPS[currentTourStep].content}</p>
-          <div className="flex justify-between items-center">
-            <button
-              onClick={() => setShowTour(false)}
-              className="text-xs text-gray-400 hover:text-gray-600 transition"
-            >
-              건너뛰기
-            </button>
-            <div className="flex gap-2">
-              {currentTourStep > 0 && (
-                <button
-                  onClick={() => setCurrentTourStep((p) => p - 1)}
-                  className="px-3 py-1.5 text-xs bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition"
-                >
-                  이전
-                </button>
-              )}
-              {currentTourStep < TOUR_STEPS.length - 1 ? (
-                <button
-                  onClick={() => setCurrentTourStep((p) => p + 1)}
-                  className="px-4 py-1.5 text-xs bg-blue-600 text-white rounded shadow-sm hover:bg-blue-700 transition"
-                >
-                  다음
-                </button>
-              ) : (
-                <button
-                  onClick={() => setCurrentTourStep((p) => p + 1)}
-                  className="px-4 py-1.5 text-xs bg-green-500 text-white rounded shadow-sm hover:bg-green-600 transition font-bold"
-                >
-                  완료
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-      {currentTourStep >= TOUR_STEPS.length && (
-        <div 
-          className="absolute bg-white rounded-xl p-6 shadow-2xl w-80 md:w-96 text-center transform -translate-x-1/2 -translate-y-1/2 z-[100]" 
-          style={{ top: '50%', left: '50%' }}
-        >
-          <h3 className="text-xl font-bold text-gray-900 mb-2">튜토리얼을 완료했습니다!</h3>
-          <p className="text-sm text-gray-600 mb-6">이제 PlanBe의 모든 기능을 활용해 보세요.</p>
-          <div className="flex gap-3 justify-center">
-            <button 
-              onClick={() => setShowTour(false)} 
-              className="flex-1 py-2 px-4 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 font-medium transition text-sm"
-            >
-              대시보드 보기
-            </button>
-            <button 
-              onClick={() => { setShowTour(false); document.getElementById('nav-menu-integration')?.click(); }}
-              className="flex-1 py-2 px-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium shadow-md transition text-sm"
-            >
-              연동하러 가기
-            </button>
-          </div>
-        </div>
-      )}
-    </div>,
-    document.body
-  )}
-
-
 
   if (isLoading) {
     return (
@@ -532,7 +353,7 @@ export default function DashboardPage() {
 
       {/* --- Navigation Tutorial (Splash + Overlay) --- */}
       {showSplash && createPortal(
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-blue-600 text-white p-6 transition-opacity duration-500">
+        <div className={`fixed inset-0 z-[100] flex items-center justify-center bg-blue-600 text-white p-6 transition-opacity duration-500 ${splashOpacity === 1 ? 'opacity-100' : 'opacity-0'}`}>
           <div className="text-center max-w-lg">
             <h2 className="text-2xl md:text-4xl font-bold mb-4">소규모 마케터를 위한<br/>AI 마케팅 예산 집행 도우미</h2>
             <div className="mx-auto mt-6 bg-white text-blue-600 font-extrabold text-3xl md:text-5xl py-3 px-8 rounded-full shadow-lg inline-block">PlanBe</div>
@@ -624,18 +445,37 @@ export default function DashboardPage() {
               <h3 className="text-xl font-bold text-gray-900 mb-2">튜토리얼을 완료했습니다!</h3>
               <p className="text-sm text-gray-600 mb-6">이제 PlanBe의 모든 기능을 활용해 보세요.</p>
               <div className="flex gap-3 justify-center">
-                <button 
-                  onClick={() => setShowTour(false)} 
-                  className="flex-1 py-2 px-4 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 font-medium transition text-sm"
-                >
-                  대시보드 보기
-                </button>
-                <button 
-                  onClick={() => { setShowTour(false); window.location.href = '/integration'; }}
-                  className="flex-1 py-2 px-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium shadow-md transition text-sm"
-                >
-                  매체 연동하러 가기
-                </button>
+                {tourType === 'nav' ? (
+                  <>
+                    <button 
+                      onClick={() => { setShowTour(false); setTimeout(() => handleStartDashTour(), 300); }} 
+                      className="flex-1 py-2 px-4 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 font-medium transition text-sm"
+                    >
+                      대시보드 보기 (가이드 이어하기)
+                    </button>
+                    <button 
+                      onClick={() => { setShowTour(false); window.location.href = '/integration'; }}
+                      className="flex-1 py-2 px-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium shadow-md transition text-sm"
+                    >
+                      매체 연동하러 가기
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <button 
+                      onClick={() => setShowTour(false)} 
+                      className="flex-1 py-2 px-4 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 font-medium transition text-sm"
+                    >
+                      대시보드 닫기
+                    </button>
+                    <button 
+                      onClick={() => { setShowTour(false); handleRunTrendAnalysis(); }}
+                      className="flex-1 py-2 px-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium shadow-md transition text-sm"
+                    >
+                      AI 분석 시작하기
+                    </button>
+                  </>
+                )}
               </div>
             </div>
           )}
@@ -650,7 +490,7 @@ export default function DashboardPage() {
           <h1 className="text-lg sm:text-2xl md:text-3xl font-bold text-gray-900 mb-2">통합 성과 대시보드</h1>
           <div className="flex flex-col sm:flex-row gap-2 mt-2">
             <button onClick={handleStartTour} className="w-fit text-xs sm:text-sm px-3 py-1 sm:py-1.5 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-lg shadow-sm hover:opacity-90 transition flex items-center gap-1"><Play className="w-3 h-3 sm:w-4 sm:h-4"/> PlanBe 통합 네비게이션 튜토리얼</button>
-            <button className="w-fit text-xs sm:text-sm px-3 py-1 sm:py-1.5 bg-gray-100 text-gray-700 border border-gray-200 rounded-lg shadow-sm hover:bg-gray-200 transition flex items-center gap-1"><Info className="w-3 h-3 sm:w-4 sm:h-4"/> 대시보드 가이드</button>
+            <button onClick={handleStartDashTour} className="w-fit text-xs sm:text-sm px-3 py-1 sm:py-1.5 bg-gray-100 text-gray-700 border border-gray-200 rounded-lg shadow-sm hover:bg-gray-200 transition flex items-center gap-1"><Info className="w-3 h-3 sm:w-4 sm:h-4"/> 대시보드 가이드</button>
             <button 
               onClick={toggleTutorialMode} 
               className={`w-fit text-xs sm:text-sm px-3 py-1 sm:py-1.5 border rounded-lg shadow-sm transition flex items-center gap-1 ${isTutorialModeEnabled ? 'bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100' : 'bg-gray-100 text-gray-500 border-gray-200 hover:bg-gray-200'}`}
@@ -670,7 +510,7 @@ export default function DashboardPage() {
       </div>
 
       {/* 탭 버튼 */}
-      <div className="flex border-b border-gray-200">
+      <div id="dashboard-tabs" className="flex border-b border-gray-200">
         <button
           onClick={() => setActiveTab('overall')}
           className={`flex-1 sm:flex-none py-2.5 sm:py-3 px-3 sm:px-6 text-xs sm:text-sm font-bold border-b-2 transition-colors text-center ${
@@ -694,7 +534,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Date Range Filter */}
-      <div className="bg-white p-2.5 sm:p-4 rounded-xl shadow-sm border border-gray-100">
+      <div id="dashboard-date-filter" className="bg-white p-2.5 sm:p-4 rounded-xl shadow-sm border border-gray-100">
         <div className="flex items-center justify-between mb-2 sm:mb-3">
           <div className="flex items-center gap-1.5 text-gray-700">
             <Calendar className="w-4 h-4 sm:w-5 sm:h-5" />
@@ -757,7 +597,7 @@ export default function DashboardPage() {
       {activeTab === 'overall' ? (
         <div className="space-y-3 sm:space-y-4">
           {/* Main Metrics Grid */}
-          <div className="grid grid-cols-2 gap-2 sm:gap-4 md:grid-cols-2 lg:grid-cols-4 md:gap-6">
+          <div id="dashboard-metrics" className="grid grid-cols-2 gap-2 sm:gap-4 md:grid-cols-2 lg:grid-cols-4 md:gap-6">
             <MetricCard title="총 노출수" value={formatCompactNumber(metrics?.impressions || 0)} change={calculateChangeRate(metrics?.impressions, prevMetrics?.impressions)} comparisonText={comparisonText} icon={TrendingUp} color="blue" />
             <MetricCard title="총 클릭수" value={formatCompactNumber(metrics?.clicks || 0)} change={calculateChangeRate(metrics?.clicks, prevMetrics?.clicks)} comparisonText={comparisonText} icon={MousePointerClick} color="green" />
             <MetricCard title="총 광고비" value={formatCurrency(metrics?.cost || 0)} change={calculateChangeRate(metrics?.cost, prevMetrics?.cost)} comparisonText={comparisonText} icon={DollarSign} color="yellow" />
@@ -765,7 +605,7 @@ export default function DashboardPage() {
           </div>
 
           {/* Performance Summary with Benchmarks */}
-          <div className="grid grid-cols-1 gap-3 sm:gap-4 lg:grid-cols-3 lg:gap-6">
+          <div id="dashboard-performance" className="grid grid-cols-1 gap-3 sm:gap-4 lg:grid-cols-3 lg:gap-6">
             <PerformanceMetricCard title="클릭률 (CTR)" subtitle="광고를 본 사람 중 클릭한 비율" value={metrics?.ctr || 0} format="percent" benchmarks={{ good: 3.5, average: 2.0, poor: 1.0 }} advice={{ good: "훌륭합니다! 광고 소재가 타겟에게 매력적으로 다가가고 있어요. 현재 전략을 유지하세요.", average: "괜찮은 수준이에요. 광고 이미지나 문구를 A/B 테스트해보면 더 좋은 결과를 얻을 수 있어요.", poor: "개선이 필요해요. 타겟 고객층을 재검토하고, 광고 소재를 더 눈에 띄게 만들어보세요." }} />
             <PerformanceMetricCard title="클릭당 비용 (CPC)" subtitle="클릭 한 번당 지불하는 평균 금액" value={metrics?.cpc || 0} format="currency" benchmarks={{ good: 500, average: 1000, poor: 2000 }} isLowerBetter={true} advice={{ good: "비용 효율이 아주 좋아요! 현재 타겟팅과 입찰 전략이 적절합니다.", average: "평균적인 비용이에요. 입찰 전략을 최적화하거나 품질 점수를 개선해보세요.", poor: "비용이 높아요. 경쟁이 낮은 키워드를 찾거나, 타겟 범위를 조정해보세요." }} />
             <PerformanceMetricCard title="광고 수익률 (ROAS)" subtitle="광고비 1원당 발생한 매출" value={metrics?.roas || 0} format="multiplier" benchmarks={{ good: 4.0, average: 2.5, poor: 1.5 }} advice={{ good: "대단해요! 광고가 매출에 크게 기여하고 있습니다. 예산을 늘려볼 만해요.", average: "수익이 나고 있어요. 전환율이 높은 상품에 예산을 집중하면 더 좋아질 거예요.", poor: "수익성 개선이 필요해요. 광고 대상 상품이나 서비스를 재검토해보세요." }} />
@@ -958,7 +798,7 @@ export default function DashboardPage() {
             {/* ========================================================================= */}
             {/* 2. 사장님이 새롭게 교체한 AI 트렌드 분석 (프리미엄) 카드 */}
             {/* ========================================================================= */}
-            <div className="xl:col-span-2 space-y-3">
+            <div id="dashboard-ai-trend" className="xl:col-span-2 space-y-3">
               <div className="bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-500 rounded-xl shadow-lg p-4 sm:p-6 text-white h-full flex flex-col justify-between min-h-[280px]">
                 <div>
                   <div className="flex items-center gap-2 sm:gap-3 mb-2 sm:mb-3">
