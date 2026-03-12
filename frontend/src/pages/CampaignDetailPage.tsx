@@ -67,13 +67,16 @@ export default function CampaignDetailPage() {
   // Tutorial State
   const [showTour, setShowTour] = useState(false);
   const [currentStep, setCurrentStep] = useState(0);
+
   const [targetRect, setTargetRect] = useState<DOMRect | null>(null);
+
+  // const [setTargetRect] = useState<DOMRect | null>(null);
+
 
   const updateRect = () => {
     if (!showTour) return;
     const targetElement = document.getElementById(TOUR_STEPS[currentStep].targetId);
     if (targetElement) {
-    
       setTargetRect(targetElement.getBoundingClientRect());
     }
   };
