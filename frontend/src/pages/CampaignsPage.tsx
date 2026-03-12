@@ -1,12 +1,25 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { campaignAPI, budgetAPI } from '@/lib/api';
 import { formatCurrency, formatPercent, getStatusColor, getPlatformColor } from '@/lib/utils';
-import { Plus, Search, Filter, RefreshCw, TrendingUp, AlertTriangle, Edit, Trash2 } from 'lucide-react';
+import { Plus, Search, Filter, RefreshCw, TrendingUp, AlertTriangle, Edit, Trash2, Send, CheckCircle2 } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recharts';
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'];
+
+const TOUR_STEPS = [
+  {
+    targetId: 'tour-budget',
+    title: '전체/일일 예산 관리 💰',
+    description: '우측 상단의 연필 아이콘을 클릭하여 캠페인 진행에 필요한 전체 및 일일 예산을 수정하고 관리할 수 있습니다.',
+  },
+  {
+    targetId: 'tour-campaign-list',
+    title: '캠페인 상세 정보 확인 🔍',
+    description: '캠페인 목록에서 등록된 캠페인명을 클릭하면 해당 캠페인의 상세한 성과 정보를 확인할 수 있습니다.',
+  }
+];
 
 export default function CampaignsPage() {
   const queryClient = useQueryClient();
@@ -22,6 +35,59 @@ export default function CampaignsPage() {
   const [newTotalBudget, setNewTotalBudget] = useState('');
   // 🌟 [변수 정의 추가] 일일 예산을 관리할 새로운 상태 변수를 선언합니다.
   const [newDailyBudget, setNewDailyBudget] = useState('');
+
+  // --- 튜토리얼 상태 추가 ---
+  const [showTour, setShowTour] = useState(true);
+  const [tourStep, setTourStep] = useState(0);
+  const [targetRect, setTargetRect] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
+
+  useEffect(() => {
+    if (!showTour) return;
+
+    const updateRect = () => {
+      const step = TOUR_STEPS[tourStep];
+      if (!step) return;
+
+      const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
+      let targetId = step.targetId;
+
+      // 모바일 버전 스텝 1은 전체 예산 클래스에 한정
+      if (isMobile && tourStep === 0) {
+        targetId = 'tour-total-budget';
+      }
+
+      const el = document.getElementById(targetId);
+      if (el) {
+        const rect = el.getBoundingClientRect();
+
+        // 화면 밖에 있으면 스크롤 이동 후 rect 재계산
+        if (rect.top < 60 || rect.bottom > window.innerHeight) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          setTimeout(() => {
+            const newRect = el.getBoundingClientRect();
+            let h = newRect.height;
+            if (isMobile && h > window.innerHeight * 0.7) h = window.innerHeight * 0.7;
+            setTargetRect({ x: newRect.left - 8, y: newRect.top - 8, w: newRect.width + 16, h: h + 16 });
+          }, 400);
+        } else {
+          let h = rect.height;
+          if (isMobile && h > window.innerHeight * 0.7) h = window.innerHeight * 0.7;
+          setTargetRect({ x: rect.left - 8, y: rect.top - 8, w: rect.width + 16, h: h + 16 });
+        }
+      }
+    };
+
+    updateRect();
+    window.addEventListener('scroll', updateRect);
+    window.addEventListener('resize', updateRect);
+    const timer = setTimeout(updateRect, 300);
+
+    return () => {
+      window.removeEventListener('scroll', updateRect);
+      window.removeEventListener('resize', updateRect);
+      clearTimeout(timer);
+    };
+  }, [showTour, tourStep]);
 
   const updateTotalBudgetMutation = useMutation({
     // 🌟 [수정] 객체 형태로 totalBudget과 dailyBudget을 모두 전송합니다.
@@ -117,6 +183,7 @@ export default function CampaignsPage() {
   // };
 
   return (
+    <>
     <div className="space-y-6 p-2 sm:p-4 md:p-6">
       {/* Header */}
       <div className="flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-center">
@@ -195,8 +262,8 @@ export default function CampaignsPage() {
       </div>
 
       {/* Budget Summary Cards */}
-      <div className="grid grid-cols-1 gap-3 sm:gap-4 md:grid-cols-4 md:gap-6">
-        <div className="bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-gray-100">
+      <div id="tour-budget" className="grid grid-cols-1 gap-3 sm:gap-4 md:grid-cols-4 md:gap-6">
+        <div id="tour-total-budget" className="bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-gray-100">
           <div className="flex items-center justify-between mb-2">
             <p className="text-sm text-gray-500">전체 예산</p>
             {/* 👇 누르면 모달이 열리는 연필 아이콘 버튼 추가! */}
@@ -305,7 +372,7 @@ export default function CampaignsPage() {
       </div>
 
       {/* Campaigns Table with Budget */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+      <div id="tour-campaign-list" className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
         <div className="p-6 border-b border-gray-100">
           <h2 className="text-lg font-semibold text-gray-900">캠페인 목록</h2>
         </div>
@@ -442,8 +509,8 @@ export default function CampaignsPage() {
         )}
       </div>
         {isTotalBudgetModalOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-2xl p-8 w-full max-w-md shadow-2xl">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl p-6 sm:p-8 w-full max-w-md shadow-2xl max-h-[90vh] overflow-y-auto">
             <h3 className="text-xl font-bold text-gray-900 mb-4">전체 예산 설정 💰</h3>
             <p className="text-gray-600 mb-6 text-sm">
               회사의 전체 광고 집행 목표 예산을 설정해 주세요.<br/>
@@ -497,6 +564,118 @@ export default function CampaignsPage() {
           </div>
         </div>
       )}
+
     </div>
+
+    {/* --- 튜토리얼 오버레이 (메인 div 바깥, 네비게이션 위에 렌더링) --- */}
+    {showTour && TOUR_STEPS[tourStep] && (
+      <div className="fixed inset-0 z-[100] pointer-events-auto">
+        {/* SVG Mask for Hole-Punch Effect */}
+        <svg className="absolute inset-0 w-full h-full pointer-events-none">
+          <defs>
+            <mask id="tour-campaigns-hole">
+              <rect width="100%" height="100%" fill="white" />
+              {targetRect && (
+                <rect
+                  x={targetRect.x}
+                  y={targetRect.y}
+                  width={targetRect.w}
+                  height={targetRect.h}
+                  fill="black"
+                  rx="12"
+                  className="transition-all duration-500 ease-in-out"
+                />
+              )}
+            </mask>
+          </defs>
+          <rect
+            width="100%"
+            height="100%"
+            fill="rgba(0,0,0,0.6)"
+            mask="url(#tour-campaigns-hole)"
+            className="transition-all duration-500"
+          />
+        </svg>
+
+        {/* 하이라이트된 영역 툴팁 */}
+        {targetRect && (
+          <div
+            className="absolute z-[101] transition-all duration-500 ease-in-out"
+            style={{
+              ...(() => {
+                const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
+                const screenWidth = typeof window !== 'undefined' ? window.innerWidth : 360;
+                const boxWidth = Math.min(320, screenWidth - 32);
+                let leftPos = targetRect.x + targetRect.w / 2 - boxWidth / 2;
+                leftPos = Math.max(16, Math.min(leftPos, screenWidth - boxWidth - 16));
+
+                if (tourStep === 1) {
+                  // 스텝 2: 캠페인 목록 테이블 → 스포트라이트 상단에 배치
+                  return { top: Math.max(16, targetRect.y - (isMobile ? 170 : 180)), left: leftPos, width: boxWidth };
+                }
+                // 스텝 1: 예산카드 → 스포트라이트 하단
+                return { top: targetRect.y + targetRect.h + 16, left: leftPos, width: boxWidth };
+              })()
+            }}
+          >
+            <div className="bg-white rounded-xl shadow-2xl p-4 sm:p-5 relative animate-in fade-in zoom-in duration-300">
+              {/* 꼬리표 */}
+              <div className={`absolute w-4 h-4 bg-white rotate-45 transition-all duration-300 ${
+                tourStep === 1
+                  ? "-bottom-2 left-1/2 -translate-x-1/2"
+                  : "-top-2 left-1/2 -translate-x-1/2"
+              }`} />
+
+              <div className="relative z-10 flex flex-col gap-3">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center font-bold text-blue-600">
+                    {tourStep + 1}
+                  </div>
+                  <span className="font-bold text-gray-900 text-lg">
+                    {TOUR_STEPS[tourStep].title}
+                  </span>
+                </div>
+
+                <p className="text-gray-600 text-sm sm:text-base leading-relaxed break-keep">
+                  {TOUR_STEPS[tourStep].description}
+                </p>
+
+                <div className="flex items-center justify-between mt-2 pt-3 border-t border-gray-100">
+                  <span className="text-xs font-medium text-gray-400">
+                    {tourStep + 1} / {TOUR_STEPS.length}
+                  </span>
+
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setShowTour(false)}
+                      className="px-3 py-1.5 text-xs sm:text-sm text-gray-500 hover:bg-gray-100 rounded-lg transition-colors"
+                    >
+                      건너뛰기
+                    </button>
+
+                    {tourStep < TOUR_STEPS.length - 1 ? (
+                      <button
+                        onClick={() => setTourStep(prev => prev + 1)}
+                        className="flex items-center gap-1 px-3 py-1.5 text-xs sm:text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
+                      >
+                        다음 <Send className="w-3 h-3" />
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => setShowTour(false)}
+                        className="flex items-center gap-1 px-3 py-1.5 text-xs sm:text-sm bg-green-600 text-white rounded-lg hover:bg-green-700 transition"
+                      >
+                        시작하기 <CheckCircle2 className="w-3 h-3" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    )}
+    </>
   );
 }

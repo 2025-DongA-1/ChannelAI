@@ -39,8 +39,8 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
 
   // 페이지 이동 시 모바일 메뉴 닫기
   useEffect(() => {
-    if (mobileMenuOpen) setMobileMenuOpen(false);
-  }, [location.pathname, mobileMenuOpen]);
+    setMobileMenuOpen(false);
+  }, [location.pathname]);
 
   const handleLogout = () => {
     if (confirm('로그아웃 하시겠습니까?')) {
