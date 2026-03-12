@@ -6,6 +6,7 @@ import {
   CheckCircle2, AlertCircle, Loader2, Clock, Palette, LayoutTemplate, Shield,
   PlusCircle, BarChart3
 } from 'lucide-react';
+import { useTutorialStore } from '../store/tutorialStore';
 
 interface CreativeResult {
   uspAnalysis: string;
@@ -49,6 +50,7 @@ const BUSINESS_OPTIONS = [
 type Mode = 'existing' | 'new'; // 기존 캠페인 개선 vs 신규 생성
 
 export default function CreativeAgentPage() {
+  const { isTutorialModeEnabled } = useTutorialStore();
   const [mode, setMode] = useState<Mode>('existing'); // 기본값: 기존 캠페인 모드
   const [selectedCampaignId, setSelectedCampaignId] = useState<string>('');
   
@@ -81,8 +83,10 @@ export default function CreativeAgentPage() {
   ];
 
   useEffect(() => {
-    setShowTour(true);
-  }, []);
+    if (isTutorialModeEnabled) {
+      setShowTour(true);
+    }
+  }, [isTutorialModeEnabled]);
 
   useEffect(() => {
     if (!showTour) return;

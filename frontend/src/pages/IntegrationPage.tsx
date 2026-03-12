@@ -8,8 +8,10 @@ import { Link2, CheckCircle, XCircle, RefreshCw, AlertCircle, UploadCloud, FileS
 import { Link, useSearchParams } from 'react-router-dom';
 // [2026-03-11 11:21] 유저/어드민 권한 분리를 위해 authStore import
 import { useAuthStore } from '../store/authStore';
+import { useTutorialStore } from '../store/tutorialStore';
 
 export default function IntegrationPage() {
+  const { isTutorialModeEnabled } = useTutorialStore();
   // [2026-03-11 11:21] 유저 role 확인 (role === 'user'이면 CSV 업로드, 테스트 데이터 생성 버튼 숨김)
   const user = useAuthStore((state) => state.user);
   const isAdmin = user?.role !== 'user';
@@ -31,8 +33,10 @@ export default function IntegrationPage() {
   ];
 
   useEffect(() => {
-    setShowTour(true);
-  }, []);
+    if (isTutorialModeEnabled) {
+      setShowTour(true);
+    }
+  }, [isTutorialModeEnabled]);
 
   // 튜토리얼 중 배경 스크롤 방지
   useEffect(() => {

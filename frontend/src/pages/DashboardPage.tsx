@@ -6,11 +6,13 @@ import { createPortal } from 'react-dom';
 import { 
   TrendingUp, MousePointerClick, DollarSign, Target, ArrowUp, ArrowDown, Calendar,
   Bot, Play, AlertTriangle, Pause, TrendingDown, Zap, ShieldCheck, Loader2,
-  ChevronDown, ChevronUp, Info
+  ChevronDown, ChevronUp, Info, ToggleLeft, ToggleRight
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { useTutorialStore } from '@/store/tutorialStore';
 
 export default function DashboardPage() {
+  const { isTutorialModeEnabled, toggleTutorialMode } = useTutorialStore();
   // 기본 기간: 전체 (날짜 필터 없음으로 모든 데이터 표시)
   const [dateRange, setDateRange] = useState({
     startDate: '',
@@ -643,14 +645,24 @@ export default function DashboardPage() {
 
       {/* Header - 모바일에서 간결하게 */}
 
-      <div className="flex justify-between items-center">
+      <div className="flex justify-between items-center bg-white p-4 rounded-xl shadow-sm mb-4">
         <div>
-          <h1 className="text-lg sm:text-2xl md:text-3xl font-bold text-gray-900">통합 성과 대시보드</h1>
+          <h1 className="text-lg sm:text-2xl md:text-3xl font-bold text-gray-900 mb-2">통합 성과 대시보드</h1>
           <div className="flex flex-col sm:flex-row gap-2 mt-2">
             <button onClick={handleStartTour} className="w-fit text-xs sm:text-sm px-3 py-1 sm:py-1.5 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-lg shadow-sm hover:opacity-90 transition flex items-center gap-1"><Play className="w-3 h-3 sm:w-4 sm:h-4"/> PlanBe 통합 네비게이션 튜토리얼</button>
             <button className="w-fit text-xs sm:text-sm px-3 py-1 sm:py-1.5 bg-gray-100 text-gray-700 border border-gray-200 rounded-lg shadow-sm hover:bg-gray-200 transition flex items-center gap-1"><Info className="w-3 h-3 sm:w-4 sm:h-4"/> 대시보드 가이드</button>
+            <button 
+              onClick={toggleTutorialMode} 
+              className={`w-fit text-xs sm:text-sm px-3 py-1 sm:py-1.5 border rounded-lg shadow-sm transition flex items-center gap-1 ${isTutorialModeEnabled ? 'bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100' : 'bg-gray-100 text-gray-500 border-gray-200 hover:bg-gray-200'}`}
+            >
+              {isTutorialModeEnabled ? (
+                <><ToggleRight className="w-3 h-3 sm:w-4 sm:h-4" /> 전체 튜토리얼 켜짐: 튜토리얼 없이 사용하려면 이 버튼을 클릭하세요!</>
+              ) : (
+                <><ToggleLeft className="w-3 h-3 sm:w-4 sm:h-4" /> 전체 튜토리얼 꺼짐: 튜토리얼을 다시 켜려면 이 버튼을 클릭하세요!</>
+              )}
+            </button>
           </div>
-          <p className="text-gray-500 text-xs sm:text-sm md:text-base mt-0.5">실시간 마케팅 성과를 한눈에 확인하세요</p>
+          <p className="text-gray-500 text-xs sm:text-sm md:text-base mt-2">실시간 마케팅 성과를 한눈에 확인하세요</p>
         </div>
         <button className="hidden sm:block px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm">
           리포트 다운로드

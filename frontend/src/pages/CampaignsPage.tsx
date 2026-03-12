@@ -5,6 +5,7 @@ import { campaignAPI, budgetAPI } from '@/lib/api';
 import { formatCurrency, formatPercent, getStatusColor, getPlatformColor } from '@/lib/utils';
 import { Plus, Search, Filter, RefreshCw, TrendingUp, AlertTriangle, Edit, Trash2, Send, CheckCircle2 } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recharts';
+import { useTutorialStore } from '../store/tutorialStore';
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'];
 
@@ -22,6 +23,7 @@ const TOUR_STEPS = [
 ];
 
 export default function CampaignsPage() {
+  const { isTutorialModeEnabled } = useTutorialStore();
   const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState('');
   const [platformFilter, setPlatformFilter] = useState('all');
@@ -37,7 +39,7 @@ export default function CampaignsPage() {
   const [newDailyBudget, setNewDailyBudget] = useState('');
 
   // --- 튜토리얼 상태 추가 ---
-  const [showTour, setShowTour] = useState(true);
+  const [showTour, setShowTour] = useState(isTutorialModeEnabled);
   const [tourStep, setTourStep] = useState(0);
   const [targetRect, setTargetRect] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
 
