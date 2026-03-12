@@ -15,7 +15,7 @@ import {
   Check,
   X,
   Send,
-  CheckCircle2
+  CheckCircle2,
 } from 'lucide-react';
 import {
   LineChart,
@@ -73,6 +73,7 @@ export default function CampaignDetailPage() {
     if (!showTour) return;
     const targetElement = document.getElementById(TOUR_STEPS[currentStep].targetId);
     if (targetElement) {
+    
       setTargetRect(targetElement.getBoundingClientRect());
     }
   };

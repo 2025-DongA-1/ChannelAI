@@ -54,7 +54,7 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
     { to: '/campaigns', label: '캠페인 & 예산' },
     { to: '/integration', label: '연동' },
     { to: '/creative', label: 'AI 소재' },
-    { to: '/analysis', label: 'AI 예산 분석' },
+    //{ to: '/analysis', label: 'AI 예산 분석' },
     { to: '/insights', label: '인사이트' },
   ];
 
