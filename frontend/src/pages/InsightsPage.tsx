@@ -13,7 +13,9 @@ import {
   CheckCircle,
   Target,
   Sparkles,
-  RefreshCw, 
+  RefreshCw,
+  Send,
+  CheckCircle2
 } from 'lucide-react';
 import {
   LineChart,
@@ -32,12 +34,75 @@ import {
 } from 'recharts';
 import { formatCurrency, formatCompactNumber, getPlatformColor } from '@/lib/utils';
 
+const TOUR_STEPS = [
+  {
+    targetId: 'tour-insights-header',
+    title: '인사이트 & 리포트',
+    description: '분석 대상 캠페인과 날짜 구간을 설정하여 전체적인 성과를 조회합니다.',
+    position: 'bottom',
+  },
+  {
+    targetId: 'tour-performance-summary',
+    title: '성과 요약',
+    description: '선택한 기간 동안의 노출, 클릭, 광고비, ROAS 등 주요 지표의 추이를 한눈에 확인합니다.',
+    position: 'bottom',
+  },
+  {
+    targetId: 'tour-ai-recommendations',
+    title: 'AI 최적화 추천',
+    description: '인공지능이 분석한 개선점과 예산 재배분 우선순위를 확인하여 캠페인 성과를 극대화할 수 있습니다.',
+    position: 'top',
+  },
+  {
+    targetId: 'tour-trend-chart',
+    title: '상대적 성과 추세 및 AI 분석',
+    description: '각 지표별 흐름을 차트로 비교하고, AI 분석 실행 버튼을 눌러 상세 리포트를 확인해 보세요.',
+    position: 'top',
+  },
+  {
+    targetId: 'tour-platform-comparison',
+    title: '플랫폼 분석',
+    description: '매체별 효율을 비교 분석하고 크로스 미디어 전략 리포트를 통해 예산 분배 최적화 가이드를 받습니다.',
+    position: 'top',
+  }
+];
+
 export default function InsightsPage() {
   const [dateRange, setDateRange] = useState({
     start: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
     end: new Date().toISOString().split('T')[0],
   });
   
+  // 튜토리얼 상태
+  const [showTour, setShowTour] = useState(false);
+  const [tourStep, setTourStep] = useState(0);
+  const [targetRect, setTargetRect] = useState<DOMRect | null>(null);
+
+  const updateRect = () => {
+    if (!showTour) return;
+    const targetElement = document.getElementById(TOUR_STEPS[tourStep].targetId);
+    if (targetElement) {
+      setTargetRect(targetElement.getBoundingClientRect());
+    }
+  };
+
+  useEffect(() => {
+    if (showTour) {
+      const timer1 = setTimeout(updateRect, 100);
+      const timer2 = setTimeout(updateRect, 400);
+      
+      window.addEventListener('resize', updateRect);
+      window.addEventListener('scroll', updateRect, true);
+
+      return () => {
+        clearTimeout(timer1);
+        clearTimeout(timer2);
+        window.removeEventListener('resize', updateRect);
+        window.removeEventListener('scroll', updateRect, true);
+      };
+    }
+  }, [showTour, tourStep]);
+
   // 💡 [추가됨] 캠페인 선택 상태 관리 ('all'이면 모든 캠페인 종합 보기)
   const [selectedCampaign, setSelectedCampaign] = useState<string>('all');
 
@@ -218,61 +283,77 @@ export default function InsightsPage() {
   }
 
   return (
-    <div className="space-y-6 p-6">
+    <>
+    <div className="space-y-6 p-4 sm:p-6 mb-20 md:mb-0 relative">
       {/* Header */}
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 sm:gap-0">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">인사이트 & 리포트</h1>
-          <p className="text-gray-600 mt-1">데이터 기반 성과 분석 및 최적화 제안</p>
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">인사이트 & 리포트</h1>
+          <p className="text-sm sm:text-base text-gray-600 mt-1">데이터 기반 성과 분석 및 최적화 제안</p>
         </div>
-        <button
-          onClick={handleExportPDF}
-          className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
-        >
-          <Download className="w-5 h-5 mr-2" />
-          PDF 다운로드
-        </button>
+        <div className="flex items-center gap-2 w-full sm:w-auto">
+          <button
+            onClick={() => {
+              setShowTour(true);
+              setTourStep(0);
+            }}
+            className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-500 to-indigo-600 text-white rounded-lg hover:from-purple-600 hover:to-indigo-700 transition shadow-sm font-medium"
+          >
+            <Target className="w-4 h-4" />
+            <span>가이드</span>
+          </button>
+          <button
+            onClick={handleExportPDF}
+            className="flex-1 sm:flex-none flex items-center justify-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
+          >
+            <Download className="w-5 h-5 mr-1" />
+            <span className="hidden sm:inline">PDF 다운로드</span>
+            <span className="sm:hidden">다운로드</span>
+          </button>
+        </div>
       </div>
 
       {/* Date Range & Campaign Selector */}
-      <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 mb-6">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-6">
-          {/* 💡 [추가됨] 캠페인 선택 드롭다운 UI */}
-          <div className="flex items-center gap-3">
-            <Target className="w-5 h-5 text-indigo-500" />
-            <span className="text-sm font-medium text-gray-700">분석 대상:</span>
-            <select
-              value={selectedCampaign}
-              onChange={handleCampaignChange}
-              className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm bg-gray-50 text-gray-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
-            >
-              <option value="all">모든 캠페인 종합 보기</option>
-              {availableCampaigns.map((campaign: any) => (
-                <option key={campaign.id} value={campaign.id}>
-                  [{campaign.platform}] {campaign.campaign_name}
-                </option>
-              ))}
-            </select>
+      <div id="tour-insights-header" className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex flex-col sm:flex-row items-start sm:items-center gap-4 sm:gap-6">
+        {/* 💡 [추가됨] 캠페인 선택 드롭다운 UI */}
+        <div className="flex items-center gap-2 w-full sm:w-auto">
+          <Target className="w-5 h-5 text-indigo-500 flex-shrink-0" />
+          <span className="text-sm font-medium text-gray-700 flex-shrink-0">분석 대상:</span>
+          <select
+            value={selectedCampaign}
+            onChange={handleCampaignChange}
+            className="w-full sm:w-auto min-w-[150px] px-3 py-1.5 border border-gray-300 rounded-lg text-sm bg-gray-50 text-gray-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+          >
+            <option value="all">모든 캠페인 종합 보기</option>
+            {availableCampaigns.map((campaign: any) => (
+              <option key={campaign.id} value={campaign.id}>
+                [{campaign.platform}] {campaign.campaign_name}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="hidden sm:block w-px h-6 bg-gray-200"></div> {/* 구분선 */}
+
+        {/* 기존 날짜 선택기 */}
+        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 w-full sm:w-auto">
+          <div className="flex items-center gap-2 w-full sm:w-auto">
+            <Calendar className="w-5 h-5 text-gray-500 flex-shrink-0" />
+            <span className="text-sm font-medium text-gray-700 flex-shrink-0">분석 기간:</span>
           </div>
-
-          <div className="hidden sm:block w-px h-6 bg-gray-200"></div> {/* 구분선 */}
-
-          {/* 기존 날짜 선택기 */}
-          <div className="flex items-center gap-3">
-            <Calendar className="w-5 h-5 text-gray-500" />
-            <span className="text-sm font-medium text-gray-700">분석 기간:</span>
+          <div className="flex items-center gap-2 w-full sm:w-auto">
             <input
               type="date"
               value={dateRange.start}
               onChange={(e) => handleDateChange('start', e.target.value)}
-              className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm"
+              className="flex-1 sm:flex-none px-3 py-1.5 border border-gray-300 rounded-lg text-sm w-full sm:w-auto"
             />
-            <span className="text-gray-500">~</span>
+            <span className="text-gray-500 flex-shrink-0">~</span>
             <input
               type="date"
               value={dateRange.end}
               onChange={(e) => handleDateChange('end', e.target.value)}
-              className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm"
+              className="flex-1 sm:flex-none px-3 py-1.5 border border-gray-300 rounded-lg text-sm w-full sm:w-auto"
             />
           </div>
         </div>
@@ -280,10 +361,10 @@ export default function InsightsPage() {
 
       {/* Performance Summary Cards */}
       {trends && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+        <div id="tour-performance-summary" className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6">
+          <div className="bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-gray-100">
             <div className="flex items-center justify-between mb-2">
-              <p className="text-sm text-gray-500">총 노출수</p>
+              <p className="text-xs sm:text-sm text-gray-500">총 노출수</p>
               {getChangeIcon(trends.changes.impressions)}
             </div>
             <p className="text-2xl font-bold text-gray-900">
@@ -390,10 +471,10 @@ export default function InsightsPage() {
         };
 
         return (
-          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-            <div className="flex justify-between items-center mb-4">
+          <div id="tour-trend-chart" className="bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-gray-100">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-2 sm:gap-0">
               <h2 className="text-lg font-semibold text-gray-900">상대적 성과 추세</h2>
-              <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">※ 각 지표의 최고점을 기준으로 흐름(패턴)을 비교합니다.</span>
+              <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">※ 각 지표 최고점 기준 흐름 비교</span>
             </div>
             <ResponsiveContainer width="100%" height={350}>
               <LineChart data={normalizedTimeline}>
@@ -477,55 +558,58 @@ export default function InsightsPage() {
 
       {/* Platform Comparison */}
       {comparison && comparison.platforms && comparison.platforms.length > 0 && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Platform Performance Chart */}
-          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">플랫폼별 광고비 분포</h2>
-            <ResponsiveContainer width="100%" height={300}>
-              <PieChart>
-                <Pie
-                  data={comparison.platforms}
-                  dataKey="cost"
-                  nameKey="platform"
-                  cx="50%"
-                  cy="50%"
-                  outerRadius={100}
-                  label={(entry: any) => `${entry.platform} (${entry.cost_share.toFixed(1)}%)`}
-                >
-                  {comparison.platforms.map((_entry: any, index: number) => (
-                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                  ))}
-                </Pie>
-                <Tooltip formatter={(value: any) => formatCurrency(Number(value))} />
-              </PieChart>
-            </ResponsiveContainer>
+        <div id="tour-platform-comparison" className="flex flex-col gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Platform Performance Chart */}
+            <div className="bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-gray-100">
+              <h2 className="text-lg font-semibold text-gray-900 mb-4">플랫폼별 광고비 분포</h2>
+              <div className="h-[250px] sm:h-[300px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={comparison.platforms}
+                      dataKey="cost"
+                      nameKey="platform"
+                      cx="50%"
+                      cy="50%"
+                      outerRadius={80}
+                      label={(entry: any) => `${entry.platform} (${entry.cost_share.toFixed(1)}%)`}
+                    >
+                      {comparison.platforms.map((_entry: any, index: number) => (
+                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip formatter={(value: any) => formatCurrency(Number(value))} />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+
+            {/* Platform ROAS Comparison */}
+            <div className="bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-gray-100">
+              <h2 className="text-lg font-semibold text-gray-900 mb-4">플랫폼별 ROAS 비교</h2>
+              <div className="h-[250px] sm:h-[300px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={comparison.platforms}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="platform" tick={{ fontSize: 12 }} />
+                    <YAxis tick={{ fontSize: 12 }} />
+                    <Tooltip formatter={(value: any) => `${Number(value).toFixed(2)}x`} />
+                    <Legend />
+                    <Bar dataKey="roas" fill="#10B981" name="ROAS" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
           </div>
 
-          {/* Platform ROAS Comparison */}
-          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">플랫폼별 ROAS 비교</h2>
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={comparison.platforms}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="platform" tick={{ fontSize: 12 }} />
-                <YAxis tick={{ fontSize: 12 }} />
-                <Tooltip formatter={(value: any) => `${Number(value).toFixed(2)}x`} />
-                <Legend />
-                <Bar dataKey="roas" fill="#10B981" name="ROAS" />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-      )}
-
-      {/* Platform Performance Table */}
-      {comparison && comparison.platforms && comparison.platforms.length > 0 && (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-          <div className="p-6 border-b border-gray-100">
-            <h2 className="text-lg font-semibold text-gray-900">플랫폼 성과 비교</h2>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full">
+          {/* Platform Performance Table */}
+          <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+            <div className="p-4 sm:p-6 border-b border-gray-100">
+              <h2 className="text-lg font-semibold text-gray-900">플랫폼 성과 비교</h2>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[800px]">
               <thead className="bg-gray-50">
                 <tr>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">플랫폼</th>
@@ -626,13 +710,14 @@ export default function InsightsPage() {
             </div>
           </div>
         </div>
+        </div>
       )}
 
       {/* AI Recommendations */}
       {recommendations && recommendations.recommendations && recommendations.recommendations.length > 0 && (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-          <div className="p-6 border-b border-gray-100">
-            <div className="flex items-center justify-between">
+        <div id="tour-ai-recommendations" className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+          <div className="p-4 sm:p-6 border-b border-gray-100">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-0">
               <div>
                 <h2 className="text-lg font-semibold text-gray-900 flex items-center">
                   <Lightbulb className="w-5 h-5 mr-2 text-yellow-500" />
@@ -649,16 +734,16 @@ export default function InsightsPage() {
           </div>
           <div className="divide-y divide-gray-100">
             {recommendations.recommendations.map((rec: any, index: number) => (
-              <div key={index} className="p-6 hover:bg-gray-50 transition">
-                <div className="flex items-start gap-4">
+              <div key={index} className="p-4 sm:p-6 hover:bg-gray-50 transition">
+                <div className="flex flex-col sm:flex-row items-start gap-4">
                   <div className="flex-shrink-0 mt-1">
                     {getRecommendationIcon(rec.type)}
                   </div>
-                  <div className="flex-1">
+                  <div className="flex-1 w-full">
                     <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center gap-2">
+                      <div className="flex flex-wrap items-center gap-2">
                         {rec.campaign_name && (
-                          <h3 className="font-semibold text-gray-900">{rec.campaign_name}</h3>
+                          <h3 className="font-semibold text-gray-900 break-all">{rec.campaign_name}</h3>
                         )}
                         <span className={`px-2 py-0.5 text-xs font-medium rounded-full border ${getPriorityColor(rec.priority)}`}>
                           {rec.priority === 'high' ? '높음' : rec.priority === 'medium' ? '보통' : '낮음'}
@@ -729,44 +814,152 @@ export default function InsightsPage() {
 
       {/* Summary Statistics */}
       {recommendations && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="bg-gradient-to-br from-blue-50 to-blue-100 p-6 rounded-xl border border-blue-200">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 sm:gap-6">
+          <div className="bg-gradient-to-br from-blue-50 to-blue-100 p-4 sm:p-6 rounded-xl border border-blue-200">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-blue-600 font-medium">분석 캠페인 수</p>
-                <p className="text-3xl font-bold text-blue-900 mt-2">
+                <p className="text-xs sm:text-sm text-blue-600 font-medium">분석 캠페인 수</p>
+                <p className="text-2xl sm:text-3xl font-bold text-blue-900 mt-1 sm:mt-2">
                   {recommendations.summary.total_campaigns}
                 </p>
               </div>
-              <BarChart3 className="w-12 h-12 text-blue-400" />
+              <BarChart3 className="w-8 h-8 sm:w-12 sm:h-12 text-blue-400" />
             </div>
           </div>
 
-          <div className="bg-gradient-to-br from-green-50 to-green-100 p-6 rounded-xl border border-green-200">
+          <div className="bg-gradient-to-br from-green-50 to-green-100 p-4 sm:p-6 rounded-xl border border-green-200">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-green-600 font-medium">고성과 캠페인</p>
-                <p className="text-3xl font-bold text-green-900 mt-2">
+                <p className="text-xs sm:text-sm text-green-600 font-medium">고성과 캠페인</p>
+                <p className="text-2xl sm:text-3xl font-bold text-green-900 mt-1 sm:mt-2">
                   {recommendations.summary.high_performers}
                 </p>
               </div>
-              <TrendingUp className="w-12 h-12 text-green-400" />
+              <TrendingUp className="w-8 h-8 sm:w-12 sm:h-12 text-green-400" />
             </div>
           </div>
 
-          <div className="bg-gradient-to-br from-yellow-50 to-yellow-100 p-6 rounded-xl border border-yellow-200">
+          <div className="bg-gradient-to-br from-yellow-50 to-yellow-100 p-4 sm:p-6 rounded-xl border border-yellow-200 sm:col-span-2 md:col-span-1">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-yellow-600 font-medium">개선 필요 캠페인</p>
-                <p className="text-3xl font-bold text-yellow-900 mt-2">
+                <p className="text-xs sm:text-sm text-yellow-600 font-medium">개선 필요 캠페인</p>
+                <p className="text-2xl sm:text-3xl font-bold text-yellow-900 mt-1 sm:mt-2">
                   {recommendations.summary.needs_optimization}
                 </p>
               </div>
-              <AlertCircle className="w-12 h-12 text-yellow-400" />
+              <AlertCircle className="w-8 h-8 sm:w-12 sm:h-12 text-yellow-400" />
             </div>
           </div>
         </div>
       )}
     </div>
+
+    {/* --- 튜토리얼 오버레이 --- */}
+    {showTour && TOUR_STEPS[tourStep] && (
+      <div className="fixed inset-0 z-[100] pointer-events-auto">
+        <svg className="absolute inset-0 w-full h-full pointer-events-none">
+          <defs>
+            <mask id="tour-insights-hole">
+              <rect width="100%" height="100%" fill="white" />
+              {targetRect && (
+                <rect
+                  x={targetRect.x - 8}
+                  y={targetRect.y - 8}
+                  width={targetRect.width + 16}
+                  height={targetRect.height + 16}
+                  fill="black"
+                  rx="12"
+                  className="transition-all duration-500 ease-in-out"
+                />
+              )}
+            </mask>
+          </defs>
+          <rect
+            width="100%"
+            height="100%"
+            fill="rgba(0,0,0,0.6)"
+            mask="url(#tour-insights-hole)"
+            className="transition-all duration-500"
+          />
+        </svg>
+
+        {targetRect && (
+          <div
+            className="absolute z-[101] transition-all duration-500 ease-in-out"
+            style={{
+              ...(() => {
+                const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
+                const screenWidth = typeof window !== 'undefined' ? window.innerWidth : 360;
+                const boxWidth = Math.min(320, screenWidth - 32);
+                let leftPos = targetRect.x + targetRect.width / 2 - boxWidth / 2;
+                leftPos = Math.max(16, Math.min(leftPos, screenWidth - boxWidth - 16));
+
+                const position = TOUR_STEPS[tourStep].position;
+                if (position === 'top') {
+                  const topPos = targetRect.y - (isMobile ? 180 : 190);
+                  return { top: Math.max(16, topPos), left: leftPos, width: boxWidth };
+                }
+                return { top: targetRect.y + targetRect.height + 24, left: leftPos, width: boxWidth };
+              })()
+            }}
+          >
+            <div className="bg-white rounded-xl shadow-2xl p-4 sm:p-5 relative animate-in fade-in zoom-in duration-300">
+              <div className={`absolute w-4 h-4 bg-white rotate-45 transition-all duration-300 ${
+                TOUR_STEPS[tourStep].position === 'top'
+                  ? "-bottom-2 left-1/2 -translate-x-1/2"
+                  : "-top-2 left-1/2 -translate-x-1/2"
+              }`} />
+
+              <div className="relative z-10 flex flex-col gap-3">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center font-bold text-indigo-600">
+                    {tourStep + 1}
+                  </div>
+                  <span className="font-bold text-gray-900 text-lg">
+                    {TOUR_STEPS[tourStep].title}
+                  </span>
+                </div>
+
+                <p className="text-gray-600 text-sm sm:text-base leading-relaxed break-keep">
+                  {TOUR_STEPS[tourStep].description}
+                </p>
+
+                <div className="flex items-center justify-between mt-2 pt-3 border-t border-gray-100">
+                  <span className="text-xs font-medium text-gray-400">
+                    {tourStep + 1} / {TOUR_STEPS.length}
+                  </span>
+
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setShowTour(false)}
+                      className="px-3 py-1.5 text-xs sm:text-sm text-gray-500 hover:bg-gray-100 rounded-lg transition-colors"
+                    >
+                      건너뛰기
+                    </button>
+
+                    {tourStep < TOUR_STEPS.length - 1 ? (
+                      <button
+                        onClick={() => setTourStep(prev => prev + 1)}
+                        className="flex items-center gap-1 px-3 py-1.5 text-xs sm:text-sm bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition"
+                      >
+                        다음 <Send className="w-3 h-3" />
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => setShowTour(false)}
+                        className="flex items-center gap-1 px-3 py-1.5 text-xs sm:text-sm bg-green-600 text-white rounded-lg hover:bg-green-700 transition"
+                      >
+                        시작하기 <CheckCircle2 className="w-3 h-3" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    )}
+    </>
   );
 }

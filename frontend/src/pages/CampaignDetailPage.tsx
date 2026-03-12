@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { campaignAPI } from '@/lib/api';
@@ -14,6 +14,8 @@ import {
   Trash2,
   Check,
   X,
+  Send,
+  CheckCircle2
 } from 'lucide-react';
 import {
   LineChart,
@@ -26,6 +28,33 @@ import {
   ResponsiveContainer,
 } from 'recharts';
 
+const TOUR_STEPS = [
+  {
+    targetId: 'tour-campaign-header',
+    title: '캠페인 정보',
+    description: '선택한 캠페인의 기본 정보와 상태를 확인하고 관리할 수 있습니다.',
+    position: 'bottom',
+  },
+  {
+    targetId: 'tour-metrics',
+    title: '핵심 지표',
+    description: '캠페인의 주요 성과 지표(노출수, 클릭수, 비용 등)를 한눈에 파악합니다.',
+    position: 'bottom',
+  },
+  {
+    targetId: 'tour-chart',
+    title: '성과 추이',
+    description: '일자별 전체 모수 변화를 그래프로 확인하여 트렌드를 분석합니다.',
+    position: 'top',
+  },
+  {
+    targetId: 'tour-daily-table',
+    title: '일자별 데이터',
+    description: '날짜별 상세 데이터를 표 형태로 면밀히 확인하고 분석할 수 있습니다.',
+    position: 'top',
+  }
+];
+
 export default function CampaignDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -34,6 +63,37 @@ export default function CampaignDetailPage() {
     startDate: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
     endDate: new Date().toISOString().split('T')[0],
   });
+
+  // Tutorial State
+  const [showTour, setShowTour] = useState(false);
+  const [currentStep, setCurrentStep] = useState(0);
+  const [targetRect, setTargetRect] = useState<DOMRect | null>(null);
+
+  const updateRect = () => {
+    if (!showTour) return;
+    const targetElement = document.getElementById(TOUR_STEPS[currentStep].targetId);
+    if (targetElement) {
+      setTargetRect(targetElement.getBoundingClientRect());
+    }
+  };
+
+  useEffect(() => {
+    if (showTour) {
+      // Multiple fallbacks to catch React rendering layout shifts
+      const timer1 = setTimeout(updateRect, 100);
+      const timer2 = setTimeout(updateRect, 400);
+      
+      window.addEventListener('resize', updateRect);
+      window.addEventListener('scroll', updateRect, true); 
+
+      return () => {
+        clearTimeout(timer1);
+        clearTimeout(timer2);
+        window.removeEventListener('resize', updateRect);
+        window.removeEventListener('scroll', updateRect, true);
+      };
+    }
+  }, [showTour, currentStep]);
 
   // 🌟 캠페인 이름 수정 상태 추가
   const [isEditingName, setIsEditingName] = useState(false);
@@ -166,14 +226,15 @@ export default function CampaignDetailPage() {
   };
 
   return (
-    <div className="space-y-6 p-2 sm:p-4 md:p-6">
-      {/* Header */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center gap-4">
-          <button
-            onClick={() => navigate('/campaigns')}
-            className="p-2 hover:bg-gray-100 rounded-lg transition"
-          >
+    
+      <div className="space-y-6 p-2 sm:p-4 md:p-6 relative">
+        {/* Header */}
+        <div id="tour-campaign-header" className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-4">
+          <div className="flex items-center gap-4">
+            <button
+              onClick={() => navigate('/campaigns')}
+              className="p-2 hover:bg-gray-100 rounded-lg transition"
+            >
             <ArrowLeft className="w-5 h-5" />
           </button>
           <div>
@@ -228,9 +289,20 @@ export default function CampaignDetailPage() {
             className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition disabled:opacity-50"
           >
             <Edit className="w-4 h-4" />
-            이름 수정
+            <span className="hidden sm:inline">이름 수정</span>
           </button>
           
+          <button
+            onClick={() => {
+              setShowTour(true);
+              setCurrentStep(0);
+            }}
+            className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-500 to-indigo-600 text-white rounded-lg hover:from-purple-600 hover:to-indigo-700 transition shadow-sm font-medium"
+          >
+            <Target className="w-4 h-4" />
+            <span className="hidden sm:inline">가이드</span>
+          </button>
+
           <button
             onClick={handleDelete}
             disabled={deleteMutation.isPending}

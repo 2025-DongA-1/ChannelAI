@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api, accountAPI, integrationAPI } from '@/lib/api';
 // [2026-03-11 11:04] 데이터 관리 페이지 링크용 Database 아이콘 추가
-import { Link2, CheckCircle, XCircle, RefreshCw, AlertCircle, UploadCloud, FileSpreadsheet, Key, X, Eye, EyeOff, Database } from 'lucide-react';
+import { Link2, CheckCircle, XCircle, RefreshCw, AlertCircle, UploadCloud, FileSpreadsheet, Key, X, Eye, EyeOff, Database, Send, CheckCircle2 } from 'lucide-react';
 import { Link, useSearchParams } from 'react-router-dom';
 // [2026-03-11 11:21] 유저/어드민 권한 분리를 위해 authStore import
 import { useAuthStore } from '../store/authStore';
@@ -18,6 +18,85 @@ export default function IntegrationPage() {
   // 수정 상태 관리 (반드시 함수 내부에서 선언)
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editForm, setEditForm] = useState<any>({});
+
+  // --- Tutorial State ---
+  const [showTour, setShowTour] = useState(false);
+  const [tourStep, setTourStep] = useState(0);
+  const [targetRect, setTargetRect] = useState({ x: 0, y: 0, w: 0, h: 0 });
+
+  const TOUR_STEPS = [
+    { id: 'tour-data-management', text: '데이터 관리 페이지에서 전체 데이터를 조회하거나 연동된 데이터를 확인할 수 있어요.' },
+    { id: 'tour-platforms', text: 'Google, Meta, Naver 등의 계정을 연동해 캠페인 데이터를 불러올 수 있습니다. 각 플랫폼 별 광고 계정 생성이 완료되어야 연동이 가능합니다.' },
+    { id: 'tour-karrot', text: '현재 당근마켓은 자동 연동을 지원하지 않아, 성과를 직접 입력하여 관리할 수 있습니다.' }
+  ];
+
+  useEffect(() => {
+    setShowTour(true);
+  }, []);
+
+  // 튜토리얼 중 배경 스크롤 방지
+  useEffect(() => {
+    if (showTour) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, [showTour]);
+
+  useEffect(() => {
+    if (!showTour) return;
+    
+    const updateRect = () => {
+      const currentId = TOUR_STEPS[tourStep]?.id;
+      if (!currentId) return;
+      const el = document.getElementById(currentId);
+      if (el) {
+        const rect = el.getBoundingClientRect();
+        // 스크롤이 필요할 경우
+        if (rect.top < 60 || rect.bottom > window.innerHeight) {
+          el.scrollIntoView({ behavior: 'smooth', block: currentId === 'tour-platforms' ? 'start' : 'center' });
+          setTimeout(() => {
+            const newRect = el.getBoundingClientRect();
+            setTargetRect({ x: newRect.left - 8, y: newRect.top - 8, w: newRect.width + 16, h: newRect.height + 16 });
+          }, 400); // 스크롤 애니메이션 대기
+        } else {
+          setTargetRect({ x: rect.left - 8, y: rect.top - 8, w: rect.width + 16, h: rect.height + 16 });
+        }
+      }
+    };
+
+    updateRect();
+    window.addEventListener('resize', updateRect);
+    window.addEventListener('scroll', updateRect);
+    
+    // 클라이언트 라우팅 진입 시 DOM이 아직 레이아웃 되기 전일 수 있으므로,
+    // 짧은 딜레이와 넉넉한 딜레이 두 번에 걸쳐 rect 재계산
+    const timer1 = setTimeout(updateRect, 100);
+    const timer2 = setTimeout(updateRect, 400);
+
+    return () => {
+      window.removeEventListener('resize', updateRect);
+      window.removeEventListener('scroll', updateRect);
+      clearTimeout(timer1);
+      clearTimeout(timer2);
+    };
+  }, [tourStep, showTour]);
+
+  const handleNextTour = () => {
+    if (tourStep < TOUR_STEPS.length - 1) {
+      setTourStep(prev => prev + 1);
+    } else {
+      handleCloseTour();
+    }
+  };
+
+  const handleCloseTour = () => {
+    setShowTour(false);
+  };
+  // ----------------------
 
   // 수정 mutation
   const updateKarrotManualMutation = useMutation({
@@ -297,6 +376,7 @@ export default function IntegrationPage() {
   }
 
   return (
+    <>
     <div className="space-y-3 sm:space-y-6 p-2 sm:p-6">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-2 sm:gap-4">
         <div>
@@ -305,7 +385,7 @@ export default function IntegrationPage() {
             Google, Meta, Naver 광고 계정을 연동하여 통합 관리하세요
           </p>
         </div>
-        <div className="flex flex-wrap gap-2 w-full md:w-auto">
+        <div id="tour-data-management" className="flex flex-wrap gap-2 w-full md:w-auto">
           {/* [2026-03-11 11:26] 데이터 관리 버튼 - role에 관계없이 항상 표시 */}
           <Link 
             to="/data-management" 
@@ -353,7 +433,7 @@ export default function IntegrationPage() {
       </div>
 
       {/* Platform Cards */}
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 sm:gap-6">
+      <div id="tour-platforms" className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 sm:gap-6">
         {platforms.map((platform) => {
           if (platform.id === 'karrot') return null; // 당근마켓은 별도 폼으로 처리
           const account = getAccountForPlatform(platform.id);
@@ -460,7 +540,7 @@ export default function IntegrationPage() {
       </div>
 
       {/* 당근마켓 광고 수동 입력 폼 */}
-      <div className="bg-orange-50 border border-orange-200 rounded-xl p-3 sm:p-6 mt-6 sm:mt-8">
+      <div id="tour-karrot" className="bg-orange-50 border border-orange-200 rounded-xl p-3 sm:p-6 mt-6 sm:mt-8">
         <h2 className="text-base sm:text-2xl font-bold text-orange-700 mb-1 sm:mb-2 flex items-center">
           🥕 당근마켓 광고 데이터 직접 입력
         </h2>
@@ -836,5 +916,107 @@ export default function IntegrationPage() {
         </div>
       )}
     </div>
+
+    {/* 튜토리얼 오버레이 */}
+    {showTour && TOUR_STEPS[tourStep] && (
+      <div className="fixed inset-0 z-[100] pointer-events-auto flex items-center justify-center">
+        {/* SVG Mask for Hole-Punch Effect */}
+        <svg className="absolute inset-0 w-full h-full pointer-events-none">
+          <defs>
+            <mask id="tour-hole">
+              <rect width="100%" height="100%" fill="white" />
+              <rect 
+                x={targetRect.x} 
+                y={targetRect.y} 
+                width={targetRect.w} 
+                height={targetRect.h} 
+                rx="12" 
+                fill="black" 
+                className="transition-all duration-500 ease-in-out" 
+              />
+            </mask>
+          </defs>
+          <rect width="100%" height="100%" fill="rgba(0,0,0,0.6)" mask="url(#tour-hole)" className="transition-all duration-500" />
+        </svg>
+
+        {/* 하이라이트된 영역 툴팁 */}
+        <div 
+          className="absolute z-[101] transition-all duration-500 ease-in-out flex flex-col"
+          style={{
+            ...(() => {
+              const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
+              const screenWidth = typeof window !== 'undefined' ? window.innerWidth : 360;
+              const boxWidth = Math.min(300, screenWidth - 32);
+              
+              // 화면 밖으로 나가지 않도록 left 위치 보정
+              let leftPos = targetRect.x + targetRect.w / 2 - boxWidth / 2;
+              leftPos = Math.max(16, Math.min(leftPos, screenWidth - boxWidth - 16));
+
+              if (tourStep === 1) {
+                // 2번째 스텝 (플랫폼): 높이가 길기 때문에, 툴팁을 하이라이트된 영역 안쪽 상단에 배치
+                return { top: Math.max(16, targetRect.y + 24), left: leftPos, width: boxWidth };
+              } else if (tourStep === 2) {
+                // 3번째 스텝 (당근마켓): 데스크톱은 하이라이트 영역 안쪽 상단 좌측, 모바일은 안쪽 상단 중앙
+                if (!isMobile) {
+                  return { top: targetRect.y + 24, left: Math.max(16, targetRect.x + 24), width: boxWidth };
+                }
+                return { top: Math.max(16, targetRect.y + 24), left: leftPos, width: boxWidth };
+              } else {
+                // 기본 (1번째 스텝 등): 스포트라이트 하단
+                return { top: targetRect.y + targetRect.h + 16, left: leftPos, width: boxWidth };
+              }
+            })()
+          }}
+        >
+          <div className="bg-white rounded-xl shadow-2xl p-4 sm:p-5 relative animate-in fade-in zoom-in duration-300">
+            {/* 동적 위치 꼬리표 */}
+            <div className={`absolute w-4 h-4 bg-white rotate-45 transition-all duration-300 ${
+              tourStep === 1 || tourStep === 2
+                ? "hidden" // 영역 안쪽에 배치하므로 꼬리표 숨김
+                : "-top-2 left-1/2 -translate-x-1/2" // 기본(하단 배치): 위로 향하는 꼬리표
+            }`} />
+            <div className="relative z-10">
+              <p className="text-[15px] leading-relaxed text-gray-800 font-medium whitespace-pre-wrap">
+                {TOUR_STEPS[tourStep].text}
+              </p>
+              <div className="mt-5 flex items-center justify-between">
+                <div className="flex gap-1">
+                  {TOUR_STEPS.map((_, i) => (
+                    <div 
+                      key={i} 
+                      className={`h-2 rounded-full transition-all duration-300 ${
+                        i === tourStep ? 'w-4 bg-blue-600' : 'w-2 bg-gray-200'
+                      }`}
+                    />
+                  ))}
+                </div>
+                <button 
+                  onClick={handleNextTour}
+                  className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded-lg text-sm font-semibold transition-all hover:scale-105 active:scale-95 flex items-center gap-1 shadow-md shadow-blue-200"
+                >
+                  {tourStep === TOUR_STEPS.length - 1 ? (
+                    <>시작하기 <CheckCircle2 className="w-4 h-4" /></>
+                  ) : (
+                    <>다음 챕터</>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* 생략/바로 사용하기 버튼 */}
+        <div className="absolute bottom-6 sm:bottom-8 left-1/2 -translate-x-1/2 z-[102] w-full px-4 flex justify-center">
+          <button 
+            onClick={handleCloseTour}
+            className="group flex items-center justify-center gap-2 bg-white/10 hover:bg-white/20 backdrop-blur-md border border-white/30 text-white px-6 sm:px-8 py-3 sm:py-3.5 rounded-full font-bold text-sm sm:text-lg shadow-xl transition-all hover:scale-105 active:scale-95 w-full max-w-[280px] sm:max-w-none"
+          >
+            바로 사용하기 (건너뛰기)
+            <Send className="w-4 h-4 sm:w-5 sm:h-5 group-hover:translate-x-1 transition-transform" />
+          </button>
+        </div>
+      </div>
+    )}
+    </>
   );
 }
