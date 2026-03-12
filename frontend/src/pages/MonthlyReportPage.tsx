@@ -1,4 +1,5 @@
-import { useState, useEffect, useRef } from "react";
+// [2026-03-12 15:32] 캠페인별 성과 탭 추가 - useMemo 추가
+import { useState, useEffect, useRef, useMemo } from "react";
 import {
   AreaChart, Area, BarChart, Bar, LineChart, Line,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -148,13 +149,14 @@ export default function MonthlyReportPage() {
 
   // 리포트 렌더 영역 요소를 추적하기 위한 ref
   
-  // ↓ 추가: 각 탭별 캡처용 ref
-  const overviewRef = useRef<HTMLDivElement>(null);
-  const platformRef = useRef<HTMLDivElement>(null);
-  const trendRef    = useRef<HTMLDivElement>(null);
-  // 탭 추가 시 여기에 ref 하나만 더 선언하면 됩니다
-  
-  const TAB_REFS = [overviewRef, platformRef, trendRef];
+  // ↓ 각 탭별 캡처용 ref
+  const overviewRef  = useRef<HTMLDivElement>(null);
+  const platformRef  = useRef<HTMLDivElement>(null);
+  const trendRef     = useRef<HTMLDivElement>(null);
+  // [2026-03-12 15:32] 캠페인별 성과 탭 ref 추가
+  const campaignRef  = useRef<HTMLDivElement>(null);
+
+  const TAB_REFS = [overviewRef, platformRef, trendRef, campaignRef];
 
   const reportRef = useRef<HTMLDivElement>(null);
   
@@ -525,11 +527,27 @@ const TAB_LABELS = ["Overview", "Channel Analysis", "Trend Analysis"];
     { metric:"CTR", cur: cur.ctr * 100, prev: prev.ctr * 100 },
   ];
 
+  // [2026-03-12 15:32] 캠페인별 성과 탭 추가
   const TABS = [
     { id:"overview", label:"📊 종합 현황" },
     { id:"platform", label:"📡 채널별 분석" },
-    { id:"trend", label:"📈 추이 분석" },
+    { id:"trend",    label:"📈 추이 분석" },
+    { id:"campaign", label:"📋 캠페인별 성과" },
   ];
+
+  // [2026-03-12 15:32] 캠페인 탭 - 정렬 상태 관리
+  const [campaignSort, setCampaignSort] = useState<{ key: string; asc: boolean }>({ key: 'cost', asc: false });
+
+  // 선택 월의 캠페인 목록 - 정렬 적용
+  const campaigns = useMemo(() => {
+    const list: any[] = monthlyData[selectedMonth]?.campaigns || [];
+    return [...list].sort((a, b) => {
+      const aVal = a[campaignSort.key] ?? 0;
+      const bVal = b[campaignSort.key] ?? 0;
+      if (typeof aVal === 'string') return campaignSort.asc ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
+      return campaignSort.asc ? aVal - bVal : bVal - aVal;
+    });
+  }, [monthlyData, selectedMonth, campaignSort]);
 
   return (
     <div className="min-h-[calc(100vh-64px)] bg-gray-50 flex flex-col">
@@ -1017,6 +1035,189 @@ const TAB_LABELS = ["Overview", "Channel Analysis", "Trend Analysis"];
                 </div>
               </div>
             </div>
+          </div>
+
+          {/* ===== 탭 4: 캠페인별 성과 ===== */}
+          {/* [2026-03-12 15:32] 인사이트 페이지 스타일로 캠페인별 성과 섹션 추가 */}
+          <div ref={campaignRef} className={`${(activeTab === "campaign" || isExporting) ? "block" : "hidden"} animate-fade-in-up space-y-6 ${isExporting ? 'mb-24 page-break-after' : ''}`}>
+
+            {campaigns.length === 0 ? (
+              <div className="bg-white border border-gray-100 rounded-2xl p-12 shadow-sm text-center">
+                <div className="text-4xl mb-3">📋</div>
+                <p className="text-gray-500 font-medium">선택한 월에 캠페인 데이터가 없습니다.</p>
+              </div>
+            ) : (
+              <>
+                {/* 캠페인 TOP 카드 (광고비 상위 4개) */}
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+                  {campaigns.slice(0, 4).map((c: any, idx: number) => {
+                    const pColor = PLATFORM_COLORS[c.platform] || '#6b7280';
+                    return (
+                      <div key={c.campaign_id} className="bg-white border rounded-2xl p-5 shadow-sm relative overflow-hidden group hover:shadow-md transition" style={{ borderColor: `${pColor}33` }}>
+                        <div className="absolute inset-0 opacity-0 group-hover:opacity-10 transition-opacity pointer-events-none" style={{ background: `linear-gradient(135deg, ${pColor} 0%, transparent 60%)` }} />
+                        {/* 순위 뱃지 */}
+                        <div className="absolute top-3 right-3 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-white" style={{ background: pColor }}>{idx + 1}</div>
+                        <div className="flex items-center gap-2 mb-3">
+                          <div style={{ width: 10, height: 10, borderRadius: '50%', background: pColor }} />
+                          <span className="text-xs font-semibold px-2 py-0.5 rounded-full text-white" style={{ background: pColor }}>{PLATFORM_LABELS[c.platform] || c.platform}</span>
+                          {/* 상태 뱃지 */}
+                          <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
+                            c.status === 'active' ? 'bg-green-100 text-green-700' :
+                            c.status === 'paused' ? 'bg-yellow-100 text-yellow-700' :
+                            'bg-gray-100 text-gray-500'
+                          }`}>
+                            {c.status === 'active' ? '진행중' : c.status === 'paused' ? '일시정지' : c.status}
+                          </span>
+                        </div>
+                        <p className="text-sm font-bold text-gray-800 mb-3 truncate" title={c.campaign_name}>{c.campaign_name}</p>
+                        <div className="space-y-2">
+                          {[
+                            { l: '광고비', v: fmtKRW(c.cost) },
+                            { l: '전환수', v: `${c.conversions.toLocaleString()}건` },
+                            { l: 'ROAS',  v: `${c.roas}%` },
+                          ].map(item => (
+                            <div key={item.l} className="flex justify-between items-center">
+                              <span className="text-xs text-gray-500 font-semibold">{item.l}</span>
+                              <span className="text-sm font-bold text-gray-800">{item.v}</span>
+                            </div>
+                          ))}
+                        </div>
+                        {/* 예산 비중 바 */}
+                        <div className="mt-3 pt-3 border-t border-gray-100">
+                          <div className="flex justify-between items-center mb-1">
+                            <span className="text-xs text-gray-400 font-bold">전체 대비 비중</span>
+                            <span className="text-sm font-extrabold" style={{ color: pColor }}>
+                              {cur.cost > 0 ? Math.round(c.cost / cur.cost * 100) : 0}%
+                            </span>
+                          </div>
+                          <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                            <div style={{ width: `${cur.cost > 0 ? Math.round(c.cost / cur.cost * 100) : 0}%`, background: pColor }} className="h-full rounded-full transition-all" />
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* 캠페인별 광고비 바 차트 (상위 8개) */}
+                <div className="bg-white border border-gray-100 rounded-2xl p-6 shadow-sm">
+                  <SectionTitle sub="캠페인별 광고 예산 집행 현황 (광고비 상위 8개)">캠페인 광고비 분포</SectionTitle>
+                  <ResponsiveContainer width="100%" height={280}>
+                    <BarChart
+                      data={campaigns.slice(0, 8).map((c: any) => ({
+                        name: c.campaign_name.length > 12 ? c.campaign_name.slice(0, 12) + '…' : c.campaign_name,
+                        광고비: c.cost,
+                        ROAS: c.roas,
+                        color: PLATFORM_COLORS[c.platform] || '#6b7280',
+                      }))}
+                      barSize={36}
+                      margin={{ top: 20, right: 10 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
+                      <XAxis dataKey="name" tick={{ fill: '#6b7280', fontSize: 11, fontWeight: 500 }} axisLine={false} tickLine={false} />
+                      <YAxis tick={{ fill: '#9ca3af', fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={v => fmt(v, '원')} />
+                      <Tooltip cursor={{ fill: '#f9fafb' }} content={<CustomTooltip />} />
+                      <Bar dataKey="광고비" radius={[6, 6, 0, 0]}>
+                        {campaigns.slice(0, 8).map((c: any, i: number) => (
+                          <Cell key={i} fill={PLATFORM_COLORS[c.platform] || '#6b7280'} />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+
+                {/* 캠페인 상세 테이블 */}
+                <div className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
+                  <div className="p-6 border-b border-gray-100 flex items-center justify-between">
+                    <SectionTitle sub="전체 캠페인 상세 성과 지표 (헤더 클릭 시 정렬)">캠페인별 상세 성과</SectionTitle>
+                    <span className="text-xs text-gray-400 bg-gray-50 px-3 py-1 rounded-full font-medium">총 {campaigns.length}개 캠페인</span>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm text-left whitespace-nowrap">
+                      <thead className="bg-gray-50 text-gray-500 font-semibold border-b border-gray-100">
+                        <tr>
+                          {([
+                            { key: 'campaign_name', label: '캠페인명' },
+                            { key: 'platform',      label: '채널' },
+                            { key: 'status',        label: '상태' },
+                            { key: 'cost',          label: '광고비' },
+                            { key: 'impressions',   label: '노출수' },
+                            { key: 'clicks',        label: '클릭수' },
+                            { key: 'ctr',           label: 'CTR' },
+                            { key: 'conversions',   label: '전환수' },
+                            { key: 'cpc',           label: 'CPC' },
+                            { key: 'roas',          label: 'ROAS' },
+                          ] as const).map(({ key, label }, i) => (
+                            <th
+                              key={key}
+                              onClick={() => setCampaignSort(prev => ({ key, asc: prev.key === key ? !prev.asc : false }))}
+                              className={`px-4 py-4 text-xs tracking-wider uppercase cursor-pointer select-none hover:text-blue-600 transition-colors ${
+                                i > 2 ? 'text-right' : ''
+                              }`}
+                            >
+                              {label}
+                              {campaignSort.key === key && (
+                                <span className="ml-1">{campaignSort.asc ? '▲' : '▼'}</span>
+                              )}
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                        {campaigns.map((c: any) => {
+                          const pColor = PLATFORM_COLORS[c.platform] || '#6b7280';
+                          return (
+                            <tr key={c.campaign_id} className="hover:bg-gray-50/60 transition-colors">
+                              {/* 캠페인명 */}
+                              <td className="px-4 py-4 max-w-[200px]">
+                                <p className="font-semibold text-gray-800 truncate" title={c.campaign_name}>{c.campaign_name}</p>
+                              </td>
+                              {/* 채널 뱃지 */}
+                              <td className="px-4 py-4">
+                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold text-white" style={{ background: pColor }}>
+                                  <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'rgba(255,255,255,0.6)' }} />
+                                  {PLATFORM_LABELS[c.platform] || c.platform}
+                                </span>
+                              </td>
+                              {/* 상태 */}
+                              <td className="px-4 py-4">
+                                <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-semibold ${
+                                  c.status === 'active'  ? 'bg-green-100 text-green-700' :
+                                  c.status === 'paused'  ? 'bg-yellow-100 text-yellow-700' :
+                                  'bg-gray-100 text-gray-500'
+                                }`}>
+                                  {c.status === 'active' ? '● 진행중' : c.status === 'paused' ? '⏸ 일시정지' : c.status}
+                                </span>
+                              </td>
+                              {/* 광고비 */}
+                              <td className="px-4 py-4 text-right font-bold text-gray-900">{fmtKRW(c.cost)}</td>
+                              {/* 노출 */}
+                              <td className="px-4 py-4 text-right text-gray-600">{fmt(c.impressions)}</td>
+                              {/* 클릭 */}
+                              <td className="px-4 py-4 text-right text-gray-600">{fmt(c.clicks)}</td>
+                              {/* CTR */}
+                              <td className="px-4 py-4 text-right text-gray-600">{c.ctr}%</td>
+                              {/* 전환 */}
+                              <td className="px-4 py-4 text-right font-semibold text-blue-600">{c.conversions.toLocaleString()}</td>
+                              {/* CPC */}
+                              <td className="px-4 py-4 text-right text-gray-600">₩{c.cpc.toLocaleString()}</td>
+                              {/* ROAS */}
+                              <td className="px-4 py-4 text-right">
+                                <span className={`font-bold px-2 py-0.5 rounded-md text-sm ${
+                                  c.roas >= 300 ? 'bg-green-50 text-green-600' :
+                                  c.roas >= 100 ? 'bg-amber-50 text-amber-600' :
+                                  'bg-red-50 text-red-500'
+                                }`}>{c.roas}%</span>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </>
+            )}
           </div>
         </div>
 

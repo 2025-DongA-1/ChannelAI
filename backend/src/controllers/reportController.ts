@@ -224,7 +224,33 @@ export const getMonthlyReportData = async (req: AuthRequest, res: Response) => {
       ORDER BY month ASC
     `, [userId, startMonth, endMonth]);
 
-    // 3. 더미 데이터와 동일한 구조로 조립
+    // [2026-03-12 15:32] 캠페인별 성과 추가 - 월별 보고서에 캠페인 탭 데이터 제공
+    // 3. 월별/캠페인별 상세 성과 데이터
+    const { rows: campaignRows } = await pool.query(`
+      SELECT
+        DATE_FORMAT(cm.metric_date, '%Y-%m')                              AS month,
+        c.id                                                              AS campaign_id,
+        c.campaign_name,
+        ma.channel_code                                                   AS platform,
+        c.status,
+        SUM(cm.cost)                                                      AS cost,
+        SUM(cm.impressions)                                               AS impressions,
+        SUM(cm.clicks)                                                    AS clicks,
+        SUM(cm.conversions)                                               AS conversions,
+        SUM(cm.revenue)                                                   AS revenue,
+        ROUND(SUM(cm.clicks)   / NULLIF(SUM(cm.impressions),0) * 100, 2)  AS ctr,
+        ROUND(SUM(cm.cost)     / NULLIF(SUM(cm.clicks),0), 0)             AS cpc,
+        ROUND(SUM(cm.revenue)  / NULLIF(SUM(cm.cost),0) * 100, 0)         AS roas
+      FROM campaign_metrics cm
+      INNER JOIN campaigns c           ON cm.campaign_id = c.id
+      INNER JOIN marketing_accounts ma ON c.marketing_account_id = ma.id
+      WHERE ma.user_id = ?
+        AND DATE_FORMAT(cm.metric_date, '%Y-%m') BETWEEN ? AND ?
+      GROUP BY DATE_FORMAT(cm.metric_date, '%Y-%m'), c.id, c.campaign_name, ma.channel_code, c.status
+      ORDER BY month ASC, SUM(cm.cost) DESC
+    `, [userId, startMonth, endMonth]);
+
+    // 4. 데이터 조립
     const monthlyData: Record<string, any> = {};
 
     for (const row of summaryRows) {
@@ -242,7 +268,8 @@ export const getMonthlyReportData = async (req: AuthRequest, res: Response) => {
           google: { spend: 0, impressions: 0, clicks: 0, conversions: 0 },
           naver: { spend: 0, impressions: 0, clicks: 0, conversions: 0 },
           karrot: { spend: 0, impressions: 0, clicks: 0, conversions: 0 }
-        }
+        },
+        campaigns: [] // [2026-03-12 15:32] 캠페인별 성과 배열 초기화
       };
     }
 
@@ -258,6 +285,25 @@ export const getMonthlyReportData = async (req: AuthRequest, res: Response) => {
         clicks:      Number(row.clicks || 0),
         conversions: Number(row.conversions || 0),
       };
+    }
+
+    // [2026-03-12 15:32] 캠페인별 데이터를 해당 월에 push
+    for (const row of campaignRows) {
+      if (!monthlyData[row.month]) continue;
+      monthlyData[row.month].campaigns.push({
+        campaign_id:   Number(row.campaign_id),
+        campaign_name: String(row.campaign_name || '-'),
+        platform:      String(row.platform || '-').toLowerCase(),
+        status:        String(row.status || 'unknown'),
+        cost:          Number(row.cost || 0),
+        impressions:   Number(row.impressions || 0),
+        clicks:        Number(row.clicks || 0),
+        conversions:   Number(row.conversions || 0),
+        revenue:       Number(row.revenue || 0),
+        ctr:           Number(row.ctr || 0),
+        cpc:           Number(row.cpc || 0),
+        roas:          Number(row.roas || 0),
+      });
     }
 
     return res.json({ success: true, data: monthlyData });
