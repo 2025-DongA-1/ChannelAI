@@ -358,7 +358,7 @@ function MarketingAnalysis() {
                <span style={{ color: '#b2bec3' }}>AI 분석 중... ⏳</span>
             ) : (
                <>
-                 <span style={{ fontSize: '1.3rem' }}> 프리미엄 분석 실행</span> 
+                 <span style={{ fontSize: '1.3rem' }}> AI 트렌드 분석 실행</span> 
                </>
             )}
           </button>
