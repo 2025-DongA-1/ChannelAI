@@ -76,15 +76,21 @@ export default function CreativeAgentPage() {
   const [targetRect, setTargetRect] = useState({ x: 0, y: 0, w: 0, h: 0 });
 
   const TOUR_STEPS = [
-    { id: 'tour-mode', text: '기존 캠페인을 개선할지, 새로운 상품의 소재를 만들지 모드를 선택하세요. 기존 캠페인을 선택한다면 광고 성과를 기반 변수로 활용하여 광고 성과를 분석할 수 있습니다.' },
+    { id: 'tour-mode', text: '기존 캠페인을 개선할지, 새로운 상품의\n소재를 만들지 모드를 선택하세요. 기존\n캠페인을 선택한다면 광고 성과를 기반\n변수로 활용하여 광고 성과를 분석할 수\n있습니다.' },
     { id: 'tour-form', text: '상품에 대한 기본적인 정보와 타겟, 목적을 입력해주세요.' },
     { id: 'tour-upload', text: '상품 소개서나 기존 광고 이미지를 업로드하면 AI가 더 정교하게 분석합니다.' },
-    { id: 'tour-submit', text: '모든 입력을 마쳤다면 생성하기 버튼을 눌러 AI 소재 에이전트를 실행하세요!' }
+    { id: 'tour-submit', text: '모든 입력을 마쳤다면 생성하기 버튼을\n눌러 AI 소재 에이전트를 실행하세요!' }
   ];
 
   useEffect(() => {
+    const hasSeen = localStorage.getItem('tour_done_creative');
     if (isTutorialModeEnabled) {
       setShowTour(true);
+    } else if (!hasSeen) {
+      setShowTour(true);
+      localStorage.setItem('tour_done_creative', 'true');
+    } else {
+      setShowTour(false);
     }
   }, [isTutorialModeEnabled]);
 

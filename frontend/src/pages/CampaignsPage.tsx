@@ -39,9 +39,21 @@ export default function CampaignsPage() {
   const [newDailyBudget, setNewDailyBudget] = useState('');
 
   // --- 튜토리얼 상태 추가 ---
-  const [showTour, setShowTour] = useState(isTutorialModeEnabled);
+  const [showTour, setShowTour] = useState(false);
   const [tourStep, setTourStep] = useState(0);
   const [targetRect, setTargetRect] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
+
+  useEffect(() => {
+    const hasSeen = localStorage.getItem('tour_done_campaigns');
+    if (isTutorialModeEnabled) {
+      setShowTour(true);
+    } else if (!hasSeen) {
+      setShowTour(true);
+      localStorage.setItem('tour_done_campaigns', 'true');
+    } else {
+      setShowTour(false);
+    }
+  }, [isTutorialModeEnabled]);
 
   useEffect(() => {
     if (!showTour) return;

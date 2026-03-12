@@ -22,6 +22,7 @@ export default function DashboardPage() {
   const [activeTab, setActiveTab] = useState<'overall' | 'campaign'>('overall');
   const [selectedCampaignId, setSelectedCampaignId] = useState<string>('all');
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const [isTutorialMenuOpen, setIsTutorialMenuOpen] = useState(false);
 
   // --- Navigation & Dashboard Tutorial State ---
   const [tourType, setTourType] = useState<'nav' | 'dashboard'>('nav');
@@ -30,6 +31,98 @@ export default function DashboardPage() {
   const [showTour, setShowTour] = useState(false);
   const [currentTourStep, setCurrentTourStep] = useState(0);
   const [targetRect, setTargetRect] = useState<DOMRect | null>(null);
+
+  // --- Speech Bubble State ---
+  const [showBubble, setShowBubble] = useState(false);
+  const [bubbleMessage, setBubbleMessage] = useState<string>('');
+  const [bubbleOpacity, setBubbleOpacity] = useState(0);
+  const [bubbleRect, setBubbleRect] = useState<{ top: number, left: number, isMobile: boolean } | null>(null);
+  const [bubbleTarget, setBubbleTarget] = useState<'campaigns' | 'insights'>('campaigns');
+
+  const updateBubblePos = () => {
+    let el = null;
+    let isMobile = false;
+
+    // Use current bubbleTarget to find appropriate element
+    const mobileId = `nav-menu-mobile-${bubbleTarget}`;
+    const pcId = `nav-menu-${bubbleTarget}`;
+    
+    const mobileEl = document.getElementById(mobileId);
+    const pcEl = document.getElementById(pcId);
+
+    if (window.innerWidth < 768 && mobileEl) {
+      el = mobileEl;
+      isMobile = true;
+    } else if (pcEl) {
+      el = pcEl;
+    }
+
+    if (el) {
+      const rect = el.getBoundingClientRect();
+      if (isMobile) {
+        setBubbleRect({ top: rect.top - 15, left: window.innerWidth / 2, isMobile });
+      } else {
+        setBubbleRect({ top: rect.bottom + 10, left: rect.left + 20, isMobile });
+      }
+    }
+  };
+
+  useEffect(() => {
+    if (showTour) {
+      setShowBubble(false);
+      return;
+    }
+
+    // 말풍선 로직 시작 (10초 후 첫 메시지)
+    const timer1 = setTimeout(() => {
+      setBubbleTarget('campaigns');
+      setBubbleMessage('혹시 예산과 수익 지표가 0으로 표시되나요?\n캠페인 & 예산 페이지에서 광고 예산과 해당 광고 캠페인 기간 동안 얼마나 수익이 있었는지 입력하면 정상적으로 수익이 표시됩니다.');
+      updateBubblePos();
+      setShowBubble(true);
+      setBubbleOpacity(1);
+    }, 10000);
+
+    const timer2 = setTimeout(() => {
+      setBubbleOpacity(0);
+    }, 25000);
+
+    const timer3 = setTimeout(() => {
+      setBubbleTarget('insights');
+      setBubbleMessage('모든 지표의 입력이 끝났나요?\n이제 인사이트 페이지에서 다음 예산 배분 액션을 추천받아 보세요!');
+      updateBubblePos();
+      setBubbleOpacity(1);
+    }, 25500);
+
+    const timer4 = setTimeout(() => {
+      setBubbleOpacity(0);
+    }, 40500);
+    
+    const timer5 = setTimeout(() => {
+      setShowBubble(false);
+    }, 41000);
+
+    return () => {
+      clearTimeout(timer1);
+      clearTimeout(timer2);
+      clearTimeout(timer3);
+      clearTimeout(timer4);
+      clearTimeout(timer5);
+    };
+  }, [showTour]);
+
+  useEffect(() => {
+    if (showBubble) {
+      // 위치 업데이트는 bubbleTarget이 변경될 때마다 반영되도록 함께 감지
+      window.addEventListener('resize', updateBubblePos);
+      window.addEventListener('scroll', updateBubblePos);
+      // Change of target updates bubble pos immediately
+      updateBubblePos();
+      return () => {
+        window.removeEventListener('resize', updateBubblePos);
+        window.removeEventListener('scroll', updateBubblePos);
+      };
+    }
+  }, [showBubble, bubbleTarget]);
 
   const NAV_TOUR_STEPS = [
     {
@@ -351,6 +444,34 @@ export default function DashboardPage() {
   return (
     <div className="space-y-3 sm:space-y-4 p-2 sm:p-4 md:p-6">
 
+      {/* --- Animated Speech Bubble Portal --- */}
+      {showBubble && bubbleRect && createPortal(
+        <div 
+          className={`fixed z-[100] transition-opacity duration-500 ease-in-out pointer-events-none ${bubbleOpacity ? 'opacity-100' : 'opacity-0'}`}
+          style={{
+            top: bubbleRect.top,
+            left: bubbleRect.left,
+            transform: bubbleRect.isMobile ? 'translate(-50%, -100%)' : 'translate(0, 0)',
+          }}
+        >
+          <div className="relative animate-bounce" style={{ animationDuration: '0.8s' }}>
+            <div className="bg-indigo-600 text-white text-xs sm:text-sm font-medium px-4 py-3 rounded-2xl shadow-xl max-w-xs whitespace-pre-wrap leading-relaxed border border-indigo-500">
+              {bubbleMessage}
+            </div>
+            {/* 꼬리 (삼각형) */}
+            <div 
+              className="absolute w-3 h-3 bg-indigo-600 border-b border-r border-indigo-500 transform rotate-45"
+              style={
+                bubbleRect.isMobile 
+                  ? { bottom: '-6px', left: '50%', marginLeft: '-6px' }  // 아래쪽 꼬리
+                  : { top: '-6px', left: '20px' }                        // 위쪽 꼬리
+              }
+            />
+          </div>
+        </div>,
+        document.body
+      )}
+
       {/* --- Navigation Tutorial (Splash + Overlay) --- */}
       {showSplash && createPortal(
         <div className={`fixed inset-0 z-[100] flex items-center justify-center bg-blue-600 text-white p-6 transition-opacity duration-500 ${splashOpacity === 1 ? 'opacity-100' : 'opacity-0'}`}>
@@ -488,20 +609,6 @@ export default function DashboardPage() {
       <div className="flex justify-between items-center bg-white p-4 rounded-xl shadow-sm mb-4">
         <div>
           <h1 className="text-lg sm:text-2xl md:text-3xl font-bold text-gray-900 mb-2">통합 성과 대시보드</h1>
-          <div className="flex flex-col sm:flex-row gap-2 mt-2">
-            <button onClick={handleStartTour} className="w-fit text-xs sm:text-sm px-3 py-1 sm:py-1.5 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-lg shadow-sm hover:opacity-90 transition flex items-center gap-1"><Play className="w-3 h-3 sm:w-4 sm:h-4"/> PlanBe 통합 네비게이션 튜토리얼</button>
-            <button onClick={handleStartDashTour} className="w-fit text-xs sm:text-sm px-3 py-1 sm:py-1.5 bg-gray-100 text-gray-700 border border-gray-200 rounded-lg shadow-sm hover:bg-gray-200 transition flex items-center gap-1"><Info className="w-3 h-3 sm:w-4 sm:h-4"/> 대시보드 가이드</button>
-            <button 
-              onClick={toggleTutorialMode} 
-              className={`w-fit text-xs sm:text-sm px-3 py-1 sm:py-1.5 border rounded-lg shadow-sm transition flex items-center gap-1 ${isTutorialModeEnabled ? 'bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100' : 'bg-gray-100 text-gray-500 border-gray-200 hover:bg-gray-200'}`}
-            >
-              {isTutorialModeEnabled ? (
-                <><ToggleRight className="w-3 h-3 sm:w-4 sm:h-4" /> 전체 튜토리얼 켜짐: 튜토리얼 없이 사용하려면 이 버튼을 클릭하세요!</>
-              ) : (
-                <><ToggleLeft className="w-3 h-3 sm:w-4 sm:h-4" /> 전체 튜토리얼 꺼짐: 튜토리얼을 다시 켜려면 이 버튼을 클릭하세요!</>
-              )}
-            </button>
-          </div>
           <p className="text-gray-500 text-xs sm:text-sm md:text-base mt-2">실시간 마케팅 성과를 한눈에 확인하세요</p>
         </div>
         <button className="hidden sm:block px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm">
@@ -984,6 +1091,58 @@ export default function DashboardPage() {
           )}
         </div>
       )}
+
+      {/* --- Floating Tutorial Menu --- */}
+      <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end gap-2">
+        {/* Menu Items */}
+        <div
+          className={`flex flex-col items-end gap-2 transition-all duration-300 origin-bottom-right ${isTutorialMenuOpen ? 'opacity-100 scale-100' : 'opacity-0 scale-0 pointer-events-none'}`}
+        >
+          <button
+            onClick={handleStartTour}
+            className="whitespace-nowrap text-xs sm:text-sm px-4 py-2.5 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-full shadow-lg hover:shadow-xl hover:opacity-90 transition-all flex items-center gap-2"
+          >
+            <Play className="w-4 h-4" /> PlanBe 통합 네비게이션 튜토리얼
+          </button>
+          
+          <button
+            onClick={handleStartDashTour}
+            className="whitespace-nowrap text-xs sm:text-sm px-4 py-2.5 bg-white text-gray-700 border border-gray-200 rounded-full shadow-lg hover:shadow-xl hover:bg-gray-50 transition-all flex items-center gap-2"
+          >
+            <Info className="w-4 h-4" /> 대시보드 가이드
+          </button>
+
+          <button
+            onClick={toggleTutorialMode}
+            className={`whitespace-nowrap text-xs sm:text-sm px-4 py-2.5 border rounded-full shadow-lg hover:shadow-xl transition-all flex items-center gap-2 ${
+              isTutorialModeEnabled
+                ? 'bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100'
+                : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
+            }`}
+          >
+            {isTutorialModeEnabled ? (
+              <><ToggleRight className="w-4 h-4" /> 전체 튜토리얼 (켜짐)</>
+            ) : (
+              <><ToggleLeft className="w-4 h-4 text-gray-400" /> 전체 튜토리얼 (꺼짐)</>
+            )}
+          </button>
+        </div>
+
+        {/* Main Floating Button */}
+        <button
+          onClick={() => setIsTutorialMenuOpen(!isTutorialMenuOpen)}
+          className="bg-indigo-600 text-white px-5 py-3 rounded-full shadow-2xl hover:shadow-indigo-500/50 hover:bg-indigo-700 transition-all flex items-center gap-2 focus:outline-none focus:ring-4 focus:ring-indigo-300 relative"
+          aria-label="튜토리얼 모드 메뉴"
+        >
+          <Bot className="w-5 h-5" />
+          <span className="font-semibold text-sm">튜토리얼 모드</span>
+          <span className="absolute -top-1 -right-1 flex h-3 w-3">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-300 opacity-75"></span>
+            <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500 border border-white"></span>
+          </span>
+        </button>
+      </div>
+
     </div>
   );
 }

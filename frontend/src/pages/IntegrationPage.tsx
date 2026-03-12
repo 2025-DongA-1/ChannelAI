@@ -6,6 +6,7 @@ import { api, accountAPI, integrationAPI } from '@/lib/api';
 // [2026-03-11 11:04] 데이터 관리 페이지 링크용 Database 아이콘 추가
 import { Link2, CheckCircle, XCircle, RefreshCw, AlertCircle, UploadCloud, FileSpreadsheet, Key, X, Eye, EyeOff, Database, Send, CheckCircle2 } from 'lucide-react';
 import { Link, useSearchParams } from 'react-router-dom';
+import { createPortal } from 'react-dom';
 // [2026-03-11 11:21] 유저/어드민 권한 분리를 위해 authStore import
 import { useAuthStore } from '../store/authStore';
 import { useTutorialStore } from '../store/tutorialStore';
@@ -26,15 +27,104 @@ export default function IntegrationPage() {
   const [tourStep, setTourStep] = useState(0);
   const [targetRect, setTargetRect] = useState({ x: 0, y: 0, w: 0, h: 0 });
 
+  // --- Speech Bubble State ---
+  const [showBubble, setShowBubble] = useState(false);
+  const [bubbleMessage, setBubbleMessage] = useState<string>('');
+  const [bubbleOpacity, setBubbleOpacity] = useState(0);
+  const [bubbleRect, setBubbleRect] = useState<{ top: number, left: number, isMobile: boolean } | null>(null);
+
+  const updateBubblePos = () => {
+    const mobileEl = document.getElementById('nav-menu-mobile-dashboard');
+    const pcEl = document.getElementById('nav-menu-dashboard');
+    
+    let el = null;
+    let isMobile = false;
+
+    if (window.innerWidth < 768 && mobileEl) {
+      el = mobileEl;
+      isMobile = true;
+    } else if (pcEl) {
+      el = pcEl;
+    }
+
+    if (el) {
+      const rect = el.getBoundingClientRect();
+      if (isMobile) {
+        // 모바일일 경우: 하단 네비게이션이므로 위로 띄움
+        setBubbleRect({ top: rect.top - 15, left: window.innerWidth / 2, isMobile });
+      } else {
+        // PC일 경우: 왼쪽 네비게이션이므로 오른쪽에 띄움 (요청하신 대로 메뉴 아랫쪽이나 옆쪽으로). 여기서는 메뉴 바로 우측 아래로 배치.
+        setBubbleRect({ top: rect.bottom + 10, left: rect.left + 20, isMobile });
+      }
+    }
+  };
+
+  useEffect(() => {
+    // 10초 후 말풍선 1 표시
+    const timer1 = setTimeout(() => {
+      setBubbleMessage('연동을 완료하셨나요?\n대시보드에서 현재 광고 성과를 체크해보세요!\n(동기화 필수)');
+      updateBubblePos();
+      setShowBubble(true);
+      setBubbleOpacity(1);
+    }, 10000);
+
+    // 15초 표시 후 (총 25초) 페이드 아웃
+    const timer2 = setTimeout(() => {
+      setBubbleOpacity(0);
+    }, 25000);
+
+    // 잠시 페이드아웃 딜레이 후 말풍선 2로 변경하고 페이드 인
+    const timer3 = setTimeout(() => {
+      setBubbleMessage('연동에 어려움을 겪고 계신가요?\n기본적으로 광고 계정 내 API를 연동하는\n키나 앱이 필요할 수 있습니다.');
+      updateBubblePos();
+      setBubbleOpacity(1);
+    }, 25500);
+
+    // 말풍선 2 표시 15초 후 (총 40초) 최종 페이드 아웃
+    const timer4 = setTimeout(() => {
+      setBubbleOpacity(0);
+    }, 40500);
+    
+    // 최종 언마운트
+    const timer5 = setTimeout(() => {
+      setShowBubble(false);
+    }, 41000);
+
+    return () => {
+      clearTimeout(timer1);
+      clearTimeout(timer2);
+      clearTimeout(timer3);
+      clearTimeout(timer4);
+      clearTimeout(timer5);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (showBubble) {
+      window.addEventListener('resize', updateBubblePos);
+      window.addEventListener('scroll', updateBubblePos);
+      return () => {
+        window.removeEventListener('resize', updateBubblePos);
+        window.removeEventListener('scroll', updateBubblePos);
+      };
+    }
+  }, [showBubble]);
+
   const TOUR_STEPS = [
-    { id: 'tour-data-management', text: '데이터 관리 페이지에서 전체 데이터를 조회하거나 연동된 데이터를 확인할 수 있어요.' },
-    { id: 'tour-platforms', text: 'Google, Meta, Naver 등의 계정을 연동해 캠페인 데이터를 불러올 수 있습니다. 각 플랫폼 별 광고 계정 생성이 완료되어야 연동이 가능합니다.' },
-    { id: 'tour-karrot', text: '현재 당근마켓은 자동 연동을 지원하지 않아, 성과를 직접 입력하여 관리할 수 있습니다.' }
+    { id: 'tour-data-management', text: '데이터 관리 페이지에서 전체 데이터를\n조회하거나 연동된 데이터를 확인할 수\n있어요.' },
+    { id: 'tour-platforms', text: 'Google, Meta, Naver 등의 계정을\n연동해 캠페인 데이터를 불러올 수\n있습니다. 각 플랫폼 별 광고 계정 생성이 완료되어야 연동이 가능합니다.' },
+    { id: 'tour-karrot', text: '현재 당근마켓은 자동 연동을 지원하지\n않아, 성과를 직접 입력하여 관리할 수\n있습니다.' }
   ];
 
   useEffect(() => {
+    const hasSeen = localStorage.getItem('tour_done_integration');
     if (isTutorialModeEnabled) {
       setShowTour(true);
+    } else if (!hasSeen) {
+      setShowTour(true);
+      localStorage.setItem('tour_done_integration', 'true');
+    } else {
+      setShowTour(false);
     }
   }, [isTutorialModeEnabled]);
 
@@ -381,6 +471,34 @@ export default function IntegrationPage() {
 
   return (
     <>
+    {/* --- Animated Speech Bubble Portal --- */}
+    {showBubble && bubbleRect && createPortal(
+      <div 
+        className={`fixed z-[100] transition-opacity duration-500 ease-in-out pointer-events-none ${bubbleOpacity ? 'opacity-100' : 'opacity-0'}`}
+        style={{
+          top: bubbleRect.isMobile ? bubbleRect.top : bubbleRect.top,
+          left: bubbleRect.isMobile ? bubbleRect.left : bubbleRect.left,
+          transform: bubbleRect.isMobile ? 'translate(-50%, -100%)' : 'translate(0, 0)',
+        }}
+      >
+        <div className="relative animate-bounce" style={{ animationDuration: '0.8s' }}>
+          <div className="bg-indigo-600 text-white text-xs sm:text-sm font-medium px-4 py-3 rounded-2xl shadow-xl max-w-xs whitespace-pre-wrap leading-relaxed border border-indigo-500">
+            {bubbleMessage}
+          </div>
+          {/* 꼬리 (삼각형) */}
+          <div 
+            className="absolute w-3 h-3 bg-indigo-600 border-b border-r border-indigo-500 transform rotate-45"
+            style={
+              bubbleRect.isMobile 
+                ? { bottom: '-6px', left: '50%', marginLeft: '-6px' }  // 아래쪽 꼬리
+                : { top: '-6px', left: '20px' }                        // 위쪽 꼬리
+            }
+          />
+        </div>
+      </div>,
+      document.body
+    )}
+
     <div className="space-y-3 sm:space-y-6 p-2 sm:p-6">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-2 sm:gap-4">
         <div>
