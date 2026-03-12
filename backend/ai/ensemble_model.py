@@ -83,11 +83,11 @@ if __name__ == "__main__":
     ensemble = VotingRegressor(estimators=[('ridge', ridge), ('xgb', xgboost)], weights=[0.8, 0.2])
     
     # 4. 앙상블 모델 학습
-    ensemble.fit(X_train_scaled, y_train)
+    ensemble.fit(X_train_scaled.values, y_train.values)
 
     # 5. 성능 평가
-    ens_train_pred = ensemble.predict(X_train_scaled)
-    ens_test_pred = ensemble.predict(X_test_scaled)
+    ens_train_pred = ensemble.predict(X_train_scaled.values)
+    ens_test_pred = ensemble.predict(X_test_scaled.values)
     
     ens_train_rmse = np.sqrt(mean_squared_error(y_train, ens_train_pred))
     ens_test_rmse = np.sqrt(mean_squared_error(y_test, ens_test_pred))
