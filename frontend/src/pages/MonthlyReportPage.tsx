@@ -1,13 +1,14 @@
 // [2026-03-12 15:32] 캠페인별 성과 탭 추가 - useMemo 추가
 import { useState, useEffect, useRef, useMemo } from "react";
+import { useMutation } from "@tanstack/react-query";
 import {
   AreaChart, Area, BarChart, Bar, LineChart, Line,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis,
   Cell, PieChart, Pie
 } from "recharts";
-// [2026-03-11 12:07] 이메일 전송 버튼용 Mail 아이콘 추가
-import { LayoutDashboard, DownloadCloud, Mail } from 'lucide-react';
+// [2026-03-12 17:52] AI 인사이트를 위한 아이콘 추가 (Sparkles, RefreshCcw)
+import { LayoutDashboard, DownloadCloud, Mail, Sparkles, RefreshCcw } from 'lucide-react';
 import { api } from '../lib/api';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf'; // [2026-03-09 09:22] jspdf 타입 호환성을 위해 named import 형식으로 수정
@@ -171,6 +172,46 @@ export default function MonthlyReportPage() {
       return campaignSort.asc ? aVal - bVal : bVal - aVal;
     });
   }, [monthlyData, selectedMonth, campaignSort]);
+
+  // 🤖 [2026-03-12 17:52] 수동 리포트 분석용 LLM Mutation 추가
+  const llmMutation = useMutation({
+    mutationFn: async (forceRefresh: boolean = false) => {
+      const curData = monthlyData[selectedMonth];
+      if (!curData) return null;
+
+      // 트렌드 데이터 (최근 6개월)
+      const trendsData = MONTHS.slice(-6).map(m => ({
+        month: m,
+        cost: monthlyData[m].cost,
+        revenue: monthlyData[m].revenue,
+        conversions: monthlyData[m].conversions,
+        clicks: monthlyData[m].clicks,
+        roas: monthlyData[m].roas,
+      }));
+
+      // 플랫폼 데이터 (현재 월)
+      const platformData = Object.entries(curData.platforms || {}).map(([k, v]: any) => ({
+        platform: k,
+        spend: v.spend,
+        impressions: v.impressions,
+        clicks: v.clicks,
+        conversions: v.conversions,
+        roas: v.spend > 0 ? (curData.revenue * (v.spend/curData.cost)) / v.spend * 100 : 0 // 단순 배분 가정
+      }));
+
+      const response = await api.post('/ai/agent/generate-insights', {
+        trendsData,
+        platformData,
+        forceRefresh,
+        reportType: 'monthly',
+        selectedMonth
+      });
+      return response.data;
+    }
+  });
+
+  const llmInsightText = llmMutation.data?.data?.insightText;
+  const llmInsightLoading = llmMutation.isPending;
   
   // (위에서 이미 isExporting 선언함)
 
@@ -600,6 +641,7 @@ const TAB_LABELS = ["종합 성과 현황", "채널별 분석 데이터", "기�
                   ))}
                 </select>
               </div>
+
               
               <div className="flex gap-2">
                 <button 
@@ -689,6 +731,76 @@ const TAB_LABELS = ["종합 성과 현황", "채널별 분석 데이터", "기�
       {/* ── 바디 ── */}
       <div className="flex-grow flex flex-col items-center">
         <div ref={reportRef} className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8" key={animKey}>
+
+          {/* [2026-03-12 17:42] 수정 이유: 기간 표시를 탭바 아래로 이동
+              상세 설명: 현재 월이면 오늘까지, 지난 달이면 말일까지를 종료일로 표시. */}
+          {selectedMonth && (() => {
+            const [y, m] = selectedMonth.split('-').map(Number);
+            const today = new Date();
+            const isCurrentMonth = y === today.getFullYear() && m === (today.getMonth() + 1);
+            const firstDay = `${y}년 ${m}월 01일`;
+            const lastDate = isCurrentMonth ? today.getDate() : new Date(y, m, 0).getDate();
+            const lastDay  = `${y}년 ${m}월 ${String(lastDate).padStart(2, '0')}일`;
+            return (
+              <div className="flex items-center gap-2 mb-6">
+                <div className="flex items-center gap-1.5 px-4 py-2 bg-blue-50 border border-blue-100 rounded-xl text-sm font-semibold text-blue-700 shadow-sm">
+                  <span>📅</span>
+                  <span>조회 기간: {firstDay} ~ {lastDay}</span>
+                  {isCurrentMonth && (
+                    <span className="ml-1 px-2 py-0.5 bg-blue-500 text-white rounded-full text-[10px] font-bold">진행중</span>
+                  )}
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* 🤖 [2026-03-12 17:52] AI 인사이트 분석 영역 추가 */}
+          <div className="mb-8 print:hidden">
+            <div className="bg-gradient-to-br from-indigo-50 via-white to-purple-50 rounded-2xl border border-indigo-100/50 shadow-sm overflow-hidden p-6 relative group">
+              <div className="absolute top-0 right-0 p-8 opacity-10 pointer-events-none group-hover:rotate-12 transition-transform duration-500">
+                <Sparkles size={120} className="text-indigo-600" />
+              </div>
+              
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-2.5 bg-indigo-600 rounded-xl text-white shadow-lg shadow-indigo-200">
+                    <Sparkles size={20} />
+                  </div>
+                  <div>
+                    <h2 className="text-lg font-bold text-gray-900 leading-tight">AI 리포트 분석 인사이트</h2>
+                    <p className="text-xs text-indigo-500 font-medium mt-0.5">선택한 월의 성과 데이터를 AI가 심층 분석합니다</p>
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => llmMutation.mutate(true)}
+                  disabled={llmInsightLoading}
+                  className="flex items-center gap-2 px-6 py-2.5 bg-white border border-indigo-200 text-indigo-600 rounded-xl text-sm font-bold shadow-sm hover:bg-indigo-50 transition-all disabled:opacity-50 disabled:cursor-not-allowed group"
+                >
+                  <RefreshCcw size={16} className={`${llmInsightLoading ? 'animate-spin' : 'group-hover:rotate-180 transition-transform duration-700'}`} />
+                  {llmInsightText ? "분석 새로고침" : "AI 분석 실행"}
+                </button>
+              </div>
+
+              {llmInsightLoading ? (
+                <div className="space-y-3 py-4">
+                  <div className="h-4 bg-gray-200 rounded-full w-3/4 animate-pulse"></div>
+                  <div className="h-4 bg-gray-200 rounded-full w-1/2 animate-pulse"></div>
+                  <div className="h-4 bg-gray-200 rounded-full w-5/6 animate-pulse"></div>
+                </div>
+              ) : llmInsightText ? (
+                <div className="bg-white/60 backdrop-blur-sm border border-indigo-100/30 rounded-xl p-5">
+                  <div className="prose prose-sm max-w-none text-gray-700 leading-relaxed whitespace-pre-wrap">
+                    {llmInsightText}
+                  </div>
+                </div>
+              ) : (
+                <div className="py-8 text-center bg-white/40 border border-dashed border-indigo-200 rounded-xl">
+                  <p className="text-sm text-gray-500 font-medium">상단 버튼을 클릭하여 리포트 요약 및 인사이트를 확인하세요.</p>
+                </div>
+              )}
+            </div>
+          </div>
 
           {/* ===== 탭 1: 종합 현황 ===== */}
           <div ref={overviewRef} className={`${(activeTab === "overview" || isExporting) ? "block" : "hidden"} animate-fade-in-up space-y-6 ${isExporting ? 'mb-24 page-break-after' : ''}`}>
