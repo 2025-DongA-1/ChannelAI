@@ -901,15 +901,109 @@ export const generateMonthlyReportInsights = async (req: AuthRequest, res: Respo
       });
     }
 
+    // [2026-03-13] 공통 모델 설정 - JSON 모드 활성화, 낮은 temperature로 데이터 분석 정확도 유지
     const model = new ChatOpenAI({
-      modelName: 'gpt-4o-mini', 
+      modelName: 'gpt-4o-mini',
       temperature: 0.3,
-      modelKwargs: { "response_format": { "type": "json_object" } } // JSON 모드 활성화
+      modelKwargs: { "response_format": { "type": "json_object" } }
     });
 
-    const prompt = PromptTemplate.fromTemplate(`
+    // 🔵 [프롬프트 1] 종합 현황 분석
+    // 표시 위치: 종합 현황 탭 상단 AI 진단 블록 (insights.overall)
+    // 입력 데이터: 선택 월 플랫폼 성과 + 최근 6개월 추이
+    const overallPrompt = PromptTemplate.fromTemplate(`
       당신은 마케팅 성과 분석 전문가이자 비즈니스 컨설턴트입니다.
-      제공된 월별 성과 데이터와 추이 데이터를 바탕으로 다각도로 분석하여 **JSON 형식**으로 응답해 주세요.
+      아래 데이터를 바탕으로 선택 월의 전체 광고 성과를 종합 요약하세요.
+      반드시 아래 구조의 JSON 객체 하나만 반환하세요:
+      {{"overall": "분석 내용"}}
+
+      - 선택 월: {selectedMonth}
+      - 플랫폼 성과: {platforms}
+      - 최근 6개월 추이: {trends}
+
+      [가이드라인]
+      - 약 300자, 따뜻하고 전문적인 어조
+      - 전체 비용/매출/ROAS 수치를 직접 언급할 것
+      - 존댓말(해요/합니다) 사용
+      - JSON 외 텍스트 금지
+      - Karrot은 당근으로 표시해
+    `);
+
+    // 🟢 [프롬프트 2] 채널별 개별 성과 분석
+    // 표시 위치: 채널별 분석 탭 각 플랫폼 카드 하단 AI 진단 블록 (insights.channels.{platform})
+    // 입력 데이터: 선택 월 플랫폼별 성과 (광고비/노출/클릭/전환)
+    const channelsPrompt = PromptTemplate.fromTemplate(`
+      당신은 광고 채널 효율 분석 전문가입니다.
+      아래 플랫폼별 성과 데이터를 바탕으로 각 채널을 개별 심층 분석하세요.
+      반드시 아래 구조의 JSON 객체 하나만 반환하세요:
+      {{
+        "channels": {{
+          "platform_code": "해당 채널 핵심 성과 분석 (약 100자, 강점·약점·개선 방향 포함). platform_code는 데이터의 platform 필드값(meta, google, naver, karrot)과 정확히 일치"
+        }}
+      }}
+
+      - 선택 월: {selectedMonth}
+      - 플랫폼 성과: {platforms}
+
+      [가이드라인]
+      - 각 채널의 광고비·전환수·ROAS 수치를 직접 언급할 것
+      - 일반론 금지, 데이터 기반 분석
+      - 존댓말(해요/합니다) 사용
+      - JSON 외 텍스트 금지
+      - Karrot은 당근으로 표시해
+    `);
+
+    // 🟡 [프롬프트 3] 최근 6개월 추세 분석
+    // 표시 위치: 추이 분석 탭 상단 AI 진단 블록 (insights.trendSummary)
+    // 입력 데이터: 최근 6개월 월별 비용/매출/전환/ROAS 시계열 데이터
+    const trendPrompt = PromptTemplate.fromTemplate(`
+      당신은 마케팅 트렌드 분석 전문가입니다.
+      아래 6개월 추이 데이터를 바탕으로 성과 흐름을 분석하고 향후 방향을 예측하세요.
+      반드시 아래 구조의 JSON 객체 하나만 반환하세요:
+      {{"trendSummary": "분석 내용"}}
+
+      - 선택 월: {selectedMonth}
+      - 최근 6개월 추이: {trends}
+
+      [가이드라인]
+      - 약 300자, 월별 증감 수치를 직접 언급할 것
+      - 현재 추세 + 향후 예측 방향 포함
+      - 존댓말(해요/합니다) 사용
+      - JSON 외 텍스트 금지
+      - Karrot은 당근으로 표시해
+    `);
+
+    // 🔴 [프롬프트 4] 캠페인별 상세 성과 분석
+    // 표시 위치: 캠페인별 탭 각 캠페인 카드 하단 AI 진단 블록 (insights.campaigns.{campaign_id})
+    // 입력 데이터: 캠페인별 광고비/노출/클릭/전환/ROAS 상세 데이터
+    const campaignsPrompt = PromptTemplate.fromTemplate(`
+      당신은 광고 캠페인 최적화 전문가입니다.
+      아래 캠페인별 성과 데이터를 바탕으로 각 캠페인을 개별 심층 분석하세요.
+      반드시 아래 구조의 JSON 객체 하나만 반환하세요:
+      {{
+        "campaigns": {{
+          "여기에_실제_campaign_id값": "성과 원인 분석, 구체적 문제점, 즉각 실행 가능한 최적화 액션 (약 350자)"
+        }}
+      }}
+      ※ 키는 반드시 각 캠페인 데이터의 campaign_id 필드값(문자열)을 그대로 사용할 것. id 필드가 아닌 campaign_id 필드 사용.
+
+      - 선택 월: {selectedMonth}
+      - 주요 캠페인 성과: {campaigns}
+
+      [가이드라인]
+      - ROAS·전환수·CTR 등 수치를 직접 언급할 것
+      - 일반론 금지, 실행 가능한 구체적 액션 제시
+      - 존댓말(해요/합니다) 사용
+      - JSON 외 텍스트 금지
+      - Karrot은 당근으로 표시해
+    `);
+
+    // 🟣 [프롬프트 5] 전체 채널 비교 요약 (기존 통합 프롬프트 유지)
+    // 표시 위치: 채널별 분석 탭 상단 AI 진단 블록 (insights.channelSummary)
+    // 입력 데이터: 플랫폼 성과 + 캠페인 성과 전체 (채널 간 비교를 위해 모든 데이터 사용)
+    const channelSummaryPrompt = PromptTemplate.fromTemplate(`
+      당신은 마케팅 성과 분석 전문가이자 비즈니스 컨설턴트입니다.
+      제공된 월별 성과 데이터와 추이 데이터를 바탕으로 다각도로 분석하여 JSON 형식으로 응답해 주세요.
 
       [분석 대상 데이터]
       - 선택 월: {selectedMonth}
@@ -917,36 +1011,34 @@ export const generateMonthlyReportInsights = async (req: AuthRequest, res: Respo
       - 최근 6개월 추이: {trends}
       - 주요 캠페인 성과: {campaigns}
 
-      [🚨 응답 JSON 구조 및 가이드라인]
-      반드시 아래 구조를 가진 JSON 객체 하나만 반환하세요:
-      {{
-        "overall": "선택 월 전체 성과 요약 (약 200자, 따뜻하고 전문적인 어조)",
-        "channels": {{
-          "platform_code": "해당 채널의 핵심 성과 요약 (약 50자, 짧고 강렬하게). 'platform_code'는 제공된 데이터의 platform 필드값(meta, google, naver, karrot 등)과 정확히 일치해야 함."
-        }},
-        "channelSummary": "전체 채널 간 비교 및 예산 효율 분석 (약 200자)",
-        "trendSummary": "데이터 기반의 최근 6개월 추세 분석 및 향후 예측 (약 200자)",
-        "campaigns": {{
-          "campaign_id": "해당 캠페인의 성과 원인, 데이터 기반의 구체적인 문제점, 그리고 즉각 실행 가능한 최적화 가이드 (약 500자 내외로 매우 상세하고 깊이 있게 작성). 'campaign_id'는 제공된 데이터의 id 필드값(문자열 형태)과 정확히 일치해야 함."
-        }}
-      }}
+      반드시 아래 구조의 JSON 객체 하나만 반환하세요:
+      {{"channelSummary": "전체 채널 간 비교 및 예산 효율 분석 (약 200자)"}}
 
-      [🚨 금지 사항]
+      [가이드라인]
       - 일반론적인 조언 금지. 수치와 데이터에 기반할 것.
-      - 존댓말(해요/비니다)을 사용할 것.
-      - JSON 외의 다른 텍스트는 포함하지 말 것.
+      - 존댓말(해요/합니다) 사용
+      - JSON 외 텍스트 금지
+      - Karrot은 당근으로 표시해
     `);
 
-    const formattedPrompt = await prompt.format({
-      selectedMonth,
-      platforms: JSON.stringify(platformData),
-      trends: JSON.stringify(trendsData),
-      campaigns: JSON.stringify(campaignData),
-    });
+    // ⚡ 5개 프롬프트 병렬 실행 (Promise.all - 순차 실행 대비 약 4~5배 빠름)
+    console.log(`🤖 [LLM] 월별 분석 병렬 실행 시작 (${selectedMonth})...`);
+    const [overallRes, channelsRes, trendRes, campaignsRes, channelSummaryRes] = await Promise.all([
+      model.invoke(await overallPrompt.format({ selectedMonth, platforms: JSON.stringify(platformData), trends: JSON.stringify(trendsData) })),
+      model.invoke(await channelsPrompt.format({ selectedMonth, platforms: JSON.stringify(platformData) })),
+      model.invoke(await trendPrompt.format({ selectedMonth, trends: JSON.stringify(trendsData) })),
+      model.invoke(await campaignsPrompt.format({ selectedMonth, campaigns: JSON.stringify(campaignData) })),
+      model.invoke(await channelSummaryPrompt.format({ selectedMonth, platforms: JSON.stringify(platformData), trends: JSON.stringify(trendsData), campaigns: JSON.stringify(campaignData) })),
+    ]);
 
-    console.log(`🤖 [LLM] 월별 고도화 분석 시작 (${selectedMonth})...`);
-    const response = await model.invoke(formattedPrompt);
-    const content = response.content as string;
+    // 5개 결과를 하나의 JSON 객체로 합산 후 문자열 직렬화
+    const content = JSON.stringify({
+      ...JSON.parse(overallRes.content as string),
+      ...JSON.parse(channelsRes.content as string),
+      ...JSON.parse(trendRes.content as string),
+      ...JSON.parse(campaignsRes.content as string),
+      ...JSON.parse(channelSummaryRes.content as string),
+    });
     
     // 💡 분석된 결과를 insights 테이블에 영구 저장 (과거 내역이 있다면 삭제 후 최신본 덮어쓰기)
     await pool.query(`DELETE FROM insights WHERE user_id = ? AND type = 'monthly_report' AND title = ?`, [userId, selectedMonth]);
