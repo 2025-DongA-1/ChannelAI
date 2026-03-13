@@ -271,7 +271,7 @@ export default function MonthlyReportPage() {
 
           // export=true 이면 렌더링 후 자동 캡처
           if (params.get('export') === 'true' && finalMonth) {
-            setTimeout(() => autoExportPDF(finalMonth), 1500);
+            setTimeout(() => autoExportPDF(finalMonth), 3500); // [2026-03-13] 차트 렌더링 대기 1500→3500ms
           }
         }
       } catch (err) {
