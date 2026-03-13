@@ -5,6 +5,11 @@ interface TutorialState {
   isTutorialModeEnabled: boolean;
   toggleTutorialMode: () => void;
   setTutorialMode: (enabled: boolean) => void;
+  
+  // Triggers for specific tours
+  pendingTour: 'nav' | 'dashboard' | null;
+  triggerTour: (tour: 'nav' | 'dashboard') => void;
+  consumeTour: () => void;
 }
 
 export const useTutorialStore = create<TutorialState>()(
@@ -13,6 +18,10 @@ export const useTutorialStore = create<TutorialState>()(
       isTutorialModeEnabled: true, // Default to true
       toggleTutorialMode: () => set((state) => ({ isTutorialModeEnabled: !state.isTutorialModeEnabled })),
       setTutorialMode: (enabled) => set({ isTutorialModeEnabled: enabled }),
+      
+      pendingTour: null,
+      triggerTour: (tour) => set({ pendingTour: tour }),
+      consumeTour: () => set({ pendingTour: null }),
     }),
     {
       name: 'tutorial-storage',
