@@ -850,6 +850,131 @@ export const generatePlatformInsights = async (req: AuthRequest, res: Response) 
   }
 };
 
+// 🤖 [2026-03-13] 월별 성과 보고서 DB 조회 (캐싱 목적 이상으로 영구 저장된 기록 조회)
+export const getMonthlyReportInsights = async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    const { month } = req.query;
+
+    if (!userId || !month) return res.status(400).json({ success: false, error: '유효하지 않은 요청입니다.' });
+
+    const query = `
+      SELECT content 
+      FROM insights 
+      WHERE user_id = ? AND type = 'monthly_report' AND title = ?
+      ORDER BY created_at DESC LIMIT 1
+    `;
+    const result = await pool.query(query, [userId, month]);
+
+    if ((result as any).rows.length > 0) {
+      return res.json({ success: true, data: JSON.parse((result as any).rows[0].content) });
+    } else {
+      return res.json({ success: true, data: null });
+    }
+  } catch (error: any) {
+    console.error('월별 보고서 AI 분석 DB 조회 오류:', error);
+    return res.status(500).json({ success: false, error: '조회 중 오류가 발생했습니다.' });
+  }
+};
+
+// 🤖 [2026-03-13] 월별 성과 보고서 전용 고도화된 AI 인사이트 생성 (생성 후 DB 영구 저장)
+export const generateMonthlyReportInsights = async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    const { trendsData, platformData, campaignData, selectedMonth, forceRefresh } = req.body;
+
+    if (!userId) {
+      return res.status(401).json({ success: false, error: '인증이 필요합니다.' });
+    }
+
+    if (!process.env.OPENAI_API_KEY) {
+      return res.status(500).json({ success: false, error: 'OpenAI API 키가 설정되지 않았습니다.' });
+    }
+
+    const cacheKey = generateCacheKey('monthly_report_v2', { selectedMonth, userId, trendsData, platformData, campaignData });
+    const cachedData = insightsCache.get(cacheKey);
+    
+    if (!forceRefresh && cachedData && (Date.now() - cachedData.timestamp < CACHE_TTL)) {
+      return res.json({
+        success: true,
+        data: JSON.parse(cachedData.result)
+      });
+    }
+
+    const model = new ChatOpenAI({
+      modelName: 'gpt-4o-mini', 
+      temperature: 0.3,
+      modelKwargs: { "response_format": { "type": "json_object" } } // JSON 모드 활성화
+    });
+
+    const prompt = PromptTemplate.fromTemplate(`
+      당신은 마케팅 성과 분석 전문가이자 비즈니스 컨설턴트입니다.
+      제공된 월별 성과 데이터와 추이 데이터를 바탕으로 다각도로 분석하여 **JSON 형식**으로 응답해 주세요.
+
+      [분석 대상 데이터]
+      - 선택 월: {selectedMonth}
+      - 플랫폼 성과: {platforms}
+      - 최근 6개월 추이: {trends}
+      - 주요 캠페인 성과: {campaigns}
+
+      [🚨 응답 JSON 구조 및 가이드라인]
+      반드시 아래 구조를 가진 JSON 객체 하나만 반환하세요:
+      {{
+        "overall": "선택 월 전체 성과 요약 (약 200자, 따뜻하고 전문적인 어조)",
+        "channels": {{
+          "platform_code": "해당 채널의 핵심 성과 요약 (약 50자, 짧고 강렬하게). 'platform_code'는 제공된 데이터의 platform 필드값(meta, google, naver, karrot 등)과 정확히 일치해야 함."
+        }},
+        "channelSummary": "전체 채널 간 비교 및 예산 효율 분석 (약 200자)",
+        "trendSummary": "데이터 기반의 최근 6개월 추세 분석 및 향후 예측 (약 200자)",
+        "campaigns": {{
+          "campaign_id": "해당 캠페인의 성과 원인, 데이터 기반의 구체적인 문제점, 그리고 즉각 실행 가능한 최적화 가이드 (약 500자 내외로 매우 상세하고 깊이 있게 작성). 'campaign_id'는 제공된 데이터의 id 필드값(문자열 형태)과 정확히 일치해야 함."
+        }}
+      }}
+
+      [🚨 금지 사항]
+      - 일반론적인 조언 금지. 수치와 데이터에 기반할 것.
+      - 존댓말(해요/비니다)을 사용할 것.
+      - JSON 외의 다른 텍스트는 포함하지 말 것.
+    `);
+
+    const formattedPrompt = await prompt.format({
+      selectedMonth,
+      platforms: JSON.stringify(platformData),
+      trends: JSON.stringify(trendsData),
+      campaigns: JSON.stringify(campaignData),
+    });
+
+    console.log(`🤖 [LLM] 월별 고도화 분석 시작 (${selectedMonth})...`);
+    const response = await model.invoke(formattedPrompt);
+    const content = response.content as string;
+    
+    // 💡 분석된 결과를 insights 테이블에 영구 저장 (과거 내역이 있다면 삭제 후 최신본 덮어쓰기)
+    await pool.query(`DELETE FROM insights WHERE user_id = ? AND type = 'monthly_report' AND title = ?`, [userId, selectedMonth]);
+    
+    const insertQuery = `
+      INSERT INTO insights (user_id, type, title, content, metadata, priority, is_read, is_applied)
+      VALUES (?, 'monthly_report', ?, ?, ?, 3, 0, 0)
+    `;
+    await pool.query(insertQuery, [
+      userId,
+      selectedMonth,
+      content,
+      JSON.stringify({ generated_from: 'gpt-4o-mini', timestamp: Date.now() })
+    ]);
+
+    insightsCache.set(cacheKey, { result: content, timestamp: Date.now() });
+
+    return res.json({
+      success: true,
+      data: JSON.parse(content)
+    });
+
+  } catch (error: any) {
+    console.error('월별 보고서 AI 분석 오류:', error);
+    return res.status(500).json({ success: false, error: '상세 분석 생성 중 오류가 발생했습니다.' });
+  }
+};
+
 // =============================================================
 // 내부 분석 함수 (추후 ML 모델로 교체 예정)
 // =============================================================

@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { analyzeAndRecommend, getAgentStatus, getAdvancedMetrics, getMLRealtime, generateLLMInsights, generatePlatformInsights } from '../controllers/aiAgentController';
+import { analyzeAndRecommend, getAgentStatus, getAdvancedMetrics, getMLRealtime, generateLLMInsights, generatePlatformInsights, generateMonthlyReportInsights, getMonthlyReportInsights } from '../controllers/aiAgentController';
 import { authenticate } from '../middlewares/auth';
 
 const router = Router();
@@ -21,5 +21,11 @@ router.post('/agent/generate-insights', authenticate, generateLLMInsights);
 
 // 🤖 [추가됨] 플랫폼 성과 비교 분석 전용 엔드포인트
 router.post('/agent/generate-platform-insights', authenticate, generatePlatformInsights);
+
+// 🤖 [2026-03-13] 월별 성과 보고서 고도화 분석 내용 조회
+router.get('/agent/monthly-report-insights', authenticate, getMonthlyReportInsights);
+
+// 🤖 [2026-03-13] 월별 성과 보고서 고도화 분석 전용 엔드포인트
+router.post('/agent/monthly-report-insights', authenticate, generateMonthlyReportInsights);
 
 export default router;
