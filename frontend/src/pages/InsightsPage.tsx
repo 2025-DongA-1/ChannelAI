@@ -1,5 +1,6 @@
 // 💡 [수정됨] React에서 useEffect를 추가로 불러옵니다.
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { insightsAPI, api } from '@/lib/api';
 import { 
@@ -68,6 +69,7 @@ const TOUR_STEPS = [
 ];
 
 export default function InsightsPage() {
+  const navigate = useNavigate();
   const [dateRange, setDateRange] = useState({
     start: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
     end: new Date().toISOString().split('T')[0],
@@ -230,9 +232,9 @@ export default function InsightsPage() {
     setDateRange(prev => ({ ...prev, [field]: value }));
   };
 
+  // [2026-03-13] 월별 성과 보고서 페이지로 이동 후 PDF 자동 저장, 완료 시 인사이트 페이지로 복귀
   const handleExportPDF = () => {
-    // PDF 생성 로직 (추후 구현)
-    alert('PDF 리포트 다운로드 기능은 곧 제공됩니다.');
+    navigate('/monthly-report?export=true&redirect=insights');
   };
 
   const getChangeIcon = (change: number) => {

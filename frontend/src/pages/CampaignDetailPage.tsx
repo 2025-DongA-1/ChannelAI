@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { campaignAPI } from '@/lib/api';
@@ -367,7 +368,7 @@ export default function CampaignDetailPage() {
       </div>
 
       {/* Performance Summary */}
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-4 md:grid-cols-2 lg:grid-cols-4 lg:gap-6">
+      <div id="tour-metrics" className="grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-4 md:grid-cols-2 lg:grid-cols-4 lg:gap-6">
         <div className="bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-gray-100">
           <div className="flex items-center justify-between mb-2">
             <p className="text-sm text-gray-500">총 노출수</p>
@@ -402,7 +403,7 @@ export default function CampaignDetailPage() {
       </div>
 
       {/* Performance Chart */}
-      <div className="bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-gray-100">
+      <div id="tour-chart" className="bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-gray-100">
         <h2 className="text-lg font-semibold text-gray-900 mb-4">성과 추이</h2>
         <ResponsiveContainer width="100%" height={300}>
           <LineChart data={chartData}>
@@ -419,7 +420,7 @@ export default function CampaignDetailPage() {
       </div>
 
       {/* Daily Metrics Table */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+      <div id="tour-daily-table" className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
         <div className="p-4 sm:p-6 border-b border-gray-100">
           <h2 className="text-lg font-semibold text-gray-900">일별 성과 데이터</h2>
         </div>
@@ -478,6 +479,89 @@ export default function CampaignDetailPage() {
           </table>
         </div>
       </div>
+      {/* --- Tour Overlay --- */}
+      {showTour && createPortal(
+        <div className="fixed inset-0 z-[90]">
+          <svg className="absolute inset-0 w-full h-full" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <mask id="campaign-tour-mask">
+                <rect width="100%" height="100%" fill="white" />
+                {(() => {
+                  const el = document.getElementById(TOUR_STEPS[currentStep]?.targetId);
+                  if (!el) return null;
+                  const r = el.getBoundingClientRect();
+                  return (
+                    <rect
+                      x={r.left - 8} y={r.top - 8}
+                      width={r.width + 16} height={r.height + 16}
+                      rx="12" fill="black"
+                    />
+                  );
+                })()}
+              </mask>
+            </defs>
+            <rect width="100%" height="100%" fill="rgba(0,0,0,0.6)" mask="url(#campaign-tour-mask)" />
+          </svg>
+
+          {(() => {
+            const el = document.getElementById(TOUR_STEPS[currentStep]?.targetId);
+            if (!el) return null;
+            const r = el.getBoundingClientRect();
+            const step = TOUR_STEPS[currentStep];
+            const isTop = step.position === 'top';
+            return (
+              <div
+                className="absolute bg-white rounded-xl p-5 shadow-2xl w-72 md:w-80 border-2 border-indigo-500 z-[95]"
+                style={{
+                  top: isTop ? r.top - 180 : r.bottom + 16,
+                  left: Math.max(10, Math.min(window.innerWidth - 340, r.left)),
+                }}
+              >
+                <div className="flex justify-between items-center mb-2">
+                  <h3 className="font-bold text-gray-900 border-b-2 border-indigo-200 pb-1">{step.title}</h3>
+                  <span className="text-xs bg-indigo-100 text-indigo-600 px-2 py-0.5 rounded-full font-bold">
+                    {currentStep + 1} / {TOUR_STEPS.length}
+                  </span>
+                </div>
+                <p className="text-sm text-gray-600 mb-5 leading-relaxed">{step.description}</p>
+                <div className="flex justify-between items-center">
+                  <button
+                    onClick={() => setShowTour(false)}
+                    className="text-xs text-gray-400 hover:text-gray-600"
+                  >
+                    건너뛰기
+                  </button>
+                  <div className="flex gap-2">
+                    {currentStep > 0 && (
+                      <button
+                        onClick={() => setCurrentStep(currentStep - 1)}
+                        className="px-4 py-1.5 text-sm font-medium bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200"
+                      >
+                        이전
+                      </button>
+                    )}
+                    <button
+                      onClick={() => {
+                        if (currentStep < TOUR_STEPS.length - 1) {
+                          const nextEl = document.getElementById(TOUR_STEPS[currentStep + 1]?.targetId);
+                          if (nextEl) nextEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                          setTimeout(() => setCurrentStep(currentStep + 1), 350);
+                        } else {
+                          setShowTour(false);
+                        }
+                      }}
+                      className="px-4 py-1.5 text-sm font-medium bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
+                    >
+                      {currentStep < TOUR_STEPS.length - 1 ? '다음' : '완료'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
+        </div>,
+        document.body
+      )}
     </div>
   );
 }

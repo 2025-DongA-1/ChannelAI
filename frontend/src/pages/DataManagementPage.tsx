@@ -2,7 +2,7 @@
 import { useState, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { metricAPI, integrationAPI } from '../lib/api';
-import { RefreshCw, Search, Trash2, Edit2, X, Check, UploadCloud, Database } from 'lucide-react';
+import { RefreshCw, Search, Trash2, Edit2, X, Check, UploadCloud, Database, Download } from 'lucide-react';
 
 export default function DataManagementPage() {
   const queryClient = useQueryClient();
@@ -161,6 +161,15 @@ export default function DataManagementPage() {
             accept=".csv" 
             className="hidden" 
           />
+          {/* [2026-03-13] 샘플 CSV 양식 다운로드 버튼 추가 */}
+          <a
+            href="/channel_ai_export.csv"
+            download="channel_ai_export.csv"
+            className="flex items-center px-4 py-2 bg-gray-50 border border-gray-200 text-gray-600 rounded-xl font-medium hover:bg-gray-100 transition shadow-sm"
+          >
+            <Download className="w-4 h-4 mr-2" />
+            양식 다운로드
+          </a>
           <button
             onClick={() => fileInputRef.current?.click()}
             disabled={isUploading}

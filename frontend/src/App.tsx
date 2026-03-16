@@ -24,6 +24,7 @@ import MarketingAnalysis from './pages/MarketingAnalysis';
 import CreativeAgentPage from './pages/CreativeAgentPage';
 import logo from "./assets/logo_crop.png";
 import MainPage from './pages/MainPage';
+import FloatingTutorialButton from './components/FloatingTutorialButton';
 
 // Placeholder components (to be created)
 const AccountsPage = () => <div className="p-8">계정 관리 (구현 필요)</div>;
@@ -186,6 +187,7 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
         )}
       </nav>
       <main className="flex-grow w-full">{children}</main>
+      <FloatingTutorialButton />
     </div>
   );
 };

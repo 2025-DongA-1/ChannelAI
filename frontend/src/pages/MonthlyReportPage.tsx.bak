@@ -1,6 +1,5 @@
 // [2026-03-12 15:32] 캠페인별 성과 탭 추가 - useMemo 추가
 import { useState, useEffect, useRef, useMemo } from "react";
-import { useNavigate } from "react-router-dom";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import {
   AreaChart, Area, BarChart, Bar, LineChart, Line,
@@ -11,8 +10,6 @@ import {
 // [2026-03-12 17:52] AI 인사이트를 위한 아이콘 추가 (Sparkles, RefreshCcw)
 import { LayoutDashboard, DownloadCloud, Mail, Sparkles, RefreshCcw } from 'lucide-react';
 import { api } from '../lib/api';
-// [2026-03-13] 사용자 이메일 자동 사용을 위해 authStore import
-import { useAuthStore } from '../store/authStore';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf'; // [2026-03-09 09:22] jspdf 타입 호환성을 위해 named import 형식으로 수정
 
@@ -123,10 +120,6 @@ const CustomTooltip = ({ active, payload, label }: any) => {
  * 종합 요약, 배체별 분석, 시계열 추이 분석 등 다각적 리포팅 제공
  */
 export default function MonthlyReportPage() {
-  // [2026-03-13] 사용자 이메일 자동 사용 - prompt() 입력 제거
-  const { user } = useAuthStore();
-  const navigate = useNavigate();
-
   // 백엔드에서 받아온 전체 월별 데이터맵 객체
   const [monthlyData, setMonthlyData] = useState<Record<string, any>>({});
   
@@ -185,10 +178,9 @@ export default function MonthlyReportPage() {
     queryKey: ['monthlyInsights', selectedMonth],
     queryFn: async () => {
       if (!selectedMonth) return null;
-      // 🧐 백엔드 GET 엔드포인트: 이미 저장된 JSON 데이터를 파싱해서 반환함
       const res = await api.get(`/ai/agent/monthly-report-insights?month=${selectedMonth}`);
       if (res.data?.success && res.data?.data) {
-        return res.data.data; // 파싱된 JSON 객체
+        return res.data.data.content;
       }
       return null;
     },
@@ -222,29 +214,28 @@ export default function MonthlyReportPage() {
         roas: v.spend > 0 ? (curData.revenue * (v.spend/curData.cost)) / v.spend * 100 : 0 // 단순 배분 가정
       }));
 
-      // 🤖 DB에 저장하고 가져오는 POST 엔드포인트 호출 (캠페인 데이터 추가 전달)
+      // 🤖 DB에 저장하고 가져오는 새로운 POST 엔드포인트 호출
       const response = await api.post('/ai/agent/monthly-report-insights', {
         trendsData,
         platformData,
-        campaignData: campaigns, // 캠페인별 분석을 위해 추가 전달
         forceRefresh,
         reportType: 'monthly',
         selectedMonth
       });
-      return response.data; // { success: true, data: { overall, campaigns... } }
+      return response.data;
     }
   });
 
-  // LLM Mutation 결과 우선, 없으면 DB 데이터 사용
-  const llmInsightData = llmMutation.data?.data;
-  const insights = llmInsightData || dbInsightsData;
+  // DB 데이터 우선, 새로고침 시 LLM 데이터 우선, 둘 다 없으면 undefined
+  const llmInsightText = llmMutation.data?.data?.insightText;
+  const insights = llmInsightText || dbInsightsData;
   const isLlmLoading = llmMutation.isPending || isDbInsightsLoading;
 
-  // 월(month)이 변경되면 활성화된 LLM(mutation) 상태를 리셋
+  // 월(month)이 변경되면 기존에 수행했던 LLM 상태를 리셋
   useEffect(() => {
     llmMutation.reset();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedMonth]);
+
 
   /**
    * 컴포넌트 최초 마운트 시, API에서 월별 리포트 데이터를 호출하여 가공 및 상태에 저장합니다.
@@ -266,16 +257,12 @@ export default function MonthlyReportPage() {
           // URL 파라미터 확인 (?month=2026-02&export=true)
           const params = new URLSearchParams(window.location.search);
           const urlMonth = params.get('month');
-          // [2026-03-13] 디폴트를 전월(현재월 -1)로 설정 (없으면 가장 최근 월로 폴백)
-          const prevMonthStr = toMonthStr(new Date(now.getFullYear(), now.getMonth() - 1, 1));
-          const finalMonth = mData[urlMonth || '']
-            ? urlMonth!
-            : (mData[prevMonthStr] ? prevMonthStr : (sorted[sorted.length - 1] || ''));
+          const finalMonth = mData[urlMonth || ''] ? urlMonth! : (sorted[sorted.length - 1] || '');
           if (finalMonth) setSelectedMonth(finalMonth);
 
           // export=true 이면 렌더링 후 자동 캡처
           if (params.get('export') === 'true' && finalMonth) {
-            setTimeout(() => autoExportPDF(finalMonth), 3500); // [2026-03-13] 차트 렌더링 대기 1500→3500ms
+            setTimeout(() => autoExportPDF(finalMonth), 1500);
           }
         }
       } catch (err) {
@@ -290,7 +277,7 @@ export default function MonthlyReportPage() {
   // [2026-03-11 12:45] 백엔드 Puppeteer 스크래핑용 자동 PDF 변환 로직
   const autoExportPDF = async (month: string) => {
     setIsExporting(true);
-    await new Promise(resolve => setTimeout(resolve, 3500)); // [2026-03-13] 차트 애니메이션 대기 2000→3500ms
+    await new Promise(resolve => setTimeout(resolve, 2000)); // 차트 애니메이션 대기
     try {
       const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
       const A4_W = 210, A4_H = 297, MARGIN = 10, CONTENT_W = A4_W - MARGIN * 2;
@@ -343,16 +330,10 @@ export default function MonthlyReportPage() {
           yOffset += sliceH;
         }
       }
-      // [2026-03-13] PDF 파일 다운로드 저장
-      pdf.save(`ChannelAI_통합리포트_${month}.pdf`);
     } catch (e) {
       console.error(e);
     } finally {
       setIsExporting(false);
-      // [2026-03-13] redirect 파라미터가 있으면 PDF 저장 완료 후 해당 페이지로 복귀
-      const params = new URLSearchParams(window.location.search);
-      const redirect = params.get('redirect');
-      if (redirect) navigate(`/${redirect}`);
     }
   };
 
@@ -375,17 +356,8 @@ export default function MonthlyReportPage() {
   const handleDownloadPDF = async () => {
   setIsExporting(true); // 모든 탭 DOM 강제 렌더
 
-  // [2026-03-13] PRO 플랜 사용자이고 AI 분석 결과가 없으면 PDF 전에 자동 갱신 실행
-  if (user?.plan === 'PRO' && !insights) {
-    try {
-      await llmMutation.mutateAsync(false); // forceRefresh: false (캐시 우선)
-    } catch (e) {
-      console.warn('PRO 플랜 AI 분석 자동 실행 실패, PDF는 계속 진행:', e);
-    }
-  }
-
   // Recharts SVG 애니메이션 완료 대기
-  await new Promise(resolve => setTimeout(resolve, 3500)); // [2026-03-13] 차트 렌더링 대기 1500→3500ms
+  await new Promise(resolve => setTimeout(resolve, 1500));
 
   try {
     const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
@@ -483,16 +455,16 @@ const TAB_LABELS = ["종합 성과 현황", "채널별 분석 데이터", "기�
   }
 };
 
-  // [2026-03-13] 현재 보고서를 PDF로 생성한 뒤, 로그인 사용자 이메일로 전송 (prompt 제거)
+  // [2026-03-11 12:07] 현재 보고서를 PDF로 생성한 뒤, 입력한 이메일로 전송
   const [isSendingEmail, setIsSendingEmail] = useState(false);
   const handleSendEmail = async () => {
-    const email = user?.email;
-    if (!email) return alert('로그인 사용자 이메일을 확인할 수 없습니다.');
+    const email = prompt('보고서를 전송할 이메일 주소를 입력하세요:');
+    if (!email || !email.trim()) return;
 
     setIsSendingEmail(true);
     setIsExporting(true); // 탭 DOM 강제 렌더
 
-    await new Promise(resolve => setTimeout(resolve, 3500)); // [2026-03-13] 차트 렌더링 대기 1500→3500ms
+    await new Promise(resolve => setTimeout(resolve, 1500));
 
     try {
       // 동일한 PDF 생성 로직
@@ -633,8 +605,8 @@ const TAB_LABELS = ["종합 성과 현황", "채널별 분석 데이터", "기�
   // [2026-03-12 15:32] 캠페인별 성과 탭 추가
   const TABS = [
     { id:"overview", label:"📊 종합 현황" },
-    { id:"trend",    label:"📈 추이 분석" },
     { id:"platform", label:"📡 채널별 분석" },
+    { id:"trend",    label:"📈 추이 분석" },
     { id:"campaign", label:"📋 캠페인별 성과" },
   ];
 
@@ -713,12 +685,11 @@ const TAB_LABELS = ["종합 성과 현황", "채널별 분석 데이터", "기�
                 </button>
                 <button 
                   onClick={async () => {
-                    // [2026-03-13] 로그인 사용자 이메일 자동 사용 (prompt 제거)
-                    const email = user?.email;
-                    if (!email) return alert('로그인 사용자 이메일을 확인할 수 없습니다.');
+                    const email = prompt('보고서를 전송할 이메일 주소를 입력하세요 (서버 발송):');
+                    if (!email || !email.trim()) return;
                     setIsSendingServerEmail(true);
                     try {
-                      const res = await api.post('/report/send-to', { email });
+                      const res = await api.post('/report/send-to', { email: email.trim() });
                       alert(res.data.message || '서버 발송 요청이 전달되었습니다.');
                     } catch(err) {
                       alert('서버 발송 요청 실패');
@@ -762,52 +733,19 @@ const TAB_LABELS = ["종합 성과 현황", "채널별 분석 데이터", "기�
             </div>
           </div>
 
-          <div className="flex flex-col gap-4 mt-4">
-            {/* 탭 네비게이션 */}
-            <div className="flex gap-2 print:hidden overflow-x-auto no-scrollbar border-b border-gray-100">
-              {TABS.map(t => (
-                <button key={t.id} onClick={() => setActiveTab(t.id)} 
-                  className={`px-5 py-3 text-sm font-bold whitespace-nowrap border-b-2 transition-colors ${
-                    activeTab === t.id 
-                      ? "border-blue-600 text-blue-700" 
-                      : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
-                  }`}
-                >
-                  {t.label}
-                </button>
-              ))}
-            </div>
-
-            {/* [2026-03-13] 스마트 AI 변경: 캘린더 기간 표시 및 AI 분석 버튼을 탭 아래 라인으로 이동 */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-              {selectedMonth && (() => {
-                const [y, m] = selectedMonth.split('-').map(Number);
-                const today = new Date();
-                const isCurrentMonth = y === today.getFullYear() && m === (today.getMonth() + 1);
-                const firstDay = `${y}년 ${m}월 01일`;
-                const lastDate = isCurrentMonth ? today.getDate() : new Date(y, m, 0).getDate();
-                const lastDay  = `${y}년 ${m}월 ${String(lastDate).padStart(2, '0')}일`;
-                return (
-                  <div className="flex items-center gap-1.5 px-4 py-2 bg-blue-50/50 border border-blue-100 rounded-xl text-sm font-semibold text-blue-700 shadow-sm print:hidden">
-                    <span>📅</span>
-                    <span>조회 기간: {firstDay} ~ {lastDay}</span>
-                    {isCurrentMonth && (
-                      <span className="ml-1 px-2 py-0.5 bg-blue-500 text-white rounded-full text-[10px] font-bold">진행중</span>
-                    )}
-                  </div>
-                );
-              })()}
-
-              {/* 🤖 AI 분석 갱신 버튼 (날짜와 같은 라인 끝에 배치) */}
-              <button
-                onClick={() => llmMutation.mutate(true)}
-                disabled={isLlmLoading || isExporting}
-                className="print:hidden flex items-center justify-center gap-2 px-6 py-2 rounded-xl text-sm font-bold shadow-sm transition-all bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed group"
+          {/* 탭 네비게이션 (인쇄 시에는 탭 UI 생략) */}
+          <div className="flex gap-2 mt-4 print:hidden overflow-x-auto no-scrollbar">
+            {TABS.map(t => (
+              <button key={t.id} onClick={() => setActiveTab(t.id)} 
+                className={`px-5 py-3 text-sm font-bold whitespace-nowrap border-b-2 transition-colors ${
+                  activeTab === t.id 
+                    ? "border-blue-600 text-blue-700" 
+                    : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+                }`}
               >
-                <RefreshCcw size={16} className={`${isLlmLoading ? 'animate-spin' : 'group-hover:rotate-180 transition-transform duration-700'}`} />
-                {isLlmLoading ? "AI 분석 리포트 생성 중..." : (insights ? "분석 리포트 갱신" : "AI 분석 리포트 생성")}
+                {t.label}
               </button>
-            </div>
+            ))}
           </div>
         </div>
       </div>
@@ -816,29 +754,86 @@ const TAB_LABELS = ["종합 성과 현황", "채널별 분석 데이터", "기�
       <div className="flex-grow flex flex-col items-center">
         <div ref={reportRef} className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8" key={animKey}>
 
-          {/* ===== 탭 1: 종합 현황 ===== */}
-          <div ref={overviewRef} className={`${(activeTab === "overview" || isExporting) ? "block" : "hidden"} animate-fade-in-up space-y-6 ${isExporting ? 'mb-24 page-break-after' : ''}`}>
-
-              {/* 🤖 [2026-03-13] 각 탭 내부에 AI 분석 블록 표시 (overall) */}
-              <div className="bg-indigo-50/40 border-2 border-dashed border-indigo-500/50 rounded-xl p-5 relative print:hidden">
-                <div className="absolute top-0 left-0 w-1 h-full bg-indigo-400 rounded-l-xl opacity-70" />
-                <div className="flex items-center gap-2 mb-3">
-                  <div className="p-1 px-2 bg-indigo-500 text-white rounded-md flex items-center gap-1.5 shadow-sm">
-                    <Sparkles size={12} />
-                    <span className="text-[10px] font-black uppercase tracking-wider">AI 인공지능 종합 진단 리포트</span>
-                  </div>
-                </div>
-                <div className="text-sm text-gray-700 leading-relaxed font-medium">
-                  {isLlmLoading ? (
-                    <div className="space-y-2">
-                      <div className="h-4 bg-indigo-100/50 animate-pulse rounded w-full" />
-                      <div className="h-4 bg-indigo-100/50 animate-pulse rounded w-5/6" />
-                    </div>
-                  ) : (
-                    insights?.overall || "⚠️ 요약된 상세 분석 데이터가 없습니다. 상단 'AI 분석 갱신' 버튼을 클릭해주세요."
+          {/* [2026-03-12 17:42] 수정 이유: 기간 표시를 탭바 아래로 이동
+              상세 설명: 현재 월이면 오늘까지, 지난 달이면 말일까지를 종료일로 표시. */}
+          {selectedMonth && (() => {
+            const [y, m] = selectedMonth.split('-').map(Number);
+            const today = new Date();
+            const isCurrentMonth = y === today.getFullYear() && m === (today.getMonth() + 1);
+            const firstDay = `${y}년 ${m}월 01일`;
+            const lastDate = isCurrentMonth ? today.getDate() : new Date(y, m, 0).getDate();
+            const lastDay  = `${y}년 ${m}월 ${String(lastDate).padStart(2, '0')}일`;
+            return (
+              <div className="flex items-center gap-2 mb-6">
+                <div className="flex items-center gap-1.5 px-4 py-2 bg-blue-50 border border-blue-100 rounded-xl text-sm font-semibold text-blue-700 shadow-sm">
+                  <span>📅</span>
+                  <span>조회 기간: {firstDay} ~ {lastDay}</span>
+                  {isCurrentMonth && (
+                    <span className="ml-1 px-2 py-0.5 bg-blue-500 text-white rounded-full text-[10px] font-bold">진행중</span>
                   )}
                 </div>
               </div>
+            );
+          })()}
+
+          {/* 🤖 [2026-03-13] 스마트 AI 인사이트 뷰어 (DB 연동 기반) */}
+          <div className="mb-8 print:hidden">
+            <div className="bg-gradient-to-br from-indigo-50 via-white to-purple-50 rounded-2xl border border-indigo-100/50 shadow-sm overflow-hidden p-6 relative group">
+              <div className="absolute top-0 right-0 p-8 opacity-10 pointer-events-none group-hover:rotate-12 transition-transform duration-500">
+                <Sparkles size={120} className="text-indigo-600" />
+              </div>
+              
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-2.5 bg-indigo-600 rounded-xl text-white shadow-lg shadow-indigo-200">
+                    <Sparkles size={20} />
+                  </div>
+                  <div>
+                    <h2 className="text-lg font-bold text-gray-900 leading-tight">AI 리포트 분석 인사이트</h2>
+                    <p className="text-xs text-indigo-500 font-medium mt-0.5">
+                      {insights ? (
+                        llmInsightText ? "✨ 방금 새롭게 생성된 AI 분석 리포트입니다." : "✅ 저장된 월간 AI 분석 리포트를 성공적으로 불러왔습니다."
+                      ) : (
+                        "⚠️ 해당 월의 AI 분석 데이터가 없습니다! 새로운 진단을 실행해주세요."
+                      )}
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => llmMutation.mutate(true)}
+                  disabled={isLlmLoading}
+                  className="flex items-center gap-2 px-6 py-2.5 bg-white border border-indigo-200 text-indigo-600 rounded-xl text-sm font-bold shadow-sm hover:bg-indigo-50 transition-all disabled:opacity-50 disabled:cursor-not-allowed group z-10 relative"
+                >
+                  <RefreshCcw size={16} className={`${isLlmLoading ? 'animate-spin' : 'group-hover:rotate-180 transition-transform duration-700'}`} />
+                  {insights ? "분석 리포트 갱신" : "상세 AI 분석 실행"}
+                </button>
+              </div>
+
+              {isLlmLoading ? (
+                <div className="space-y-3 py-4">
+                  <div className="h-4 bg-gray-200 rounded-full w-3/4 animate-pulse"></div>
+                  <div className="h-4 bg-gray-200 rounded-full w-1/2 animate-pulse"></div>
+                  <div className="h-4 bg-gray-200 rounded-full w-5/6 animate-pulse"></div>
+                </div>
+              ) : insights ? (
+                <div className="bg-white/60 backdrop-blur-sm border border-indigo-100/30 rounded-xl p-5 relative z-10">
+                  <div className="prose prose-sm max-w-none text-gray-700 leading-relaxed whitespace-pre-wrap">
+                    {insights}
+                  </div>
+                </div>
+              ) : (
+                <div className="py-8 text-center bg-white/40 border border-dashed border-indigo-200 rounded-xl relative z-10">
+                  <p className="text-sm text-gray-500 font-medium">상단 버튼을 클릭하여 리포트 요약 및 인사이트를 생성하세요.</p>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* ===== 탭 1: 종합 현황 ===== */}
+          <div ref={overviewRef} className={`${(activeTab === "overview" || isExporting) ? "block" : "hidden"} animate-fade-in-up space-y-6 ${isExporting ? 'mb-24 page-break-after' : ''}`}>
+
+
               {/* KPI 카드 */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 <KpiCard label="총 광고비" value={fmtKRW(cur.cost)} sub={`전월 ${fmtKRW(prev.cost)}`} delta={diff(cur.cost, prev.cost)} icon="💰" accent="#6366f1" />
@@ -949,17 +944,16 @@ const TAB_LABELS = ["종합 성과 현황", "채널별 분석 데이터", "기�
 
           {/* ===== 탭 2: 채널별 분석 ===== */}
           <div ref={platformRef} className={`${(activeTab === "platform" || isExporting) ? "block" : "hidden"} animate-fade-in-up space-y-6 ${isExporting ? 'mb-24 page-break-after' : ''}`}>
-
-              {/* [2026-03-13] 채널별 KPI 카드 - 기존 4열 스타일 유지 + 개별 AI 진단 블록 추가 */}
+              {/* 채널별 KPI 카드 */}
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-                {(Object.entries(cur.platforms) as [string, { spend: number; impressions: number; clicks: number; conversions: number }][]).map(([k, v]) => (
+                {Object.entries(cur.platforms).map(([k, v]: any) => (
                   <div key={k} className="bg-white border rounded-2xl p-6 shadow-sm relative overflow-hidden group hover:shadow-md transition" style={{ borderColor: `${PLATFORM_COLORS[k]}33` }}>
                     <div className="absolute inset-0 opacity-0 group-hover:opacity-10 transition-opacity pointer-events-none" style={{ background: `linear-gradient(135deg, ${PLATFORM_COLORS[k]} 0%, transparent 60%)` }} />
                     <div className="flex items-center gap-2 mb-4">
                       <div style={{ width:12, height:12, borderRadius:"50%", background:PLATFORM_COLORS[k] }} />
                       <span className="text-base font-bold text-gray-900">{PLATFORM_LABELS[k]}</span>
                     </div>
-
+                    
                     <div className="space-y-3">
                       {[
                         {l:"광고비", v:fmtKRW(v.spend)},
@@ -973,34 +967,13 @@ const TAB_LABELS = ["종합 성과 현황", "채널별 분석 데이터", "기�
                         </div>
                       ))}
                     </div>
-
+                    
                     <div className="mt-4 pt-4 border-t border-gray-100">
                       <div className="flex justify-between items-center">
                         <span className="text-xs font-bold text-gray-400">전체 대비 예산 비중</span>
                         <span className="text-base font-extrabold" style={{ color:PLATFORM_COLORS[k] }}>
                           {Math.round(v.spend / cur.cost * 100)}%
                         </span>
-                      </div>
-                    </div>
-
-                    {/* 채널별 개별 AI 진단 */}
-                    <div className="mt-4 bg-indigo-50/40 border border-dashed border-indigo-400/60 rounded-xl p-4 relative print:hidden">
-                      <div className="absolute top-0 left-0 w-1 h-full bg-indigo-400 rounded-l-xl opacity-60" />
-                      <div className="flex items-center gap-1.5 mb-2">
-                        <div className="p-0.5 px-2 bg-indigo-500 text-white rounded flex items-center gap-1 shadow-sm">
-                          <Sparkles size={10} />
-                          <span className="text-[9px] font-black uppercase tracking-wider">AI {PLATFORM_LABELS[k]} 진단</span>
-                        </div>
-                      </div>
-                      <div className="text-[11px] text-gray-700 leading-relaxed font-medium">
-                        {isLlmLoading ? (
-                          <div className="space-y-1.5">
-                            <div className="h-3 bg-indigo-100/50 animate-pulse rounded w-full" />
-                            <div className="h-3 bg-indigo-100/50 animate-pulse rounded w-4/5" />
-                          </div>
-                        ) : (
-                          insights?.channels?.[k] || "⚠️ 상단 'AI 분석 갱신' 버튼을 클릭해주세요."
-                        )}
                       </div>
                     </div>
                   </div>
@@ -1092,28 +1065,6 @@ const TAB_LABELS = ["종합 성과 현황", "채널별 분석 데이터", "기�
 
           {/* ===== 탭 3: 추이 분석 ===== */}
           <div  ref={trendRef} className={`${(activeTab === "trend" || isExporting) ? "block" : "hidden"} animate-fade-in-up space-y-6`}>
-              
-              {/* 🤖 [2026-03-13] 각 탭 내부에 AI 분석 블록 표시 (trendSummary) */}
-              <div className="bg-indigo-50/40 border-2 border-dashed border-indigo-500/50 rounded-xl p-5 relative print:hidden">
-                <div className="absolute top-0 left-0 w-1 h-full bg-indigo-400 rounded-l-xl opacity-70" />
-                <div className="flex items-center gap-2 mb-3">
-                  <div className="p-1 px-2 bg-indigo-500 text-white rounded-md flex items-center gap-1.5 shadow-sm">
-                    <Sparkles size={12} />
-                    <span className="text-[10px] font-black uppercase tracking-wider">AI 인공지능 최근 6개월 추세 진단</span>
-                  </div>
-                </div>
-                <div className="text-sm text-gray-700 leading-relaxed font-medium">
-                  {isLlmLoading ? (
-                    <div className="space-y-2">
-                      <div className="h-4 bg-indigo-100/50 animate-pulse rounded w-full" />
-                      <div className="h-4 bg-indigo-100/50 animate-pulse rounded w-5/6" />
-                    </div>
-                  ) : (
-                    insights?.trendSummary || "⚠️ 요약된 상세 분석 데이터가 없습니다. 상단 'AI 분석 갱신' 버튼을 클릭해주세요."
-                  )}
-                </div>
-              </div>
-
               {/* 광고비 & 매출 추이 */}
               <div className="bg-white border border-gray-100 rounded-2xl p-6 shadow-sm">
                 <SectionTitle sub="최근 6개월 광고비 지출 대비 매출 획득 변화 트렌드">광고비 · 매출 트렌드 (최근 6개월)</SectionTitle>
@@ -1223,6 +1174,7 @@ const TAB_LABELS = ["종합 성과 현황", "채널별 분석 데이터", "기�
                 </div>
               </div>
             </div>
+          </div>
 
           {/* [2026-03-12 16:02] 수정 이유: 인사이트 페이지 양식에 맞춘 캠페인 성과 탭 구현
               상세 설명: 캠페인별 광고 성과를 채널, 비용, 노출, 클릭, 전환, ROAS 지표로 세분화하여 리포팅함. */}
@@ -1243,95 +1195,71 @@ const TAB_LABELS = ["종합 성과 현황", "채널별 분석 데이터", "기�
                     return (
                       <div 
                         key={c.campaign_id} 
-                        className="bg-white border rounded-2xl p-6 shadow-sm relative overflow-hidden group hover:shadow-md transition flex flex-col gap-6" 
+                        className="bg-white border rounded-2xl p-6 shadow-sm relative overflow-hidden group hover:shadow-md transition flex flex-col md:flex-row items-center gap-8" 
                         style={{ borderColor: `${pColor}33` }}
                       >
                         {/* 배경 그라데이션 효과 (가로 방향) */}
-                        <div className="absolute top-0 left-0 right-0 h-24 opacity-0 group-hover:opacity-10 transition-opacity pointer-events-none" style={{ background: `linear-gradient(90deg, ${pColor} 0%, transparent 40%)` }} />
+                        <div className="absolute inset-0 opacity-0 group-hover:opacity-10 transition-opacity pointer-events-none" style={{ background: `linear-gradient(90deg, ${pColor} 0%, transparent 40%)` }} />
                         
-                        {/* 1. 상단 성과 및 플랫폼 정보 */}
-                        <div className="flex flex-col md:flex-row items-center gap-8 relative z-10">
-                          <div className="flex items-center gap-5 min-w-[240px]">
-                            <div className="w-12 h-12 rounded-full flex items-center justify-center text-xl font-black text-white shadow-lg" style={{ background: pColor }}>
-                              {idx + 1}
-                            </div>
-                            <div className="flex flex-col gap-1">
-                              <div className="flex items-center gap-2">
-                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full text-white uppercase" style={{ background: pColor }}>
-                                  {PLATFORM_LABELS[c.platform] || c.platform}
-                                </span>
-                                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                                  c.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'
-                                }`}>
-                                  {c.status === 'active' ? '● ACTIVE' : '○ PAUSED'}
-                                </span>
-                              </div>
-                              <p className="text-base font-bold text-gray-900 truncate max-w-[180px]" title={c.campaign_name}>
-                                {c.campaign_name}
-                              </p>
-                            </div>
+                        {/* 1. 순위 및 플랫폼 정보 */}
+                        <div className="flex items-center gap-5 min-w-[240px]">
+                          <div className="w-12 h-12 rounded-full flex items-center justify-center text-xl font-black text-white shadow-lg" style={{ background: pColor }}>
+                            {idx + 1}
                           </div>
-
-                          {/* 2. 주요 지표 데이터 (가로 배치) */}
-                          <div className="flex-grow grid grid-cols-2 lg:grid-cols-4 gap-6 w-full py-2">
-                            <div>
-                              <p className="text-[10px] text-gray-400 font-bold uppercase mb-1 tracking-wider">광고비</p>
-                              <p className="text-base font-black text-gray-800">{fmtKRW(c.cost)}</p>
-                            </div>
-                            <div>
-                              <p className="text-[10px] text-gray-400 font-bold uppercase mb-1 tracking-wider">노출 / 클릭</p>
-                              <p className="text-sm font-bold text-gray-700">{fmt(c.impressions)} / <span className="text-blue-500">{fmt(c.clicks)}</span></p>
-                            </div>
-                            <div>
-                              <p className="text-[10px] text-gray-400 font-bold uppercase mb-1 tracking-wider">전환수</p>
-                              <p className="text-base font-black text-indigo-600">{c.conversions.toLocaleString()}건</p>
-                            </div>
-                            <div>
-                              <p className="text-[10px] text-gray-400 font-bold uppercase mb-1 tracking-wider">ROAS 효율</p>
-                              <p className={`text-base font-black ${
-                                c.roas >= 300 ? 'text-green-600' : c.roas >= 100 ? 'text-amber-500' : 'text-red-500'
+                          <div className="flex flex-col gap-1">
+                            <div className="flex items-center gap-2">
+                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full text-white uppercase" style={{ background: pColor }}>
+                                {PLATFORM_LABELS[c.platform] || c.platform}
+                              </span>
+                              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                                c.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'
                               }`}>
-                                {c.roas}%
-                              </p>
-                            </div>
-                          </div>
-
-                          {/* 3. 예산 비중 바 (우측 배치) */}
-                          <div className="min-w-[140px] w-full md:w-auto border-t md:border-t-0 md:border-l border-gray-100 pt-4 md:pt-0 md:pl-6">
-                            <div className="flex justify-between items-center mb-2">
-                              <span className="text-[10px] text-gray-400 font-black">집행 비중</span>
-                              <span className="text-xs font-black" style={{ color: pColor }}>
-                                {cur.cost > 0 ? Math.round(c.cost / cur.cost * 100) : 0}%
+                                {c.status === 'active' ? '● ACTIVE' : '○ PAUSED'}
                               </span>
                             </div>
-                            <div className="w-full md:w-24 h-2.5 bg-gray-100 rounded-full overflow-hidden shadow-inner">
-                              <div 
-                                style={{ width: `${cur.cost > 0 ? Math.round(c.cost / cur.cost * 100) : 0}%`, background: pColor }} 
-                                className="h-full rounded-full transition-all duration-700 ease-out" 
-                              />
-                            </div>
+                            <p className="text-base font-bold text-gray-900 truncate max-w-[180px]" title={c.campaign_name}>
+                              {c.campaign_name}
+                            </p>
                           </div>
                         </div>
 
-                        {/* 4. AI 인공지능 캠페인 진단 리포트 (하단 배치) */}
-                        <div className="bg-indigo-50/40 border-2 border-dashed border-indigo-500/50 rounded-xl p-5 mt-2 relative">
-                          <div className="absolute top-3 right-3 bg-indigo-600 text-white text-[10px] px-2 py-1 rounded-full font-bold shadow-sm z-20 animate-pulse"> AI 분석</div>
-                          <div className="absolute top-0 left-0 w-1 h-full bg-indigo-400 rounded-l-xl opacity-70" />
-                          <div className="flex items-center gap-2 mb-3">
-                            <div className="p-1 px-2 bg-indigo-500 text-white rounded-md flex items-center gap-1.5 shadow-sm">
-                              <Sparkles size={12} />
-                              <span className="text-[10px] font-black uppercase tracking-wider">AI 인공지능 캠페인 진단 리포트</span>
-                            </div>
+                        {/* 2. 주요 지표 데이터 (가로 배치) */}
+                        <div className="flex-grow grid grid-cols-2 lg:grid-cols-4 gap-6 w-full py-2">
+                          <div>
+                            <p className="text-[10px] text-gray-400 font-bold uppercase mb-1 tracking-wider">광고비</p>
+                            <p className="text-base font-black text-gray-800">{fmtKRW(c.cost)}</p>
                           </div>
-                          <div className="text-[12px] text-gray-700 leading-relaxed font-medium">
-                            {isLlmLoading ? (
-                              <div className="space-y-2">
-                                <div className="h-3 bg-indigo-100/50 animate-pulse rounded w-full" />
-                                <div className="h-3 bg-indigo-100/50 animate-pulse rounded w-5/6" />
-                              </div>
-                            ) : (
-                              insights?.campaigns?.[c.campaign_id] || "⚠️ 해당 캠페인의 상세 분석 데이터가 없습니다. 상단 AI 분석 버튼을 클릭하여 생성해주세요."
-                            )}
+                          <div>
+                            <p className="text-[10px] text-gray-400 font-bold uppercase mb-1 tracking-wider">노출 / 클릭</p>
+                            <p className="text-sm font-bold text-gray-700">{fmt(c.impressions)} / <span className="text-blue-500">{fmt(c.clicks)}</span></p>
+                          </div>
+                          <div>
+                            <p className="text-[10px] text-gray-400 font-bold uppercase mb-1 tracking-wider">전환수</p>
+                            <p className="text-base font-black text-indigo-600">{c.conversions.toLocaleString()}건</p>
+                          </div>
+                          <div>
+                            <p className="text-[10px] text-gray-400 font-bold uppercase mb-1 tracking-wider">ROAS 효율</p>
+                            <p className={`text-base font-black ${
+                              c.roas >= 300 ? 'text-green-600' : c.roas >= 100 ? 'text-amber-500' : 'text-red-500'
+                            }`}>
+                              {c.roas}%
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* 3. 예산 비중 바 (우측 배치) */}
+                        <div className="min-w-[180px] w-full md:w-auto border-t md:border-t-0 md:border-l border-gray-100 pt-4 md:pt-0 md:pl-8">
+                          <div className="flex justify-between items-center mb-2">
+                            <span className="text-[11px] text-gray-400 font-black">전체 예산 비중</span>
+                            <span className="text-sm font-black" style={{ color: pColor }}>
+                              {cur.cost > 0 ? Math.round(c.cost / cur.cost * 100) : 0}%
+                            </span>
+                          </div>
+                          <div className="w-full md:w-32 h-2.5 bg-gray-100 rounded-full overflow-hidden shadow-inner">
+                            <div 
+                              style={{ width: `${cur.cost > 0 ? Math.round(c.cost / cur.cost * 100) : 0}%`, background: pColor }} 
+                              className="h-full rounded-full transition-all duration-700 ease-out" 
+                            />
                           </div>
                         </div>
                       </div>
@@ -1460,7 +1388,6 @@ const TAB_LABELS = ["종합 성과 현황", "채널별 분석 데이터", "기�
             )}
           </div>
         </div>
-      </div>
 
       <style>{`
         @keyframes fadeUp {

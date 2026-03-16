@@ -323,6 +323,11 @@ const DummyDataPage: React.FC = () => {
                 <FileSpreadsheet size={18} />
                 월별 성과 보고서 보기
               </Link>
+              {/* [2026-03-13] 신규 보고서 버튼 추가 - 동일 경로(/monthly-report), blue 계열로 구분 */}
+              <Link to="/monthly-report" className="inline-flex items-center gap-2 px-4 py-2 bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 rounded-xl font-bold transition">
+                <FileSpreadsheet size={18} />
+                신규 보고서
+              </Link>
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
