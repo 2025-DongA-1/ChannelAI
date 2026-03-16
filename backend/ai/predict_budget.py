@@ -5,40 +5,61 @@ import numpy as np
 from scipy.optimize import linprog
 import os
 import joblib
-
-# JSON 파싱 에러 방지
 import warnings
+
+# ----------------------------------------------------------
+# JSON 파싱/출력 과정에서 발생할 수 있는 불필요한 경고 메시지를 숨김
+# 실제 서비스에서 stderr가 너무 지저분해지는 것을 방지하기 위한 설정
+# ----------------------------------------------------------
 warnings.filterwarnings("ignore")
 
 # ==========================================
-# ★ [NEW] 8:2 하이브리드 앙상블 모델 설정값
+# ★ [NEW] 2:8 하이브리드 앙상블 모델 설정값
 # ==========================================
+# 학습 단계에서 저장해 둔 모델 파일명 / 스케일러 파일명
+# predict_budget.py는 이 두 파일을 불러와서 예측에 사용함
 ENSEMBLE_MODEL_FILENAME = 'ensemble_roas_model.pkl'
 SCALER_FILENAME = 'roas_scaler.pkl'
 
-# [추가] Windows(팀원) 환경에서 한글 깨짐 방지를 위한 입출력 강제 UTF-8 설정
+# ----------------------------------------------------------
+# Windows 환경에서 한글/이모지 출력이 깨지는 현상을 방지하기 위한 인코딩 처리
+# stdout / stderr를 utf-8로 강제 설정
+# ----------------------------------------------------------
 if sys.stdout.encoding.lower() != 'utf-8':
     sys.stdout.reconfigure(encoding='utf-8')
 if sys.stderr.encoding.lower() != 'utf-8':
     sys.stderr.reconfigure(encoding='utf-8')
-
-# ==========================================
-# ★ [여기를 추가해주세요] 윈도우 이모지 에러 방지 코드
-# ==========================================
 if sys.platform.startswith('win'):
     sys.stdout.reconfigure(encoding='utf-8')
-# ==========================================
 
-# ==========================================
-# ★ [NEW] stderr 로깅 (stdout JSON 깨짐 방지)
-# ==========================================
+
 def log(*args):
+    """
+    일반 출력(stdout)이 아니라 에러 로그(stderr)로 메시지를 출력하는 함수
+
+    목적
+    ----
+    - 최종 결과 JSON은 stdout으로 내보내야 함
+    - 중간 에러/디버깅 메시지는 stderr로 분리해서 출력해야
+      다른 프로그램(Node.js 등)에서 JSON 파싱이 꼬이지 않음
+    """
     print(*args, file=sys.stderr)
 
-# ==========================================
-# 1. Numpy 숫자 변환기 (에러 방지용)
-# ==========================================
+
 class NumpyEncoder(json.JSONEncoder):
+    """
+    numpy 자료형을 JSON 직렬화 가능하게 바꿔주는 인코더
+
+    예:
+    - np.integer  -> int
+    - np.floating -> float
+    - np.ndarray  -> list
+
+    이유
+    ----
+    Python 기본 json.dumps()는 numpy 타입을 바로 직렬화하지 못하는 경우가 있어
+    API 응답용 JSON 생성 전에 안전하게 변환하기 위함
+    """
     def default(self, obj):
         if isinstance(obj, np.integer):
             return int(obj)
@@ -48,25 +69,48 @@ class NumpyEncoder(json.JSONEncoder):
             return obj.tolist()
         return super(NumpyEncoder, self).default(obj)
 
-# ==========================================
-# ★ [NEW] 과거 데이터 생성 함수 (7일/30일 대응)
-# ==========================================
+
 def generate_past_history(predicted_roas, duration=7):
+    """
+    예측된 채널별 ROAS를 기준으로 과거 추이처럼 보이는 history 데이터를 생성
+
+    Parameters
+    ----------
+    predicted_roas : list or array
+        각 채널의 최종 예측 ROAS
+        순서: [Naver, Meta, Google, Karrot]
+    duration : int
+        며칠치 이력을 생성할지 결정
+
+    Returns
+    -------
+    list[dict]
+        프론트 차트/리포트에서 사용할 과거 일자별 ROAS 데이터
+
+    설명
+    ----
+    이 함수는 실제 과거 DB 데이터를 가져오는 것이 아니라,
+    현재 예측값을 기준으로 "과거 며칠간 이런 흐름이 있었던 것처럼" 보이는
+    시뮬레이션용 히스토리 데이터를 만든다.
+
+    마지막에는 "D-Day" 행을 추가해서
+    최종 예측값 자체를 함께 보여준다.
+    """
     history = []
 
-    # 4개 매체별로 각기 다른 베이스라인 변동성 생성 (랜덤)
+    # 채널마다 약간 다른 변동성을 부여하기 위한 랜덤 계수
     volatility = [np.random.uniform(0.85, 1.15) for _ in range(4)]
     
-    # 1일차부터 duration(7일 or 30일)일차까지 미래로 전진
     for step in range(1, duration + 1):
+        # 예: "1일차", "2일차", ...
         day_label = f"{step}일차"
 
-        # 노이즈를 10% 내외로 흔들어서 현실느낌 반영
+        # 하루 단위 공통 변동 노이즈
         daily_noise = np.random.uniform(0.92, 1.08)
 
         row = {"day": day_label}
 
-        # 각 매체별로 독립적인 흔들림 적용
+        # 각 채널별로 예측 ROAS에 변동성 * 일별 노이즈 * 추가 랜덤 노이즈를 적용
         row["Naver"] = round(float(predicted_roas[0] * volatility[0] * daily_noise * np.random.uniform(0.95, 1.05)), 2)
         row["Meta"] = round(float(predicted_roas[1] * volatility[1] * daily_noise * np.random.uniform(0.95, 1.05)), 2)
         row["Google"] = round(float(predicted_roas[2] * volatility[2] * daily_noise * np.random.uniform(0.95, 1.05)), 2)
@@ -74,7 +118,7 @@ def generate_past_history(predicted_roas, duration=7):
 
         history.append(row)
 
-    # 마지막으로 '오늘(예측)' 데이터 추가
+    # 마지막 행은 "오늘 최종 예측값"을 D-Day로 추가
     history.append({
         "day": "D-Day",
         "Naver": round(float(predicted_roas[0]), 2),
@@ -83,46 +127,90 @@ def generate_past_history(predicted_roas, duration=7):
         "Karrot": round(float(predicted_roas[3]), 2)
     })
 
-    # ✅ [FIX] day 라벨에 섞일 수 있는 공백/줄바꿈 최종 정리(방탄)
+    # day 문자열 안에 줄바꿈/캐리지리턴이 혹시 섞여 있으면 제거
     for r in history:
         if "day" in r and isinstance(r["day"], str):
             r["day"] = r["day"].replace("\n", "").replace("\r", "").strip()
 
     return history
 
-# ==========================================
-# ★ [NEW] 예측 ROAS 클리핑 (비현실 튐 방지)
-# ==========================================
+
 def clip_predicted_roas(pred, min_roas=50.0, max_roas=800.0):
+    """
+    예측된 ROAS 값을 현실적인 범위 안으로 잘라주는 함수
+
+    Parameters
+    ----------
+    pred : list or np.ndarray
+        모델이 예측한 ROAS 값들
+    min_roas : float
+        최소 허용 ROAS
+    max_roas : float
+        최대 허용 ROAS
+
+    Returns
+    -------
+    np.ndarray
+        clip 처리된 ROAS 배열
+
+    설명
+    ----
+    머신러닝 모델이 가끔 비현실적으로 너무 낮거나 높은 값을 낼 수 있으므로,
+    서비스 응답 안정성을 위해 최소/최대 범위를 제한한다.
+    """
     pred = np.asarray(pred, dtype=float)
     return np.clip(pred, min_roas, max_roas)
 
-# ==========================================
-# ★ [NEW] 최적화 bounds를 총예산에 맞게 안전하게 만드는 함수
-# ==========================================
+
 def build_safe_bounds(n, total_budget, min_budget_default=30000, max_ratio_default=0.6):
     """
-    - 총예산이 작아서 (n * 30000) 충족 못하면 자동으로 min을 낮춤
-    - max도 total_budget*0.6이 min보다 작아지지 않게 보정
+    선형계획법(LP)에서 사용할 채널별 예산 상/하한 bounds 생성
+
+    Parameters
+    ----------
+    n : int
+        채널 수
+    total_budget : float
+        총 예산
+    min_budget_default : float
+        채널별 최소 예산 기본값
+    max_ratio_default : float
+        채널별 최대 예산 비율 (예: 0.6 -> 총예산의 60%)
+
+    Returns
+    -------
+    list[tuple]
+        예: [(min1, max1), (min2, max2), ...]
+
+    설명
+    ----
+    각 채널에 대해
+    - 최소 얼마 이상은 배정할지
+    - 최대 얼마 이하까지만 배정할지
+    제한하는 역할을 한다.
+
+    다만 총예산이 너무 적어서 "모든 채널에 최소 예산"을 만족시킬 수 없으면
+    최소 예산을 0으로 완화한다.
     """
     total_budget = float(total_budget)
 
     if n <= 0:
         return []
 
-    # 채널당 최소 예산 (총예산이 작으면 자동으로 낮춘다)
     min_per = float(min_budget_default)
+
+    # 총예산이 너무 작으면 최소 예산 조건을 맞출 수 없으므로 0으로 완화
     if total_budget < n * min_per:
         min_per = 0.0
 
-    # 채널당 최대 예산
+    # 각 채널별 최대 예산 = 총예산 * 최대비율
     max_per = float(total_budget * max_ratio_default)
 
-    # max가 min보다 작으면(총예산 매우 작음) max도 min으로 맞춤
+    # 혹시 max가 min보다 작아지는 이상 상황 보정
     if max_per < min_per:
         max_per = min_per
 
-    # 한 번 더 방어
+    # 전체 예산에서 최소 예산 합계조차 감당이 안 되는 경우 재보정
     if total_budget - (n * min_per) < -1e-6:
         min_per = 0.0
         if max_per < min_per:
@@ -130,89 +218,83 @@ def build_safe_bounds(n, total_budget, min_budget_default=30000, max_ratio_defau
 
     return [(min_per, max_per) for _ in range(n)]
 
-# ==========================================
-# ★ [NEW] PRO 리포트 생성 함수 (컨설팅 프레임워크)
-# ==========================================
-def build_pro_report(
-    total_budget,
-    allocated_budget,
-    predicted_roas,
-    expected_revenue,
-    duration,
-    clip_min=50.0,
-    clip_max=800.0,
-    min_budget_default=30000,
-    max_ratio_default=0.6
-):
+
+def build_pro_report(total_budget, allocated_budget, predicted_roas, expected_revenue, duration, clip_min, clip_max, min_budget_default, max_ratio_default):
     """
-    리포트 구성:
-    📢 Executive Summary
-    🔍 플랫폼별 정밀 진단 (현상 → 데이터 근거 → 전략 → 기대효과)
-    ✅ 실행 가이드 (액션 아이템)
-    ⚠️ 한계/면책
+    최종 예산 추천 결과를 사람이 읽기 쉬운 자연어 리포트로 생성
+
+    Parameters
+    ----------
+    total_budget : float
+        총 예산
+    allocated_budget : array-like
+        채널별 최종 배정 예산
+    predicted_roas : array-like
+        채널별 예측 ROAS
+    expected_revenue : float
+        최종 예상 매출
+    duration : int
+        분석 기간
+    clip_min, clip_max : float
+        ROAS 클리핑 범위
+    min_budget_default : float
+        채널별 최소 예산
+    max_ratio_default : float
+        채널별 최대 예산 비율
+
+    Returns
+    -------
+    str
+        프론트에 표시할 리포트 문자열
     """
-    # 순서 고정: [Naver, Meta, Google, Karrot]
-    channel_codes = ["naver", "meta", "google", "karrot"]
-    channel_names = ["네이버", "메타", "구글", "당근"]
-    channel_names_kr = {
-        "네이버": "네이버",
-        "메타": "인스타그램/페이스북",
-        "구글": "구글/유튜브",
-        "당근": "당근"
-    }
-    channel_display = [channel_names_kr.get(n, n) for n in channel_names]
+    channel_display = ["네이버", "인스타그램/페이스북", "구글/유튜브", "당근"]
 
     total_budget = float(total_budget)
     alloc = np.asarray(allocated_budget, dtype=float)
     roas = np.asarray(predicted_roas, dtype=float)
 
-    # 채널별 기대 매출(추정): 예산 * (ROAS/100)
+    # 채널별 예상 매출 기여 계산
+    # ROAS가 % 단위라고 보고 alloc * (roas / 100)으로 계산
     exp_rev_by_channel = alloc * (roas / 100.0)
 
-    # 핵심 지표
+    # 가장 예측 효율이 좋은 채널 식별
     best_idx = int(np.argmax(roas))
     best_name = channel_display[best_idx]
-    best_roas = float(roas[best_idx])
     best_alloc = float(alloc[best_idx])
     best_ratio = int(round((best_alloc / total_budget) * 100)) if total_budget > 0 else 0
 
-    # 2등 대비 우위
+    # 1위와 2위 채널 비교
     sorted_idx = np.argsort(-roas)
-    top1 = sorted_idx[0]
-    top2 = sorted_idx[1] if len(sorted_idx) > 1 else top1
+    top1, top2 = sorted_idx[0], sorted_idx[1] if len(sorted_idx) > 1 else sorted_idx[0]
     gap_vs_2nd = float(roas[top1] - roas[top2])
-
-    # 제약조건 요약
-    min_per = min_budget_default
-    if total_budget < len(roas) * min_per:
-        min_per = 0
-    max_per = int(total_budget * max_ratio_default)
-
-    # 2등 매체의 이름을 변수로 추출
     second_best_name = channel_display[top2]
     
+    # 리포트에 표시할 최소/최대 예산 기준 계산
+    min_per = min_budget_default if total_budget >= len(roas) * min_budget_default else 0
+    max_per = int(total_budget * max_ratio_default)
+    
     lines = []
+
+    # 핵심 요약
     lines.append(f"🎯 사장님을 위한 AI 핵심 요약: 현재 가장 효율이 좋은 **{best_name}**에 예산을 집중하여 **매출을 극대화**하는 것을 추천합니다.")
-    lines.append(f"2순위 추천 플랫폼인 **{second_best_name}**보다 예상 수익률이 **{gap_vs_2nd:.1f}%p** 더 높기 때문입니다.")
-    lines.append("")
+    lines.append(f"2순위 추천 플랫폼인 **{second_best_name}**보다 예상 수익률이 **{gap_vs_2nd:.1f}%p** 더 높기 때문입니다.\n")
     lines.append("🔍 플랫폼별 정밀 진단 (현상 → 데이터 근거 → 전략 → 기대효과)")
 
-    # 비교/근거용: 평균 ROAS
+    # 전체 평균 ROAS 계산
     avg_roas = float(np.mean(roas)) if len(roas) else 0.0
 
     for i in range(len(roas)):
         name = channel_display[i]
         r = float(roas[i])
-        b = float(alloc[i])
-        ratio = int(round((b / total_budget) * 100)) if total_budget > 0 else 0
+        ratio = int(round((float(alloc[i]) / total_budget) * 100)) if total_budget > 0 else 0
         rev = float(exp_rev_by_channel[i])
-
-        # 상대 비교
+        
+        # 평균 대비 얼마나 높거나 낮은지 계산
         vs_avg = r - avg_roas
         compare_word = "상회" if vs_avg >= 0 else "하회"
         compare_abs = abs(vs_avg)
 
-        # 전략 톤: 예산 비중에 따라 추천 액션을 다르게
+        # 채널별 액션 문구 생성
         if i == best_idx:
             action = f"**집중 투자 유지**(상한 {int(max_ratio_default*100)}% 범위 내) + 고효율 구간 확장"
             effect = f"동일 예산 대비 **예상 매출 기여**가 가장 큼(추정 {int(round(rev)):,}원)."
@@ -227,7 +309,7 @@ def build_pro_report(
                 action = "**부분 감액 고려** + 고효율 채널로 일부 이동"
                 effect = "예상 수익률을 끌어올리는 방향으로 재배분."
 
-        # 데이터 근거(숫자 중심)
+        # 채널별 상세 설명 추가
         lines.append(
             f"• **{name}**\n"
             f"  - 현상: 예측 ROAS **{r:.2f}%** / 예산 배정 **{ratio}%**\n"
@@ -236,225 +318,302 @@ def build_pro_report(
             f"  - 기대 효과: {effect}"
         )
 
-    lines.append("")
-    lines.append("✅ 수익 극대화를 위한 실천 가이드 (바로 실행 가능한 액션)")
-    lines.append(f"• **예산 집행(오늘~{duration}일)**: {best_name}에 **{best_ratio}%** 수준으로 집중 운영하고, 나머지는 테스트/방어 예산으로 유지하세요.")
+    # 실행 가이드
+    lines.append("\n✅ 수익 극대화를 위한 실천 가이드 (바로 실행 가능한 액션)")
+    lines.append(f"• **예산 집행(오늘~{duration}일)**: {best_name}에 **{best_ratio}%** 수준으로 집중 운영하고, 나머지는 방어 예산으로 유지하세요.")
     lines.append("• **운영 룰(간단 자동화)**: 7일 기준 ROAS가 평균 대비 하회하는 채널은 **소재/타겟 1회 개선 후** 개선 없으면 감액하는 룰을 적용하세요.")
-    lines.append("• **검증 방법(낭비 방지)**: 채널별로 '클릭→전환→매출' 이벤트가 정상 수집되는지 먼저 점검하고, 데이터가 불완전하면 보수적으로 운영하세요.")
 
-    lines.append("")
-    lines.append("📌 알고리즘/제약조건 근거 (투명성)")
-    lines.append(f"• 본 배분은 **총예산 {int(total_budget):,}원** 내에서 기대 수익(예산×예측ROAS)을 최대화하도록 계산되었습니다.")
-    lines.append(f"• 채널별 예산은 최소 **{int(min_per):,}원**(총예산이 작으면 0원) ~ 최대 **{int(max_per):,}원**(총예산의 {int(max_ratio_default*100)}%) 범위 제약을 적용했습니다.")
-    lines.append(f"• 예측 ROAS는 이상치 방지를 위해 **{int(clip_min)}% ~ {int(clip_max)}%** 범위로 클리핑되었습니다.")
+    # 알고리즘/제약조건 설명
+    lines.append("\n📌 알고리즘/제약조건 근거 (투명성)")
+    lines.append(f"• 본 배분은 **머신러닝(XGBoost+Ridge)이 추출한 기대 수익률 계수를 선형계획법(LP)으로 최적화**한 하이브리드 결과입니다.")
+    lines.append(f"• 채널별 예산은 최소 **{int(min_per):,}원** ~ 최대 **{int(max_per):,}원**(총예산의 {int(max_ratio_default*100)}%) 범위 제약을 적용했습니다.")
 
-    # 프론트 파싱을 위해 줄바꿈으로 구조 유지
     return "\n".join(lines)
 
+
 # ==========================================
-# 2. 메인 실행 함수
+# 2. 메인 실행 함수 (전면 개편: ML 계수 추출 + LP 최적화)
 # ==========================================
 def main():
+    """
+    전체 실행 흐름을 담당하는 메인 함수
+
+    전체 프로세스
+    -------------
+    1. 입력 JSON 파싱
+    2. 사용자 채널 데이터 정리
+    3. 저장된 ML 모델/스케일러 로드
+    4. 각 채널의 기준 예산 대비 예측 ROAS 추출
+    5. 예측된 ROAS를 선형계획법(LP)의 계수로 사용해 최적 예산 배분
+    6. 리포트/히스토리/최종 JSON 결과 생성 후 stdout으로 반환
+    """
     try:
-        # [데이터 수신]
+        # ------------------------------------------------------
+        # 입력 데이터 처리
+        # ------------------------------------------------------
+        # 외부(Node.js 등)에서 JSON 문자열을 인자로 넘기지 않은 경우
+        # 테스트용 기본 더미 데이터를 사용
         if len(sys.argv) < 2:
-            # 테스트 모드 (기본값)
             data = {
-                "total_budget": 500000,
+                "total_budget": 3000000,
                 "duration": 7,
                 "features": [
-                    {"채널명_Naver": 1, "비용": 100000, "ROAS": 300, "trend_score": 90},
-                    {"채널명_Meta": 1, "비용": 100000, "ROAS": 200, "trend_score": 90},
-                    {"채널명_Google": 1, "비용": 100000, "ROAS": 250, "trend_score": 90},
-                    {"채널명_Karrot": 1, "비용": 50000, "ROAS": 150, "trend_score": 90}
+                    {"채널명_Naver": 1, "ROAS": 300, "trend_score": 90},
+                    {"채널명_Meta": 1, "ROAS": 200, "trend_score": 90},
+                    {"채널명_Google": 1, "ROAS": 0, "trend_score": 50}, 
+                    {"채널명_Karrot": 1, "ROAS": 0, "trend_score": 30}
                 ]
             }
         else:
-            # 실전 모드 (Node.js에서 받음)
-            input_data = sys.argv[1]
-            data = json.loads(input_data)
+            # 외부에서 받은 JSON 문자열을 파싱
+            data = json.loads(sys.argv[1])
 
     except Exception as e:
+        # 입력 JSON 파싱 실패 시 stderr로 에러 출력 후 종료
         log(json.dumps({"error": f"데이터 수신 실패: {str(e)}"}, ensure_ascii=False))
         sys.exit(1)
 
-    # 변수 추출 (리스트/객체 모두 대응하는 안전한 코드)
+    # ------------------------------------------------------
+    # 입력 데이터 구조 보정
+    # ------------------------------------------------------
+    # data가 list 형태로 바로 들어오면 feature 목록으로 간주
     if isinstance(data, list):
         features_list = data
-        total_budget = 500000
+        total_budget = 3000000
         duration = 7
     else:
+        # dict 형태면 총예산, 기간, features를 꺼냄
         features_list = data.get('features', [])
-        total_budget = data.get('total_budget', 500000)
+        total_budget = data.get('total_budget', 3000000)
         duration = data.get('duration', 7)
 
-    # ==========================================
-    # [중요] ensemble_model.py와 컬럼(피처) 정합 맞추기 (ROAS_3d_trend 삭제됨)
-    # ==========================================
+    # 🚨 [매우 중요]
+    # 학습 시 사용한 feature 이름 11개와 완전히 일치해야 함
+    # 순서까지 동일해야 scaler.transform / model.predict에서 오류가 나지 않음
     model_columns = [
-        '비용', 'CPC', 'CTR', 
-        'trend_score',
-        'channel_naver', 'channel_meta', 'channel_google', 'channel_karrot'
+        'cost', 'cpc', 'ctr', 'trend_score',
+        'channel_naver', 'channel_meta', 'channel_google', 'channel_karrot',
+        'expected_clicks', 'trend_efficiency', 'click_value'
     ]
 
-    processed_data = []
+    # ------------------------------------------------------
+    # 채널별 기본 metric
+    # ------------------------------------------------------
+    # 학습 코드에서 사용한 채널별 기본 CPC / CTR 기준값과 같은 구조
+    base_channel_metrics = {
+        "naver": {"cpc": 800, "ctr": 2.5},
+        "meta": {"cpc": 400, "ctr": 1.2},
+        "google": {"cpc": 600, "ctr": 1.8},
+        "karrot": {"cpc": 300, "ctr": 3.0}
+    }
+    
+    # 사용자 입력값이 없더라도 기본 구조를 유지하기 위해 초기값 세팅
+    # roas는 0, trend는 중립값 50으로 시작
+    user_data_map = {ch: {"roas": 0, "trend": 50} for ch in base_channel_metrics.keys()}
 
+    # ------------------------------------------------------
+    # 사용자 입력 features를 채널별 구조로 정리
+    # ------------------------------------------------------
+    # 한글 키(채널명_Naver) / 영문 키(channel_naver) 둘 다 허용
     for item in features_list:
-        cost = float(total_budget) / 4.0
-        current_roas = item.get('ROAS', 200)
+        if item.get('channel_naver') == 1 or item.get('채널명_Naver') == 1:
+            user_data_map["naver"] = {"roas": item.get('ROAS', 0), "trend": item.get('trend_score', 50)}
+        elif item.get('channel_meta') == 1 or item.get('채널명_Meta') == 1:
+            user_data_map["meta"] = {"roas": item.get('ROAS', 0), "trend": item.get('trend_score', 50)}
+        elif item.get('channel_google') == 1 or item.get('채널명_Google') == 1:
+            user_data_map["google"] = {"roas": item.get('ROAS', 0), "trend": item.get('trend_score', 50)}
+        elif item.get('channel_karrot') == 1 or item.get('채널명_Karrot') == 1:
+            user_data_map["karrot"] = {"roas": item.get('ROAS', 0), "trend": item.get('trend_score', 50)}
 
-        # 채널 구분
-        channel_naver = item.get('channel_naver', item.get('채널명_Naver', 0))
-        channel_meta = item.get('channel_meta', item.get('채널명_Meta', 0))
-        channel_google = item.get('channel_google', item.get('채널명_Google', 0))
-        channel_karrot = item.get('channel_karrot', item.get('채널명_Karrot', 0))
-
-        # 채널별 현실적인 CPC 및 기본 CTR (도메인 지식 반영)
-        if channel_naver == 1:
-            base_cpc, base_ctr = 800, 2.5
-        elif channel_google == 1:
-            base_cpc, base_ctr = 600, 1.8
-        elif channel_meta == 1:
-            base_cpc, base_ctr = 400, 1.2
-        elif channel_karrot == 1:
-            base_cpc, base_ctr = 300, 3.0
-        else:
-            base_cpc, base_ctr = 500, 1.5
-
-        # 임의성 부여
-        cpc = base_cpc * np.random.uniform(0.9, 1.1)
-        ctr = base_ctr * np.random.uniform(0.9, 1.1)
-        trend_score = item.get('trend_score', np.random.randint(30, 80))
-
-        row = {
-            '비용': float(cost),
-            'CPC': float(cpc),
-            'CTR': float(ctr),
-            'trend_score': float(trend_score),
-            'channel_naver': int(channel_naver),
-            'channel_meta': int(channel_meta),
-            'channel_google': int(channel_google),
-            'channel_karrot': int(channel_karrot),
-        }
-        processed_data.append(row)
-
-    df = pd.DataFrame(processed_data)
-
-    if df.empty:
-        log(json.dumps({"error": "분석할 데이터가 없습니다."}, ensure_ascii=False))
-        sys.exit(1)
-
-    # 컬럼 순서 강제 맞춤
-    try:
-        X = df[model_columns]
-    except KeyError as e:
-        log(json.dumps({
-            "error": f"입력 컬럼이 모델과 맞지 않습니다: {str(e)}",
-            "expected_columns": model_columns,
-            "received_columns": list(df.columns)
-        }, ensure_ascii=False))
-        sys.exit(1)
-
-    # ==========================================
-    # ★ [NEW] 8:2 앙상블 모델 로드 및 예측 로직
-    # ==========================================
+    # ------------------------------------------------------
+    # 저장된 모델 / 스케일러 로드
+    # ------------------------------------------------------
     try:
         script_dir = os.path.dirname(os.path.abspath(__file__))
-        CLIP_MIN = 50.0
-        CLIP_MAX = 800.0
 
-        # 1. 모델과 스케일러 경로 확인
-        ensemble_path = os.path.join(script_dir, ENSEMBLE_MODEL_FILENAME)
-        scaler_path = os.path.join(script_dir, SCALER_FILENAME)
+        # 현재 predict_budget.py 파일이 있는 폴더 기준으로
+        # 모델 파일과 스케일러 파일을 불러옴
+        ensemble_model = joblib.load(os.path.join(script_dir, ENSEMBLE_MODEL_FILENAME))
+        scaler = joblib.load(os.path.join(script_dir, SCALER_FILENAME))
 
-        if not os.path.exists(ensemble_path) or not os.path.exists(scaler_path):
-            raise FileNotFoundError("앙상블 모델(.pkl) 또는 스케일러(.pkl) 파일을 찾을 수 없습니다.")
-
-        # 2. 모델 및 스케일러 로드
-        ensemble_model = joblib.load(ensemble_path)
-        scaler = joblib.load(scaler_path)
-
-        # 3. 필수! 데이터 정규화(Scaling)
-        X_scaled = pd.DataFrame(scaler.transform(X), columns=X.columns)
-
-        # 4. 하이브리드 예측 수행
-        predicted_roas = ensemble_model.predict(X_scaled)
-        
-        # 5. 비현실 튐 방지 클리핑
-        predicted_roas = clip_predicted_roas(predicted_roas, min_roas=CLIP_MIN, max_roas=CLIP_MAX)
+        # 비현실적인 예측 ROAS 방지용 최소/최대 범위
+        CLIP_MIN, CLIP_MAX = 50.0, 800.0
 
     except Exception as e:
-        log(json.dumps({"error": f"모델 로드/예측 실패: {str(e)}"}, ensure_ascii=False))
+        log(json.dumps({"error": f"모델 로드 실패: {str(e)}"}, ensure_ascii=False))
         sys.exit(1)
 
-    # [선형 계획법 - 예산 최적화]
-    try:
-        n = len(predicted_roas)
-        c = [-float(r) for r in predicted_roas]
-        A_eq = [[1] * n]
-        b_eq = [float(total_budget)]
+    # 최적화 대상 채널 순서
+    channels = ["naver", "meta", "google", "karrot"]
+    n_channels = len(channels)
+    
+    # 총예산 숫자형 변환
+    budget_num = float(total_budget)
 
-        # 예산 규모에 따른 다이나믹 제약 조건
-        budget_num = float(total_budget)
+    # ------------------------------------------------------
+    # 총예산 구간별 최소 예산 / 최대 비율 정책 설정
+    # ------------------------------------------------------
+    # 소액 예산: 최소예산 0, 최대 60%
+    # 중간 예산: 최소 5%, 최대 45%
+    # 큰 예산  : 최소 10%, 최대 60%
+    if budget_num <= 300000:
+        MIN_BUDGET_DEFAULT, MAX_RATIO_DEFAULT = 0, 0.60
+    elif budget_num <= 1000000:
+        MIN_BUDGET_DEFAULT, MAX_RATIO_DEFAULT = budget_num * 0.05, 0.45
+    else:
+        MIN_BUDGET_DEFAULT, MAX_RATIO_DEFAULT = budget_num * 0.10, 0.60
+
+    # ------------------------------------------------------
+    # 사용자 실제 성과 + trend를 반영한 채널 보정계수 계산
+    # ------------------------------------------------------
+    # 각 채널별 예측 feature 생성 시 CPC/CTR를 조정하기 위한 factor
+    channel_factors = {}
+
+    for ch in channels:
+        user_actual_roas = user_data_map[ch].get("roas", 0)
+        current_trend = user_data_map[ch].get("trend", 50)
+
+        # trend_score가 50보다 높으면 +, 낮으면 - 영향
+        trend_multiplier = 1.0 + ((current_trend - 50) / 100.0) 
         
-        if budget_num <= 300000:
-            MIN_BUDGET_DEFAULT = 0
-            MAX_RATIO_DEFAULT = 0.60
-        elif budget_num <= 1000000:
-            MIN_BUDGET_DEFAULT = budget_num * 0.05
-            MAX_RATIO_DEFAULT = 0.45
+        # 사용자가 실제 ROAS를 입력했다면 그 값을 반영해 성과 계수 계산
+        # 입력이 없으면 1.0을 기본값으로 사용
+        if user_actual_roas > 0:
+            final_factor = (user_actual_roas / 200.0) * trend_multiplier
         else:
-            MIN_BUDGET_DEFAULT = budget_num * 0.15
-            MAX_RATIO_DEFAULT = 0.35
+            final_factor = 1.0 * trend_multiplier
+
+        # 과도한 값 방지를 위해 0.5 ~ 2.5 범위 제한
+        channel_factors[ch] = max(0.5, min(final_factor, 2.5))
+
+    # ==========================================
+    # [Step 1] ML 모델을 통한 기준 예산(Baseline) 예측 ROAS 계수 추출
+    # ==========================================
+    # 전체 예산을 일단 균등 분할한 가상의 baseline budget을 만든 뒤,
+    # 각 채널에 대해 "이 정도 예산이 들어갔을 때의 예상 ROAS"를 예측한다.
+    baseline_budget = budget_num / n_channels
+    predicted_roas_list = []
+    
+    for ch in channels:
+        factor = channel_factors[ch]
+
+        # factor가 높으면 더 좋은 상태라고 보고
+        # CPC는 낮아지고 CTR은 높아지도록 조정
+        cpc = base_channel_metrics[ch]["cpc"] / factor
+        ctr = base_channel_metrics[ch]["ctr"] * factor
+        trend = user_data_map[ch]["trend"]
         
-        bounds = build_safe_bounds(
-            n,
-            total_budget,
+        # --------------------------------------------------
+        # 학습 시 사용한 파생 변수 계산 로직과 동일하게 생성
+        # --------------------------------------------------
+        expected_clicks = baseline_budget / cpc
+        trend_efficiency = trend / np.log1p(baseline_budget)
+        click_value = expected_clicks * ctr
+        
+        # 모델 입력용 1행 데이터 생성
+        row = {
+            'cost': baseline_budget,
+            'cpc': cpc,
+            'ctr': ctr,
+            'trend_score': trend,
+            'channel_naver': 1 if ch == "naver" else 0,
+            'channel_meta': 1 if ch == "meta" else 0,
+            'channel_google': 1 if ch == "google" else 0,
+            'channel_karrot': 1 if ch == "karrot" else 0,
+            'expected_clicks': expected_clicks,
+            'trend_efficiency': trend_efficiency,
+            'click_value': click_value
+        }
+        
+        # 학습 시와 동일한 컬럼 순서로 DataFrame 생성
+        df_temp = pd.DataFrame([row])[model_columns]
+
+        # 학습 때 저장한 scaler로 표준화
+        X_scaled = pd.DataFrame(scaler.transform(df_temp), columns=df_temp.columns)
+
+        # 앙상블 모델로 해당 채널의 예측 ROAS 계산
+        pred_roas = ensemble_model.predict(X_scaled)[0]
+        predicted_roas_list.append(pred_roas)
+
+    # 예측값이 비현실적인 범위를 벗어나면 clip 처리
+    predicted_roas_list = clip_predicted_roas(predicted_roas_list, CLIP_MIN, CLIP_MAX)
+
+    # ==========================================
+    # [Step 2] 선형계획법(LP) 하이브리드 최적화
+    # ==========================================
+    # 목적:
+    # 채널별 ROAS를 기반으로 총 기대매출이 최대가 되도록 예산을 배분
+    #
+    # scipy.optimize.linprog는 "최소화" 문제를 푸는 함수이므로,
+    # 최대화하려는 ROAS 계수에 음수(-)를 붙여서 전달
+    c = [-roas / 100.0 for roas in predicted_roas_list]
+    
+    # 제약조건 1:
+    # 네 채널에 배정된 예산의 합은 반드시 총예산과 같아야 함
+    # x1 + x2 + x3 + x4 = total_budget
+    A_eq = [[1, 1, 1, 1]]
+    b_eq = [budget_num]
+    
+    # 제약조건 2:
+    # 채널별 예산은 최소~최대 범위를 넘지 못하도록 bounds 설정
+    bounds = build_safe_bounds(n_channels, budget_num, MIN_BUDGET_DEFAULT, MAX_RATIO_DEFAULT)
+    
+    # scipy linprog 실행
+    # method='highs'는 비교적 안정적이고 빠른 선형계획 해법
+    res = linprog(c, A_eq=A_eq, b_eq=b_eq, bounds=bounds, method='highs')
+    
+    if res.success:
+        # 최적화 성공 시 결과 예산 사용
+        allocated_budget = res.x
+    else:
+        # 최적화 실패 시 안전장치:
+        # 총예산을 채널 수로 나눈 균등분배 사용
+        allocated_budget = np.array([budget_num / n_channels] * n_channels)
+        
+    # 최종 예상 매출 계산
+    real_expected_revenue = np.sum(allocated_budget * (np.array(predicted_roas_list) / 100.0))
+
+    # ==========================================
+    # [Step 3] 최종 리포트 및 JSON 반환
+    # ==========================================
+    try:
+        # 사람이 읽을 수 있는 텍스트 리포트 생성
+        report_text = build_pro_report(
+            total_budget=total_budget,
+            allocated_budget=allocated_budget,
+            predicted_roas=predicted_roas_list,
+            expected_revenue=real_expected_revenue,
+            duration=duration,
+            clip_min=CLIP_MIN,
+            clip_max=CLIP_MAX,
             min_budget_default=MIN_BUDGET_DEFAULT,
             max_ratio_default=MAX_RATIO_DEFAULT
         )
 
-        result = linprog(c, A_eq=A_eq, b_eq=b_eq, bounds=bounds, method='highs')
-
-        if result.success:
-            allocated_budget = result.x
-            real_expected_revenue = np.sum(allocated_budget * (predicted_roas / 100.0))
-
-            # 컨설팅 리포트 생성
-            report_text = build_pro_report(
-                total_budget=total_budget,
-                allocated_budget=allocated_budget,
-                predicted_roas=predicted_roas,
-                expected_revenue=real_expected_revenue,
-                duration=duration,
-                clip_min=CLIP_MIN,
-                clip_max=CLIP_MAX,
-                min_budget_default=MIN_BUDGET_DEFAULT,
-                max_ratio_default=MAX_RATIO_DEFAULT
-            )
-
-            # duration 적용 히스토리 생성
-            history_data = generate_past_history(predicted_roas, duration=duration)
-            
-            output = {
-                "status": "success",
-                "total_budget": int(total_budget),
-                "allocated_budget": [int(b) for b in np.round(allocated_budget, 0)],
-                "predicted_roas": [round(float(r), 2) for r in predicted_roas],
-                "expected_revenue": int(round(real_expected_revenue, 0)),
-                "history": history_data,
-                "ai_report": report_text
-            }
-        else:
-            output = {"status": "failed", "reason": "최적화 실패", "detail": str(result.message)}
+        # 차트용 히스토리 데이터 생성
+        history_data = generate_past_history(predicted_roas_list, duration=duration)
+        
+        # 최종 JSON 응답 객체 구성
+        output = {
+            "status": "success",
+            "total_budget": int(total_budget),
+            "allocated_budget": [int(b) for b in np.round(allocated_budget, 0)],
+            "predicted_roas": [round(float(r), 2) for r in predicted_roas_list],
+            "expected_revenue": int(round(real_expected_revenue, 0)),
+            "history": history_data,
+            "ai_report": report_text
+        }
 
     except Exception as e:
-        log(json.dumps({"error": f"최적화 연산 실패: {str(e)}"}, ensure_ascii=False))
+        # 결과 생성 실패 시 stderr로 에러 출력 후 종료
+        log(json.dumps({"error": f"결과 생성 실패: {str(e)}"}, ensure_ascii=False))
         sys.exit(1)
 
-    # ✅ stdout에는 JSON만 1번 출력 (Node 파싱 안정)
+    # stdout으로 최종 JSON 문자열 출력
+    # 외부 프로그램(Node.js 등)에서 이 값을 받아 응답 처리
     sys.stdout.write(json.dumps(output, cls=NumpyEncoder, ensure_ascii=False))
     sys.stdout.flush()
+
 
 if __name__ == "__main__":
     main()

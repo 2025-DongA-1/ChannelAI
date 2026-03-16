@@ -66,9 +66,9 @@ function MarketingAnalysis() {
 
     let numValue = Number(rawValue);
     
-    // 200만 원 상한선 방어 로직
-    if (numValue > 2000000) {
-      numValue = 2000000; // 강제로 200만 원으로 깎음
+    // 300만 원 상한선 방어 로직
+    if (numValue > 3000000) {
+      numValue = 3000000; // 강제로 300만 원으로 깎음
       setBudgetWarning(true); // 빨간 경고문 켜기
     } else {
       setBudgetWarning(false); // 정상 범위면 경고문 끄기
@@ -306,7 +306,7 @@ function MarketingAnalysis() {
                   fontWeight: 'bold',
                   color: '#2D3436',
                   borderRadius: '12px', 
-                  border: budgetWarning ? '2px solid #ff6b6b' : '2px solid #dfe6e9', // 경고 시 테두리도 빨갛게!
+                  border: budgetWarning ? '2px solid #ff6b6b' : '2px solid #dfe6e9', 
                   outline: 'none',
                   textAlign: 'right',
                   backgroundColor: '#fdfdfd',
@@ -316,15 +316,26 @@ function MarketingAnalysis() {
               <span style={{ position: 'absolute', right: '15px', fontWeight: 'bold', color: '#b2bec3', fontSize: '1rem' }}>원</span>
             </div>
             
-            {/* 💡 200만 원 초과 시 나타나는 친절한 경고문 (레이아웃 파괴를 막기 위해 absolute 적용) */}
-            {budgetWarning && (
-              <div style={{ position: 'absolute', top: '100%', left: '5px', color: '#ff6b6b', fontSize: '0.85rem', marginTop: '8px', fontWeight: 'bold', whiteSpace: 'nowrap' }}>
-                ※ 최대 2,000,000원까지만 분석할 수 있습니다.
-              </div>
-            )}
-          </div>
+            {/* 2. 💡 수정한 동적 안내 문구 (여기가 통째로 바뀐 부분!) */}
+            <div style={{ 
+              position: 'absolute', 
+              top: '100%', 
+              left: '50%', 
+              transform: 'translateX(-50%)',
+              fontSize: '0.85rem', 
+              marginTop: '8px', 
+              whiteSpace: 'nowrap',
+              transition: 'color 0.3s ease', // 부드러운 색상 전환 효과
+              color: budgetWarning ? '#ff6b6b' : '#a4b0be', // 경고 시 빨간색, 평소엔 차분한 회색
+              fontWeight: budgetWarning ? 'bold' : '500'    // 경고 시 굵게
+            }}>
+              {budgetWarning 
+                ? "⚠️ 300만 원까지만 입력 가능합니다." 
+                : "※ AI 정밀 예측을 위한 최적화 한도는 300만 원입니다."}
+            </div>
 
-          {/* 프리미엄 버튼 */}
+          </div>
+          {/* 트렌드분석 버튼 */}
           <button
             onClick={() => getRecommendation()}
             disabled={loading}
@@ -529,7 +540,6 @@ function MarketingAnalysis() {
               <div style={{
                 backgroundColor: '#F8F9FA',
                 border: '1px solid #E9ECEF',
-                borderLeft: '8px solid #2D3436',
                 padding: '40px',
                 borderRadius: '16px',
                 marginTop: '10px',
@@ -707,7 +717,7 @@ function MarketingAnalysis() {
             }}>
               <div style={{ fontSize: '4rem', marginBottom: '20px', opacity: 0.5 }}>📊</div>
               <p style={{ fontSize: '1.3rem', textAlign: 'center', lineHeight: '1.6' }}>
-                상단에 예산을 입력하고 <strong>프리미엄 분석 실행</strong> 버튼을 눌러주세요.<br/>
+                상단에 예산을 입력하고 <strong>AI 트렌드 분석 실행</strong> 버튼을 눌러주세요.<br/>
                 <span style={{ fontSize: '1rem', color: '#bbb' }}>연동된 4개 채널의 데이터를 분석하여 최적의 전략을 제안합니다.</span>
               </p>
             </div>
