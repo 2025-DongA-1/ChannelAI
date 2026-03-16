@@ -76,7 +76,7 @@ export default function DashboardPage() {
     // 말풍선 로직 시작 (10초 후 첫 메시지)
     const timer1 = setTimeout(() => {
       setBubbleTarget('campaigns');
-      setBubbleMessage('혹시 예산과 수익 지표가 0으로 표시되나요?\n캠페인 & 예산 페이지에서 광고 예산과 해당 광고 캠페인 기간 동안 얼마나 수익이 있었는지 입력하면 정상적으로 수익이 표시됩니다.');
+      setBubbleMessage('혹시 예산과 수익 지표가 0으로 표시되나요?\n캠페인 & 예산 페이지에서 광고 예산을 입력하고, 연동 페이지에서 해당 광고 캠페인 기간 동안 얼마나 수익이 있었는지 입력하면 정상적으로 수익이 표시됩니다.');
       updateBubblePos();
       setShowBubble(true);
       setBubbleOpacity(1);
@@ -128,7 +128,7 @@ export default function DashboardPage() {
     {
       targetId: 'nav-menu-integration',
       title: '광고 플랫폼 연동',
-      content: '먼저 광고 매체(메타, 네이버, 구글, 당근)를 연동하고 광고 캠페인 데이터를 API로 받아오세요.'
+      content: '먼저 광고 매체(메타, 네이버, 구글, 당근)를 연동하고 광고 캠페인 데이터를 API로 받아오세요. 광고 캠페인을 통한 수익도 입력할 수 있습니다.'
     },
     {
       targetId: 'nav-menu-creative',
@@ -138,7 +138,7 @@ export default function DashboardPage() {
     {
       targetId: 'nav-menu-campaigns',
       title: '광고 데이터를 가져오셨나요?',
-      content: '플랫폼 연동이나 광고 소재 추천을 받아 광고 데이터를 연동하셨다면, 이곳에서 현재 진행 중인 광고 캠페인의 상세한 정보와 본인이 가용할 수 있는 예산, 실제 캠페인을 통한 수익을 입력하세요. 이 광고를 통해 얼마나 수익이 발생했는지 자동으로 계산됩니다.'
+      content: '플랫폼 연동이나 광고 소재 추천을 받아 광고 데이터를 연동하셨다면, 이곳에서 현재 진행 중인 광고 캠페인의 상세한 정보와 본인이 가용할 수 있는 예산을 입력하세요.'
     },
     {
       targetId: 'nav-menu-insights',
