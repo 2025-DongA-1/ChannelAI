@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate, useNavigate, Link, useLocation 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useState, useEffect } from 'react';
 import { useAuthStore } from './store/authStore';
+import { authAPI } from './lib/api';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import DashboardPage from './pages/DashboardPage';
@@ -15,6 +16,8 @@ import TermsOfServicePage from './pages/TermsOfServicePage';
 import DummyDataPage from './pages/DummyDataPage';
 import DataManagementPage from './pages/DataManagementPage';
 import MyPage from './pages/MyPage';
+import SubscriptionPage from './pages/SubscriptionPage';
+import PaymentPage from './pages/PaymentPage';
 import AdvancedModelTestPage from './pages/AdvancedModelTestPage';
 // [2026-03-05 16:15] 수정 이유: 새로 생성한 OpenAI 모델 전용 테스트 페이지 라우트 등록
 import OpenaiModelTestPage from './pages/OpenaiModelTestPage';
@@ -216,10 +219,25 @@ const queryClient = new QueryClient({
   },
 });
 
+// 앱 시작 시 user 정보(plan 등)를 서버에서 최신화하는 컴포넌트
+const UserRefresher = () => {
+  const { isAuthenticated, token, user, setAuth } = useAuthStore();
+  useEffect(() => {
+    if (!isAuthenticated || !token) return;
+    authAPI.getMe().then((res) => {
+      if (res.data?.user) {
+        setAuth({ ...user, ...res.data.user } as Parameters<typeof setAuth>[0], token);
+      }
+    }).catch(() => {});
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  return null;
+};
+
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
+        <UserRefresher />
         <Routes>
           {/* Public Routes */}
           <Route path="/" element={<Layout><MainPage /></Layout>} />
@@ -387,6 +405,32 @@ function App() {
                 <Layout>
                   <div className="max-w-7xl mx-auto py-3 sm:py-6 px-4 sm:px-6 lg:px-8">
                     <MyPage />
+                  </div>
+                </Layout>
+              </PrivateRoute>
+            }
+          />
+
+          <Route
+            path="/subscription"
+            element={
+              <PrivateRoute>
+                <Layout>
+                  <div className="max-w-7xl mx-auto py-3 sm:py-6 px-4 sm:px-6 lg:px-8">
+                    <SubscriptionPage />
+                  </div>
+                </Layout>
+              </PrivateRoute>
+            }
+          />
+
+          <Route
+            path="/payment"
+            element={
+              <PrivateRoute>
+                <Layout>
+                  <div className="max-w-7xl mx-auto py-3 sm:py-6 px-4 sm:px-6 lg:px-8">
+                    <PaymentPage />
                   </div>
                 </Layout>
               </PrivateRoute>

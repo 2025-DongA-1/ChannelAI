@@ -98,6 +98,23 @@ export const authAPI = {
   // 🔑 비밀번호 변경
   changePassword: (data: { currentPassword: string; newPassword: string }) =>
     api.put('/auth/me/password', data),
+
+  // 📋 구독 정보 조회
+  getSubscription: () => api.get('/auth/subscription'),
+
+  // ❌ 구독 해지 (plan → NULL, 최신 결제 환불 처리)
+  cancelSubscription: () => api.post('/auth/subscription/cancel'),
+
+  // ✅ 구독 활성화 (months 기본 1개월)
+  activateSubscription: (months?: number) =>
+    api.post('/auth/subscription/activate', { months: months ?? 1 }),
+
+  // 🔄 자동 갱신 설정 변경
+  updateAutoRenew: (auto_renew: 0 | 1) =>
+    api.patch('/auth/subscription/auto-renew', { auto_renew }),
+
+  // 🧪 [TEST] 구독 만료일 현재로 초기화
+  testExpireSubscription: () => api.post('/auth/subscription/test-expire'),
 };
 
 // 📊 대시보드 관련 API 함수 모음

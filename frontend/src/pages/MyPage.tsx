@@ -129,7 +129,7 @@ const MyPage = () => {
 
   const inputClass = "flex-1 border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400";
   const labelClass = "w-32 font-medium text-gray-500 text-sm flex-shrink-0";
-  const currentPlan = ((user as any)?.plan || 'FREE').toUpperCase();
+  const currentPlan = (user as { plan?: string | null } | null)?.plan === 'PRO' ? 'PRO' : 'FREE';
   const isFreePlan = currentPlan === 'FREE';
 
 
@@ -320,14 +320,19 @@ const MyPage = () => {
               </p>
             </div>
             
-            {isFreePlan && (
+            {isFreePlan ? (
               <button
-                onClick={() => {
-                  console.log('결제 모달 열기');
-                }}
+                onClick={() => navigate('/payment')}
                 className="shrink-0 whitespace-nowrap px-6 py-2.5 ml-6 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg shadow-md hover:shadow-lg border-none outline-none transition-all duration-200 transform hover:-translate-y-0.5"
               >
                 PRO 업그레이드
+              </button>
+            ) : (
+              <button
+                onClick={() => navigate('/subscription')}
+                className="shrink-0 whitespace-nowrap px-6 py-2.5 ml-6 bg-white hover:bg-gray-50 text-blue-700 font-bold rounded-lg shadow-md hover:shadow-lg border border-blue-300 outline-none transition-all duration-200 transform hover:-translate-y-0.5"
+              >
+                구독 관리
               </button>
             )}
           </div>    

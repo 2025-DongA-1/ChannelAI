@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { register, login, getMe, checkEmail, updateProfile, changePassword } from '../controllers/authController';
+import { register, login, getMe, checkEmail, updateProfile, changePassword, getSubscription, cancelSubscription, activateSubscription, updateAutoRenew, testExpireSubscription } from '../controllers/authController';
 import {
   getKakaoAuthUrl,
   handleKakaoCallback,
@@ -31,6 +31,21 @@ router.put('/me', authenticate, updateProfile);
 
 // 비밀번호 변경
 router.put('/me/password', authenticate, changePassword);
+
+// 구독 정보 조회
+router.get('/subscription', authenticate, getSubscription);
+
+// 구독 해지
+router.post('/subscription/cancel', authenticate, cancelSubscription);
+
+// 구독 활성화
+router.post('/subscription/activate', authenticate, activateSubscription);
+
+// 자동 갱신 설정 변경
+router.patch('/subscription/auto-renew', authenticate, updateAutoRenew);
+
+// [TEST] 구독 만료일 현재로 초기화
+router.post('/subscription/test-expire', authenticate, testExpireSubscription);
 
 // 소셜 로그인 - 카카오
 router.get('/kakao', getKakaoAuthUrl);
