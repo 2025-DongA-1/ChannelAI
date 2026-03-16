@@ -247,6 +247,23 @@ export default function InsightsPage() {
         backgroundColor: '#f9fafb',
         logging: false,
         windowWidth: 1280,
+        scrollX: 0,
+        scrollY: -window.scrollY,
+        onclone: (doc) => {
+          // 네이티브 폼 요소는 html2canvas에서 글자 간격이 틀어지므로 텍스트로 교체
+          doc.querySelectorAll('select').forEach((sel) => {
+            const span = doc.createElement('span');
+            span.textContent = (sel as HTMLSelectElement).options[(sel as HTMLSelectElement).selectedIndex]?.text ?? '';
+            span.style.cssText = 'font-size:14px;color:#1f2937;display:inline-block;vertical-align:middle;';
+            sel.parentNode?.replaceChild(span, sel);
+          });
+          doc.querySelectorAll('input[type="date"]').forEach((input) => {
+            const span = doc.createElement('span');
+            span.textContent = (input as HTMLInputElement).value;
+            span.style.cssText = 'font-size:14px;color:#1f2937;display:inline-block;vertical-align:middle;';
+            input.parentNode?.replaceChild(span, input);
+          });
+        },
       });
 
       const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });

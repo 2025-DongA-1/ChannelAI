@@ -9,7 +9,7 @@ import {
   Cell, PieChart, Pie
 } from "recharts";
 // [2026-03-12 17:52] AI 인사이트를 위한 아이콘 추가 (Sparkles, RefreshCcw)
-import { LayoutDashboard, DownloadCloud, Mail, Sparkles, RefreshCcw } from 'lucide-react';
+import { LayoutDashboard, DownloadCloud, Sparkles, RefreshCcw } from 'lucide-react';
 import { api } from '../lib/api';
 // [2026-03-13] 사용자 이메일 자동 사용을 위해 authStore import
 import { useAuthStore } from '../store/authStore';
