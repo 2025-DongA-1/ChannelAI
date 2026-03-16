@@ -129,6 +129,9 @@ const MyPage = () => {
 
   const inputClass = "flex-1 border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400";
   const labelClass = "w-32 font-medium text-gray-500 text-sm flex-shrink-0";
+  const currentPlan = ((user as any)?.plan || 'FREE').toUpperCase();
+  const isFreePlan = currentPlan === 'FREE';
+
 
   return (
     <div className="max-w-2xl mx-auto py-10 px-4">
@@ -236,14 +239,10 @@ const MyPage = () => {
             <span className={labelClass}>로그인 방식</span>
             <span className="text-sm uppercase">{user?.provider || 'email'}</span>
           </div>
-          <div className="flex items-center gap-4">
-            <span className={labelClass}>요금제</span>
-            <span className="text-sm uppercase">{(user as any)?.plan || 'FREE'}</span>
-          </div>
         </div>
       </div>
 
-      {/* ── 비밀번호 변경 (이메일 계정만) ── */}
+          {/* ── 비밀번호 변경 (이메일 계정만) ── */}
       {!isSocialAccount && (
         <div className="bg-white shadow rounded-lg p-6 mb-6">
           <div className="flex items-center justify-between mb-4">
@@ -303,6 +302,37 @@ const MyPage = () => {
         </div>
       )}
 
+
+          {/* ── 요금제 및 결제 유도 전용 카드 ── */}
+        <div className={`shadow rounded-lg p-6 mb-6 flex flex-col sm:flex-row items-center justify-between gap-4 ${
+            isFreePlan 
+              ? 'bg-white border-2 border-blue-100' 
+              : 'bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-100'
+          }`}>
+            <div className="mb-4 sm:mb-0 flex-1">
+              <h2 className="text-xl font-bold mb-1 text-gray-800">
+                현재 요금제 : <span className={isFreePlan ? "text-gray-500" : "text-blue-900"}>{currentPlan}</span>
+              </h2>
+              <p className={`text-sm ${isFreePlan ? 'text-gray-500' : 'text-blue-700'}`}>
+                {isFreePlan 
+                  ? '실시간 예산 조언을 무제한으로 받고 싶다면, PRO를 시작해보세요.' 
+                  : 'PRO 요금제의 모든 프리미엄 혜택을 이용 중입니다.'}
+              </p>
+            </div>
+            
+            {isFreePlan && (
+              <button
+                onClick={() => {
+                  console.log('결제 모달 열기');
+                }}
+                className="shrink-0 whitespace-nowrap px-6 py-2.5 ml-6 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg shadow-md hover:shadow-lg border-none outline-none transition-all duration-200 transform hover:-translate-y-0.5"
+              >
+                PRO 업그레이드
+              </button>
+            )}
+          </div>    
+
+      
       {/* ── 소셜 연동 ── */}
       <div className="bg-white shadow rounded-lg p-6 mb-6">
         <h2 className="text-xl font-semibold mb-4">소셜 계정 연동</h2>
