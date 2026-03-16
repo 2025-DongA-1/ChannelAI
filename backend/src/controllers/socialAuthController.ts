@@ -44,7 +44,7 @@ export const handleKakaoCallback = async (req: Request, res: Response) => {
     const { code, state } = req.query;
     
     if (!code) {
-      return res.redirect(`${frontendUrl}/me?error=missing_code`);
+      return res.redirect(`${frontendUrl}/auth/callback?error=missing_code`);
     }
 
     // 1. 카카오 액세스 토큰 받기
@@ -140,7 +140,7 @@ export const handleKakaoCallback = async (req: Request, res: Response) => {
         } else {
           // 연동된 계정 없음 -> 에러 리턴 (자동 가입 차단)
           logAuth('Kakao Login Failed - Unregistered Account', false, { kakaoId });
-          return res.redirect(`${frontendUrl}/me?error=kakao_not_linked`);
+          return res.redirect(`${frontendUrl}/auth/callback?error=not_linked`);
         }
 
         // 4. JWT 토큰 생성
@@ -159,7 +159,7 @@ export const handleKakaoCallback = async (req: Request, res: Response) => {
   } catch (error) {
     logAuth('Kakao Auth Failed With Exception', false, { error: String(error) });
     console.error('Kakao OAuth error:', error);
-    res.redirect(`${frontendUrl}/me?error=oauth_failed`);
+    res.redirect(`${frontendUrl}/auth/callback?error=oauth_failed`);
   } finally {
     client.release();
   }
@@ -210,7 +210,7 @@ export const handleNaverCallback = async (req: Request, res: Response) => {
     const { code, state } = req.query;
     
     if (!code) {
-      return res.redirect(`${frontendUrl}/me?error=missing_code`);
+      return res.redirect(`${frontendUrl}/auth/callback?error=missing_code`);
     }
 
     // 1. 네이버 액세스 토큰 받기
@@ -310,7 +310,7 @@ export const handleNaverCallback = async (req: Request, res: Response) => {
       } else {
         // 연동된 계정 없음 -> 에러 리턴
         logAuth('Naver Login Failed - Unregistered Account', false, { naverId });
-        return res.redirect(`${frontendUrl}/me?error=naver_not_linked`);
+        return res.redirect(`${frontendUrl}/auth/callback?error=not_linked`);
       }
 
       // 2. JWT 토큰 생성
@@ -329,7 +329,7 @@ export const handleNaverCallback = async (req: Request, res: Response) => {
   } catch (error) {
     logAuth('Naver Auth Failed With Exception', false, { error: String(error) });
     console.error('Naver OAuth error:', error);
-    res.redirect(`${frontendUrl}/me?error=oauth_failed`);
+    res.redirect(`${frontendUrl}/auth/callback?error=oauth_failed`);
   } finally {
     client.release();
   }
@@ -375,7 +375,7 @@ export const handleGoogleCallback = async (req: Request, res: Response) => {
     const { code, state } = req.query;
     
     if (!code) {
-      return res.redirect(`${frontendUrl}/me?error=missing_code`);
+      return res.redirect(`${frontendUrl}/auth/callback?error=missing_code`);
     }
 
     // 1. 구글 액세스 토큰 받기
@@ -468,7 +468,7 @@ export const handleGoogleCallback = async (req: Request, res: Response) => {
         } else {
           // 연동된 계정 없음 -> 에러 리턴 (자동 가입 차단)
           logAuth('Google Login Failed - Unregistered Account', false, { googleId });
-          return res.redirect(`${frontendUrl}/me?error=google_not_linked`);
+          return res.redirect(`${frontendUrl}/auth/callback?error=not_linked`);
         }
 
         // 4. JWT 토큰 생성
@@ -487,7 +487,7 @@ export const handleGoogleCallback = async (req: Request, res: Response) => {
   } catch (error) {
     logAuth('Google Auth Failed With Exception', false, { error: String(error) });
     console.error('Google OAuth error:', error);
-    res.redirect(`${frontendUrl}/me?error=oauth_failed`);
+    res.redirect(`${frontendUrl}/auth/callback?error=oauth_failed`);
   } finally {
     client.release();
   }

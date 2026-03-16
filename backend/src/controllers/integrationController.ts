@@ -251,6 +251,7 @@ export const crawlKarrotAdResult = async (req: AuthRequest, res: Response) => {
 import { Response } from 'express';
 import { AuthRequest } from '../middlewares/auth';
 import pool from '../config/database';
+import { encrypt, decrypt } from '../utils/crypto';
 import { googleAdsService } from '../services/external/googleAdsService';
 import { metaAdsService } from '../services/external/metaAdsService';
 import { naverAdsService, NaverAdsService } from '../services/external/naverAdsService';
@@ -356,8 +357,8 @@ export const handleOAuthCallback = async (req: AuthRequest, res: Response) => {
         platform,
         account.id,
         account.name,
-        credentials.accessToken,
-        credentials.refreshToken
+        encrypt(credentials.accessToken),
+        encrypt(credentials.refreshToken)
       ]);
     } else {
       // 계정 목록은 못 가져왔지만 OAuth 인증은 성공 → 연결 저장
@@ -376,8 +377,8 @@ export const handleOAuthCallback = async (req: AuthRequest, res: Response) => {
         platform,
         'oauth_connected',
         `${platform.charAt(0).toUpperCase() + platform.slice(1)} Ads (OAuth)`,
-        credentials.accessToken,
-        credentials.refreshToken
+        encrypt(credentials.accessToken),
+        encrypt(credentials.refreshToken)
       ]);
     }
 
@@ -565,6 +566,7 @@ export const syncMetrics = async (req: AuthRequest, res: Response) => {
     }
 
     const campaign = campaignResult.rows[0];
+    campaign.access_token = decrypt(campaign.access_token);
     const service = serviceMap[campaign.platform];
 
     if (!service) {
@@ -668,7 +670,10 @@ export const syncAllMetrics = async (req: AuthRequest, res: Response) => {
     }
 
     const accountsResult = await pool.query(accountQuery, accountParams);
-    const accounts = accountsResult.rows;
+    const accounts = accountsResult.rows.map((a: any) => ({
+      ...a,
+      access_token: decrypt(a.access_token),
+    }));
 
     console.log('[Sync All] 계정 조회 완료:', accounts.length, '개');
 
@@ -942,7 +947,7 @@ export const connectPlatform = async (req: AuthRequest, res: Response) => {
         // 기존 계정 업데이트
         await pool.query(
           'UPDATE marketing_accounts SET access_token = ?, account_name = ?, connection_status = 1 WHERE id = ?',
-          [authData, displayName, existing.rows[0].id]
+          [encrypt(authData), displayName, existing.rows[0].id]
         );
         accountId = existing.rows[0].id;
         console.log('[Connect Naver] 기존 계정 업데이트:', accountId);
@@ -951,7 +956,7 @@ export const connectPlatform = async (req: AuthRequest, res: Response) => {
         const result = await pool.query(
           `INSERT INTO marketing_accounts (user_id, channel_code, external_account_id, account_name, access_token, connection_status)
            VALUES (?, ?, ?, ?, ?, 1)`,
-          [userId, platform, customerId, displayName, authData]
+          [userId, platform, customerId, displayName, encrypt(authData)]
         );
         accountId = result.insertId!;
         console.log('[Connect Naver] 새 계정 생성:', accountId);

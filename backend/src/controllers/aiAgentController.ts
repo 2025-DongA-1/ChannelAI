@@ -567,6 +567,14 @@ export const getMLRealtime = async (req: AuthRequest, res: Response) => {
 
     const { startDate, endDate, provider } = req.query as { startDate?: string; endDate?: string; provider?: string };
 
+    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+    if (startDate && !dateRegex.test(startDate)) {
+      return res.status(400).json({ success: false, error: '시작 날짜 형식이 올바르지 않습니다. (YYYY-MM-DD)' });
+    }
+    if (endDate && !dateRegex.test(endDate)) {
+      return res.status(400).json({ success: false, error: '종료 날짜 형식이 올바르지 않습니다. (YYYY-MM-DD)' });
+    }
+
     // Python 스크립트 절대 경로 (backend/python/ml_predict.py)
     const scriptPath = path.join(__dirname, '../../python/ml_predict.py');
 

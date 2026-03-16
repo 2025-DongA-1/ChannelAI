@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import pool from '../config/database';
 import { AuthRequest } from '../middlewares/auth';
+import { encrypt, decrypt } from '../utils/crypto';
 
 /**
  * 마케팅 계정 목록 조회
@@ -34,9 +35,15 @@ export const getAccounts = async (req: Request, res: Response) => {
     query += ` ORDER BY ma.id DESC`;
     
     const { rows } = await pool.query(query, params);
-    
+
+    const decryptedRows = rows.map((row: any) => ({
+      ...row,
+      access_token: decrypt(row.access_token),
+      refresh_token: decrypt(row.refresh_token),
+    }));
+
     res.json({
-      accounts: rows,
+      accounts: decryptedRows,
     });
   } catch (error: any) {
     console.error('Get accounts error:', error);
@@ -75,8 +82,13 @@ export const getAccountById = async (req: Request, res: Response) => {
       });
     }
     
+    const row = rows[0];
     res.json({
-      account: rows[0],
+      account: {
+        ...row,
+        access_token: decrypt(row.access_token),
+        refresh_token: decrypt(row.refresh_token),
+      },
     });
   } catch (error: any) {
     console.error('Get account error:', error);
@@ -129,7 +141,7 @@ export const createAccount = async (req: Request, res: Response) => {
         access_token, refresh_token, connection_status
       )
       VALUES (?, ?, ?, ?, ?, ?, 1)`,
-      [userId, platform, account_name, account_id, access_token, refresh_token]
+      [userId, platform, account_name, account_id, encrypt(access_token), encrypt(refresh_token)]
     );
     
     const { rows } = await pool.query(
@@ -186,7 +198,7 @@ export const updateAccount = async (req: Request, res: Response) => {
         refresh_token = COALESCE(?, refresh_token),
         connection_status = COALESCE(?, connection_status)
       WHERE id = ?`,
-      [account_name, access_token, refresh_token, is_connected, id]
+      [account_name, access_token ? encrypt(access_token) : null, refresh_token ? encrypt(refresh_token) : null, is_connected, id]
     );
     
     const { rows } = await pool.query(
