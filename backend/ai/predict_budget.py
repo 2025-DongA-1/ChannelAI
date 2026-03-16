@@ -6,6 +6,7 @@ from scipy.optimize import linprog
 import os
 import joblib
 import warnings
+import json
 
 # ----------------------------------------------------------
 # JSON 파싱/출력 과정에서 발생할 수 있는 불필요한 경고 메시지를 숨김
@@ -332,6 +333,37 @@ def build_pro_report(total_budget, allocated_budget, predicted_roas, expected_re
 
 
 # ==========================================
+# ★ [NEW] 진짜 트렌드 점수 로드 함수 추가
+# ==========================================
+def load_real_trend_scores():
+    """JSON 파일에서 진짜 트렌드 점수를 읽어와 AI용으로 보정합니다."""
+    # 현재 실행 파일(predict_budget.py)과 동일한 폴더에 있는 json 파일을 찾도록 절대경로 설정
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    file_path = os.path.join(script_dir, 'today_trend.json')
+    
+    # 기본값 (파일이 없거나 에러 날 경우를 대비한 1단계 폴백)
+    default_scores = {"naver": 80, "meta": 75, "google": 70, "karrot": 65}
+    
+    if not os.path.exists(file_path):
+        return default_scores
+
+    try:
+        with open(file_path, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+            raw_scores = data['scores']
+            
+            calibrated_scores = {}
+            for platform, ratio in raw_scores.items():
+                # 💡 [핵심 논리] 최소 60점은 보장하되, ratio에 따라 가산점 부여
+                calibrated_scores[platform] = 60 + (ratio * 0.4)
+                
+            return calibrated_scores
+    except:
+        return default_scores
+
+
+
+# ==========================================
 # 2. 메인 실행 함수 (전면 개편: ML 계수 추출 + LP 최적화)
 # ==========================================
 def main():
@@ -424,6 +456,18 @@ def main():
             user_data_map["google"] = {"roas": item.get('ROAS', 0), "trend": item.get('trend_score', 50)}
         elif item.get('channel_karrot') == 1 or item.get('채널명_Karrot') == 1:
             user_data_map["karrot"] = {"roas": item.get('ROAS', 0), "trend": item.get('trend_score', 50)}
+
+    # ======================================================
+    # ★ [NEW] 진짜 트렌드 데이터로 덮어쓰기 (가짜 점수 삭제)
+    # ======================================================
+    real_trends = load_real_trend_scores()
+    
+    # json에서 가져온 채널 이름들이 정확히 매칭되도록 덮어씌움
+    for ch in base_channel_metrics.keys():
+        if ch in real_trends:
+            # ROAS는 유저의 것을 유지하되, trend만 실제 데이터랩 점수로 갈아끼움
+            user_data_map[ch]["trend"] = real_trends[ch]
+    # ======================================================
 
     # ------------------------------------------------------
     # 저장된 모델 / 스케일러 로드
