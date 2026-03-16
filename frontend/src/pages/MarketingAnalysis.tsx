@@ -127,7 +127,7 @@ function MarketingAnalysis() {
       }
 
       let features: FeatureItem[] = [];
-      const trendScore = currentDuration === 7 ? 90 : 50;
+      // const trendScore = currentDuration === 7 ? 90 : 50; -> 휴리스틱 알고리즘 이식 
       
       // ★ [수정] 무조건 4개 채널을 고정적으로 생성 (없으면 0으로 채움)
       const targetPlatforms = ['naver', 'meta', 'google', 'karrot'];
@@ -137,23 +137,39 @@ function MarketingAnalysis() {
       
       console.log("🔥 DB 원본 데이터:", dbList);
 
+      // ★ [수정됨] 마케팅 도메인 지식을 반영한 '플랫폼별 동적 트렌드 스코어(휴리스틱 모델)' 적용
       features = targetPlatforms.map(pName => {
 
-        // 1. [핵심] find(1개만 찾기) 대신 filter(모두 찾기)를 사용합니다.
+        // 1. 기존 로직: DB 데이터 매칭 및 비용/ROAS 계산
         const matchedItems = dbList.filter((item: any) => 
           item.platform.toLowerCase().includes(pName)
         );
         
-        // 2. 비용(Cost)은 찾은 데이터들의 값을 모두 더합니다 (합산)
-        const totalCost = matchedItems.reduce((sum: number, item: any) => 
-          sum + (item.metrics?.cost || 0), 0
-        );
-        
-        // 3. ROAS는 합치면 수익률이 뻥튀기되므로 '평균'을 냅니다
+        const totalCost = matchedItems.reduce((sum: number, item: any) => sum + (item.metrics?.cost || 0), 0);
         const avgRoas = matchedItems.length > 0 
           ? matchedItems.reduce((sum: number, item: any) => sum + (item.metrics?.roas || 0), 0) / matchedItems.length
           : 0;
         
+        // 💡 2. [핵심 알고리즘] 플랫폼별 & 캠페인 기간별 트렌드 가중치 산출
+        let dynamicTrendScore = 50; // 기본값
+        
+        if (pName === 'meta') {
+            // 메타(인스타/페북): 숏폼 바이럴 등 단기(7일 이하) 확산에 강력함. 장기로 갈수록 피로도 누적.
+            dynamicTrendScore = currentDuration <= 7 ? 85 : 60; 
+        } else if (pName === 'google') {
+            // 구글(유튜브/검색): 초반엔 머신러닝 최적화 학습 기간이 필요. 장기(30일)로 갈수록 데이터가 쌓여 고효율 달성.
+            dynamicTrendScore = currentDuration >= 30 ? 90 : 55;
+        } else if (pName === 'naver') {
+            // 네이버: 한국 시장의 기본 검색 인텐트(의도) 기반. 기간에 흔들리지 않는 안정적인 베이스캠프.
+            dynamicTrendScore = 80;
+        } else if (pName === 'karrot') {
+            // 당근마켓: 철저한 지역 기반(Hyper-local). 주말이나 단기(7일 이하) 프로모션에 극도로 특화.
+            dynamicTrendScore = currentDuration <= 7 ? 85 : 50;
+        }
+
+        // 3. [현실성 부여] 기계적인 고정값을 탈피하기 위해 약간의 랜덤 노이즈(-3 ~ +3) 추가
+        dynamicTrendScore += Math.floor(Math.random() * 7) - 3;
+
         return {
           "채널명_Naver": pName === 'naver' ? 1 : 0,
           "채널명_Meta": pName === 'meta' ? 1 : 0,
@@ -162,7 +178,7 @@ function MarketingAnalysis() {
           
           "비용": Number(totalCost),
           "ROAS": Number(avgRoas),
-          "trend_score": trendScore
+          "trend_score": Math.max(0, Math.min(100, dynamicTrendScore)) // 점수가 무조건 0~100 사이에 있도록 안전장치
         };
       });
       
@@ -239,8 +255,8 @@ function MarketingAnalysis() {
   ] : [];
   
   // DB 데이터(realPerformance)가 없으면 빈 배열로 처리
-  const dbList = dbData?.data?.performance || [];
-  const totalInputCost = dbList.reduce((acc: number, cur: any) => acc + (cur.metrics?.cost || 0), 0);
+ // const dbList = dbData?.data?.performance || [];
+ // const totalInputCost = dbList.reduce((acc: number, cur: any) => acc + (cur.metrics?.cost || 0), 0);
 
   // rows에서 데이터만 가져오기
   const safeHistoryList = historyList?.rows ? historyList.rows : (Array.isArray(historyList) ? historyList : []);
@@ -380,7 +396,7 @@ function MarketingAnalysis() {
       <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
         {result ? (
           // ▼ 내 입력 데이터가 1원이라도 있니?
-          totalInputCost>0 ? (
+          // totalInputCost>0 ? ( -> CASE B가 사라지면서 조건도 없앰
             
             /* ─── CASE A: 데이터가 있어서 그래프를 보여주는 화면 ─── */
             <div style={{ display: 'flex', flexDirection: 'column', gap: '25px' }}>
@@ -676,8 +692,10 @@ function MarketingAnalysis() {
 
             </div>
           ) : (
+            
             /* ─── CASE B: 연동은 성공했지만 데이터가 0인 경우 (빈 화면) ─── */
-            <div style={{ 
+            // 원래는 있었지만 데이터가 없는 콜드 스타트 사용자를 위해 지움 - 이 사용자들은 트렌드스코어로 예측
+            /* <div style={{ 
               display: 'flex', 
               flexDirection: 'column', 
               alignItems: 'center', 
@@ -698,7 +716,8 @@ function MarketingAnalysis() {
               </p>
             </div>
           )
-        ) : (
+        ) : ( */
+
           /* ─── CASE C: 아직 분석 버튼을 누르지 않은 초기 화면 ─── */
           // ✅ 1. 부모 박스(<div style={{ display: 'flex', flexDirection: 'column', gap: '30px' }}>)로 두 영역을 감싸줍니다.
           <div style={{ display: 'flex', flexDirection: 'column', gap: '30px' }}>
