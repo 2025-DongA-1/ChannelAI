@@ -14,7 +14,12 @@ export default function AuthCallbackPage() {
 
     if (error) {
       console.error('소셜 로그인 오류:', error);
-      alert('소셜 로그인에 실패했습니다.');
+      const msg = error === 'not_linked'
+        ? '연동된 계정을 찾을 수 없습니다.\n일반 로그인 후 마이페이지에서 소셜 계정을 연동해 주세요.'
+        : error === 'oauth_failed'
+        ? '소셜 로그인 처리 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.'
+        : '소셜 로그인에 실패했습니다.';
+      alert(msg);
       navigate('/login');
       return;
     }

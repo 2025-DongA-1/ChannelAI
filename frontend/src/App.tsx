@@ -198,6 +198,14 @@ const PrivateRoute = ({ children }: { children: React.ReactNode }) => {
   return isAuthenticated ? <>{children}</> : <Navigate to="/login" replace />;
 };
 
+// Admin Only Route Component
+const AdminRoute = ({ children }: { children: React.ReactNode }) => {
+  const { isAuthenticated, user } = useAuthStore();
+  if (!isAuthenticated) return <Navigate to="/login" replace />;
+  if (user?.role !== 'admin') return <Navigate to="/dashboard" replace />;
+  return <>{children}</>;
+};
+
 // React Query Client
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -323,13 +331,13 @@ function App() {
           <Route
             path="/dummy-data"
             element={
-              <PrivateRoute>
+              <AdminRoute>
                 <Layout>
                   <div className="max-w-7xl mx-auto py-3 sm:py-6 px-4 sm:px-6 lg:px-8">
                     <DummyDataPage />
                   </div>
                 </Layout>
-              </PrivateRoute>
+              </AdminRoute>
             }
           />
 
@@ -349,26 +357,26 @@ function App() {
           <Route
             path="/advanced-model-test"
             element={
-              <PrivateRoute>
+              <AdminRoute>
                 <Layout>
                   <div className="max-w-7xl mx-auto py-3 sm:py-6 px-4 sm:px-6 lg:px-8">
                     <AdvancedModelTestPage />
                   </div>
                 </Layout>
-              </PrivateRoute>
+              </AdminRoute>
             }
           />
-          
+
           <Route
             path="/openai-model-test"
             element={
-              <PrivateRoute>
+              <AdminRoute>
                 <Layout>
                   <div className="max-w-7xl mx-auto py-3 sm:py-6 px-4 sm:px-6 lg:px-8">
                     <OpenaiModelTestPage />
                   </div>
                 </Layout>
-              </PrivateRoute>
+              </AdminRoute>
             }
           />
 

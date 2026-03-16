@@ -184,6 +184,7 @@ jobs:
 
             # --- Common Config ---
             JWT_SECRET=${{ secrets.JWT_SECRET }}
+            TOKEN_ENCRYPTION_KEY=${{ secrets.TOKEN_ENCRYPTION_KEY }}
             JWT_EXPIRES_IN=7d
             NODE_ENV=production
             FRONTEND_URL=https://channelai.kro.kr

@@ -1,13 +1,15 @@
 // 💡 [수정됨] React에서 useEffect를 추가로 불러옵니다.
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import html2canvas from 'html2canvas';
+import { jsPDF } from 'jspdf';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { insightsAPI, api } from '@/lib/api';
-import { 
-  TrendingUp, 
-  TrendingDown, 
-  BarChart3, 
-  Lightbulb, 
+import {
+  TrendingUp,
+  TrendingDown,
+  BarChart3,
+  Lightbulb,
   Calendar,
   Download,
   AlertCircle,
@@ -16,7 +18,8 @@ import {
   Sparkles,
   RefreshCw,
   Send,
-  CheckCircle2
+  CheckCircle2,
+  FileText
 } from 'lucide-react';
 import {
   LineChart,
@@ -70,6 +73,8 @@ const TOUR_STEPS = [
 
 export default function InsightsPage() {
   const navigate = useNavigate();
+  const contentRef = useRef<HTMLDivElement>(null);
+  const [isExporting, setIsExporting] = useState(false);
   const [dateRange, setDateRange] = useState({
     start: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
     end: new Date().toISOString().split('T')[0],
@@ -232,9 +237,67 @@ export default function InsightsPage() {
     setDateRange(prev => ({ ...prev, [field]: value }));
   };
 
-  // [2026-03-13] 월별 성과 보고서 페이지로 이동 후 PDF 자동 저장, 완료 시 인사이트 페이지로 복귀
-  const handleExportPDF = () => {
-    navigate('/monthly-report?export=true&redirect=insights');
+  const handleExportPDF = async () => {
+    if (!contentRef.current) return;
+    setIsExporting(true);
+    try {
+      const canvas = await html2canvas(contentRef.current, {
+        scale: 2,
+        useCORS: true,
+        backgroundColor: '#f9fafb',
+        logging: false,
+        windowWidth: 1280,
+        scrollX: 0,
+        scrollY: -window.scrollY,
+        onclone: (doc) => {
+          // 네이티브 폼 요소는 html2canvas에서 글자 간격이 틀어지므로 텍스트로 교체
+          doc.querySelectorAll('select').forEach((sel) => {
+            const span = doc.createElement('span');
+            span.textContent = (sel as HTMLSelectElement).options[(sel as HTMLSelectElement).selectedIndex]?.text ?? '';
+            span.style.cssText = 'font-size:14px;color:#1f2937;display:inline-block;vertical-align:middle;';
+            sel.parentNode?.replaceChild(span, sel);
+          });
+          doc.querySelectorAll('input[type="date"]').forEach((input) => {
+            const span = doc.createElement('span');
+            span.textContent = (input as HTMLInputElement).value;
+            span.style.cssText = 'font-size:14px;color:#1f2937;display:inline-block;vertical-align:middle;';
+            input.parentNode?.replaceChild(span, input);
+          });
+        },
+      });
+
+      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+      const A4_W = 210, A4_H = 297, MARGIN = 10;
+      const CONTENT_W = A4_W - MARGIN * 2;
+      const imgW = canvas.width, imgH = canvas.height;
+      const renderedH = (imgH * CONTENT_W) / imgW;
+      let yOffset = 0, isFirstPage = true;
+
+      while (yOffset < renderedH) {
+        if (!isFirstPage) pdf.addPage();
+        isFirstPage = false;
+        const pageH = A4_H - MARGIN * 2;
+        const sliceH = Math.min(pageH, renderedH - yOffset);
+        const srcY = (yOffset / renderedH) * imgH;
+        const srcSliceH = (sliceH / renderedH) * imgH;
+
+        const slice = document.createElement('canvas');
+        slice.width = imgW;
+        slice.height = Math.round(srcSliceH);
+        const ctx = slice.getContext('2d')!;
+        ctx.drawImage(canvas, 0, srcY, imgW, srcSliceH, 0, 0, imgW, Math.round(srcSliceH));
+        pdf.addImage(slice.toDataURL('image/jpeg', 0.92), 'JPEG', MARGIN, MARGIN, CONTENT_W, sliceH);
+        yOffset += sliceH;
+      }
+
+      const today = new Date().toISOString().split('T')[0];
+      pdf.save(`ChannelAI_인사이트_${today}.pdf`);
+    } catch (err) {
+      console.error('PDF 생성 실패:', err);
+      alert('PDF 생성 중 오류가 발생했습니다.');
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   const getChangeIcon = (change: number) => {
@@ -286,7 +349,7 @@ export default function InsightsPage() {
 
   return (
     <>
-    <div className="space-y-6 p-4 sm:p-6 mb-20 md:mb-0 relative">
+    <div ref={contentRef} className="space-y-6 p-4 sm:p-6 mb-20 md:mb-0 relative">
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 sm:gap-0">
         <div>
@@ -305,12 +368,25 @@ export default function InsightsPage() {
             <span>가이드</span>
           </button>
           <button
-            onClick={handleExportPDF}
-            className="flex-1 sm:flex-none flex items-center justify-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
+            onClick={() => navigate('/monthly-report')}
+            className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition"
           >
-            <Download className="w-5 h-5 mr-1" />
-            <span className="hidden sm:inline">PDF 다운로드</span>
-            <span className="sm:hidden">다운로드</span>
+            <FileText className="w-4 h-4" />
+            <span className="hidden sm:inline">월별 리포트</span>
+            <span className="sm:hidden">월별</span>
+          </button>
+          <button
+            onClick={handleExportPDF}
+            disabled={isExporting}
+            className="flex-1 sm:flex-none flex items-center justify-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition disabled:opacity-60 disabled:cursor-not-allowed"
+          >
+            {isExporting ? (
+              <div className="w-5 h-5 mr-1 animate-spin rounded-full border-2 border-white border-t-transparent" />
+            ) : (
+              <Download className="w-5 h-5 mr-1" />
+            )}
+            <span className="hidden sm:inline">{isExporting ? '저장 중...' : 'PDF 다운로드'}</span>
+            <span className="sm:hidden">{isExporting ? '저장 중' : '다운로드'}</span>
           </button>
         </div>
       </div>
