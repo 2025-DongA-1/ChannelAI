@@ -111,7 +111,7 @@ export default function IntegrationPage() {
   }, [showBubble]);
 
   const TOUR_STEPS = [
-    { id: 'tour-data-management', text: '데이터 관리 페이지에서 전체 데이터를\n조회하거나 연동된 데이터를 확인할 수\n있어요.' },
+    { id: 'tour-data-management', text: '데이터 관리 페이지에서 전체 데이터를\n조회하고 광고 캠페인별 수입을 입력할 수\n있어요.' },
     { id: 'tour-platforms', text: 'Google, Meta, Naver 등의 계정을\n연동해 캠페인 데이터를 불러올 수\n있습니다. 각 플랫폼 별 광고 계정 생성이 완료되어야 연동이 가능합니다.' },
     { id: 'tour-karrot', text: '현재 당근마켓은 자동 연동을 지원하지\n않아, 성과를 직접 입력하여 관리할 수\n있습니다.' }
   ];
