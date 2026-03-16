@@ -364,14 +364,12 @@ const startServer = async () => {
       console.log('📅 주간 리포트 스케줄 등록: 매주 월요일 오전 9시');
       */
 
-      // 일간 리포트: 매일 오전 9시 (ENABLE_DAILY_REPORT=true 일 때만 활성화)
-      if (process.env.ENABLE_DAILY_REPORT === 'true') {
-        cron.schedule('0 9 * * *', async () => {
-          console.log('⏰ [CRON] 일간 리포트 발송 시작');
-          await sendDailyReports();
-        }, { timezone: 'Asia/Seoul' });
-        console.log('📅 일간 리포트 스케줄 등록: 매일 오전 9시');
-      }
+      // 일간 리포트: 매일 오전 9시 (Resend 이메일 활성화 시 항상 실행)
+      cron.schedule('0 9 * * *', async () => {
+        console.log('⏰ [CRON] 일간 리포트 발송 시작');
+        await sendDailyReports();
+      }, { timezone: 'Asia/Seoul' });
+      console.log('📅 일간 리포트 스케줄 등록: 매일 오전 9시 (Resend)');
     }
     
     // 서버 시작 (0.0.0.0으로 모든 네트워크 인터페이스에서 접속 허용)

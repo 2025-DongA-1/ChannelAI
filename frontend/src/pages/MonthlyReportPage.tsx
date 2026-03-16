@@ -9,7 +9,7 @@ import {
   Cell, PieChart, Pie
 } from "recharts";
 // [2026-03-12 17:52] AI 인사이트를 위한 아이콘 추가 (Sparkles, RefreshCcw)
-import { LayoutDashboard, DownloadCloud, Sparkles, RefreshCcw } from 'lucide-react';
+import { LayoutDashboard, DownloadCloud, Sparkles, RefreshCcw, Mail, X } from 'lucide-react';
 import { api } from '../lib/api';
 // [2026-03-13] 사용자 이메일 자동 사용을 위해 authStore import
 import { useAuthStore } from '../store/authStore';
@@ -176,7 +176,12 @@ export default function MonthlyReportPage() {
   
   // PDF 내보내기 중인지 여부 (모든 탭을 렌더링하기 위함)
   const [isExporting, setIsExporting] = useState(false);
-  
+
+  // 이메일 발송 관련 상태
+  const [showEmailPanel, setShowEmailPanel] = useState(false);
+  const [emailTarget, setEmailTarget] = useState('');
+  const [emailSending, setEmailSending] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
+
   // const reportRef = useRef<HTMLDivElement>(null);
 
   // 리포트 렌더 영역 요소를 추적하기 위한 ref
@@ -523,6 +528,76 @@ export default function MonthlyReportPage() {
   }
 };
 
+  /** PDF 생성 후 이메일로 발송 */
+  const handleSendByEmail = async () => {
+    if (!emailTarget.trim()) return;
+    setEmailSending('loading');
+    setIsExporting(true);
+
+    if (user?.plan === 'PRO' && !insights) {
+      try { await llmMutation.mutateAsync(false); } catch { /* 무시 */ }
+    }
+    await new Promise(resolve => setTimeout(resolve, 3500));
+
+    try {
+      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+      const A4_W = 210, A4_H = 297, MARGIN = 10, CONTENT_W = A4_W - MARGIN * 2;
+      const TAB_LABELS = ["종합 성과 현황", "채널별 분석 데이터", "기간별 성과 추이", "캠페인별 상세 성과"];
+      let isFirstPage = true;
+
+      for (let i = 0; i < TAB_REFS.length; i++) {
+        const el = TAB_REFS[i].current;
+        if (!el) continue;
+        const canvas = await html2canvas(el, {
+          scale: 2, useCORS: true, backgroundColor: '#ffffff', logging: false, windowWidth: 1280,
+          onclone: (doc) => {
+            const style = doc.createElement('style');
+            style.innerHTML = `* { font-family: 'Malgun Gothic','Apple SD Gothic Neo',sans-serif !important; letter-spacing:-0.02em !important; } svg text { dominant-baseline:central !important; transform:translateY(1px); } td,th { vertical-align:middle !important; line-height:1.2 !important; }`;
+            doc.head.appendChild(style);
+          }
+        });
+        const imgW = canvas.width, imgH = canvas.height, HEADER_H = 16;
+        const renderedH = (imgH * CONTENT_W) / imgW;
+        let yOffset = 0;
+        while (yOffset < renderedH) {
+          if (!isFirstPage) pdf.addPage();
+          isFirstPage = false;
+          pdf.addImage(makeHeaderImg(TAB_LABELS[i], selectedMonth), 'PNG', 0, 0, A4_W, HEADER_H);
+          const pageContentH = A4_H - HEADER_H - MARGIN;
+          const sliceH = Math.min(pageContentH, renderedH - yOffset);
+          const srcY = (yOffset / renderedH) * imgH;
+          const srcSliceH = (sliceH / renderedH) * imgH;
+          const slice = document.createElement('canvas');
+          slice.width = imgW;
+          slice.height = Math.round(srcSliceH);
+          const ctx = slice.getContext('2d')!;
+          ctx.fillStyle = '#ffffff';
+          ctx.fillRect(0, 0, slice.width, slice.height);
+          ctx.drawImage(canvas, 0, srcY, imgW, srcSliceH, 0, 0, imgW, Math.round(srcSliceH));
+          pdf.addImage(slice.toDataURL('image/jpeg', 1.0), 'JPEG', MARGIN, HEADER_H + 2, CONTENT_W, sliceH);
+          yOffset += sliceH;
+        }
+      }
+
+      const blob = pdf.output('blob');
+      const formData = new FormData();
+      formData.append('pdf', blob, `ChannelAI_통합리포트_${selectedMonth}.pdf`);
+      formData.append('email', emailTarget.trim());
+      formData.append('month', selectedMonth);
+
+      await api.post('/report/send-pdf', formData);
+
+      setEmailSending('success');
+      setTimeout(() => { setEmailSending('idle'); setShowEmailPanel(false); }, 3000);
+    } catch (err) {
+      console.error('이메일 발송 실패:', err);
+      setEmailSending('error');
+      setTimeout(() => setEmailSending('idle'), 3000);
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="min-h-[calc(100vh-64px)] bg-gray-50 flex items-center justify-center">
@@ -641,24 +716,66 @@ export default function MonthlyReportPage() {
               </div>
 
               
-              <div className="flex gap-2">
-                <button
-                  onClick={handleDownloadPDF}
-                  disabled={isExporting}
-                  className="print:hidden flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold shadow-sm transition-all bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {isExporting ? (
-                    <>
-                      <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                      PDF 렌더링 중...
-                    </>
-                  ) : (
-                    <>
-                      <DownloadCloud size={18} />
-                      PDF 문서 전체 저장
-                    </>
-                  )}
-                </button>
+              <div className="flex flex-col items-end gap-2">
+                <div className="flex gap-2">
+                  {/* PDF 다운로드 */}
+                  <button
+                    onClick={handleDownloadPDF}
+                    disabled={isExporting || emailSending === 'loading'}
+                    className="print:hidden flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold shadow-sm transition-all bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isExporting && emailSending !== 'loading' ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                        PDF 렌더링 중...
+                      </>
+                    ) : (
+                      <>
+                        <DownloadCloud size={18} />
+                        PDF 저장
+                      </>
+                    )}
+                  </button>
+
+                  {/* 이메일 발송 버튼 */}
+                  <button
+                    onClick={() => {
+                      setEmailTarget(user?.email || '');
+                      setShowEmailPanel(v => !v);
+                    }}
+                    disabled={isExporting || emailSending === 'loading'}
+                    className="print:hidden flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold shadow-sm transition-all bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <Mail size={16} />
+                    이메일 발송
+                  </button>
+                </div>
+
+                {/* 이메일 입력 패널 */}
+                {showEmailPanel && (
+                  <div className="print:hidden flex items-center gap-2 bg-white border border-indigo-200 rounded-xl px-3 py-2 shadow-md">
+                    <input
+                      type="email"
+                      value={emailTarget}
+                      onChange={e => setEmailTarget(e.target.value)}
+                      onKeyDown={e => e.key === 'Enter' && handleSendByEmail()}
+                      placeholder="이메일 주소 입력"
+                      className="text-sm border-none outline-none w-52 text-gray-700 placeholder-gray-400"
+                    />
+                    <button
+                      onClick={handleSendByEmail}
+                      disabled={emailSending === 'loading' || !emailTarget.trim()}
+                      className="px-3 py-1 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-lg transition disabled:opacity-50"
+                    >
+                      {emailSending === 'loading' ? (
+                        <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      ) : emailSending === 'success' ? '발송 완료 ✓' : emailSending === 'error' ? '실패 ✗' : '발송'}
+                    </button>
+                    <button onClick={() => setShowEmailPanel(false)} className="text-gray-400 hover:text-gray-600">
+                      <X size={14} />
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           </div>
