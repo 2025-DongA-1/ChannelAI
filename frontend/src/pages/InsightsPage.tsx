@@ -250,6 +250,27 @@ export default function InsightsPage() {
         scrollX: 0,
         scrollY: -window.scrollY,
         onclone: (doc) => {
+          const style = doc.createElement('style');
+          style.innerHTML = `
+            /* 전체 텍스트 수직 위치 보정 */
+            * {
+              font-family: 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif !important;
+              letter-spacing: -0.02em !important; /* 자간 미세 조정으로 밀림 방지 */
+              -webkit-font-smoothing: antialiased;
+            }
+            /* Recharts 등 SVG 텍스트가 아래로 처지는 현상 방지 */
+            svg text {
+              dominant-baseline: central !important;
+              transform: translateY(1px); /* 브라우저 렌더링 오차만큼 보정 */
+            }
+            /* 테이블 셀 내부 텍스트 처짐 방지 */
+            td, th {
+              vertical-align: middle !important;
+              line-height: 1.2 !important;
+            }
+          `;
+          doc.head.appendChild(style);
+
           // 네이티브 폼 요소는 html2canvas에서 글자 간격이 틀어지므로 텍스트로 교체
           doc.querySelectorAll('select').forEach((sel) => {
             const span = doc.createElement('span');
@@ -285,8 +306,12 @@ export default function InsightsPage() {
         slice.width = imgW;
         slice.height = Math.round(srcSliceH);
         const ctx = slice.getContext('2d')!;
+        
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, slice.width, slice.height);
+        
         ctx.drawImage(canvas, 0, srcY, imgW, srcSliceH, 0, 0, imgW, Math.round(srcSliceH));
-        pdf.addImage(slice.toDataURL('image/jpeg', 0.92), 'JPEG', MARGIN, MARGIN, CONTENT_W, sliceH);
+        pdf.addImage(slice.toDataURL('image/jpeg', 1.0), 'JPEG', MARGIN, MARGIN, CONTENT_W, sliceH);
         yOffset += sliceH;
       }
 

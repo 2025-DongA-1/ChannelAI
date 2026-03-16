@@ -38,6 +38,10 @@ export default function DashboardPage() {
   const [bubbleOpacity, setBubbleOpacity] = useState(0);
   const [bubbleRect, setBubbleRect] = useState<{ top: number, left: number, isMobile: boolean } | null>(null);
   const [bubbleTarget, setBubbleTarget] = useState<'campaigns' | 'insights'>('campaigns');
+  // --- Bubble Suppress State ---
+  const [suppressBubble, setSuppressBubble] = useState(() => {
+    return localStorage.getItem('dashboard_bubble_suppress') === 'true';
+  });
 
   const updateBubblePos = () => {
     let el = null;
@@ -68,7 +72,7 @@ export default function DashboardPage() {
   };
 
   useEffect(() => {
-    if (showTour) {
+    if (showTour || suppressBubble) {
       setShowBubble(false);
       return;
     }
@@ -108,7 +112,7 @@ export default function DashboardPage() {
       clearTimeout(timer4);
       clearTimeout(timer5);
     };
-  }, [showTour]);
+  }, [showTour, suppressBubble]);
 
   useEffect(() => {
     if (showBubble) {
@@ -200,6 +204,11 @@ export default function DashboardPage() {
         setShowTour(true);
         localStorage.setItem('dashboard_tour_done', 'true');
       });
+    }
+    // 튜토리얼 모드가 켜질 때 suppressBubble 해제
+    if (isTutorialModeEnabled) {
+      setSuppressBubble(false);
+      localStorage.removeItem('dashboard_bubble_suppress');
     }
   }, [isTutorialModeEnabled]);
 
@@ -455,9 +464,9 @@ export default function DashboardPage() {
     <div className="space-y-3 sm:space-y-4 p-2 sm:p-4 md:p-6">
 
       {/* --- Animated Speech Bubble Portal --- */}
-      {showBubble && bubbleRect && createPortal(
+      {showBubble && bubbleRect && !suppressBubble && createPortal(
         <div 
-          className={`fixed z-[100] transition-opacity duration-500 ease-in-out pointer-events-none ${bubbleOpacity ? 'opacity-100' : 'opacity-0'}`}
+          className={`fixed z-[100] transition-opacity duration-500 ease-in-out pointer-events-auto ${bubbleOpacity ? 'opacity-100' : 'opacity-0'}`}
           style={{
             top: bubbleRect.top,
             left: bubbleRect.left,
@@ -465,8 +474,28 @@ export default function DashboardPage() {
           }}
         >
           <div className="relative animate-bounce" style={{ animationDuration: '0.8s' }}>
-            <div className="bg-indigo-600 text-white text-xs sm:text-sm font-medium px-4 py-3 rounded-2xl shadow-xl max-w-xs whitespace-pre-wrap leading-relaxed border border-indigo-500">
-              {bubbleMessage}
+            <div className="bg-indigo-600 text-white text-xs sm:text-sm font-medium px-4 py-3 rounded-2xl shadow-xl max-w-xs whitespace-pre-wrap leading-relaxed border border-indigo-500 flex flex-col gap-2">
+              <span>{bubbleMessage}</span>
+              <div className="flex gap-2 mt-2 justify-end">
+                <button
+                  className="bg-white text-indigo-600 text-xs font-bold px-2 py-1 rounded hover:bg-indigo-50 border border-indigo-200 transition"
+                  onClick={() => setShowBubble(false)}
+                  style={{ pointerEvents: 'auto' }}
+                >
+                  닫기
+                </button>
+                <button
+                  className="bg-white text-gray-500 text-xs font-bold px-2 py-1 rounded hover:bg-gray-100 border border-gray-200 transition"
+                  onClick={() => {
+                    setSuppressBubble(true);
+                    setShowBubble(false);
+                    localStorage.setItem('dashboard_bubble_suppress', 'true');
+                  }}
+                  style={{ pointerEvents: 'auto' }}
+                >
+                  다시 표시하지 않기
+                </button>
+              </div>
             </div>
             {/* 꼬리 (삼각형) */}
             <div 

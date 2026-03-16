@@ -150,6 +150,7 @@ const CustomTooltip = ({ active, payload, label }: any) => {
 export default function MonthlyReportPage() {
   // [2026-03-13] 사용자 이메일 자동 사용 - prompt() 입력 제거
   const { user } = useAuthStore();
+  const isPro = user?.plan === 'PRO';
   const navigate = useNavigate();
 
   // 백엔드에서 받아온 전체 월별 데이터맵 객체
@@ -326,6 +327,28 @@ export default function MonthlyReportPage() {
 
         const canvas = await html2canvas(ref.current, {
           scale: 2, useCORS: true, backgroundColor: '#ffffff', logging: false, windowWidth: 1280,
+          onclone: (doc) => {
+            const style = doc.createElement('style');
+            style.innerHTML = `
+              /* 전체 텍스트 수직 위치 보정 */
+              * {
+                font-family: 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif !important;
+                letter-spacing: -0.02em !important; /* 자간 미세 조정으로 밀림 방지 */
+                -webkit-font-smoothing: antialiased;
+              }
+              /* Recharts 등 SVG 텍스트가 아래로 처지는 현상 방지 */
+              svg text {
+                dominant-baseline: central !important;
+                transform: translateY(1px); /* 브라우저 렌더링 오차만큼 보정 */
+              }
+              /* 테이블 셀 내부 텍스트 처짐 방지 */
+              td, th {
+                vertical-align: middle !important;
+                line-height: 1.2 !important;
+              }
+            `;
+            doc.head.appendChild(style);
+          }
         });
 
         const imgW = canvas.width, imgH = canvas.height, HEADER_H = 16;
@@ -347,9 +370,13 @@ export default function MonthlyReportPage() {
           slice.width = imgW;
           slice.height = Math.round(srcSliceH);
           const ctx = slice.getContext('2d')!;
+
+          ctx.fillStyle = '#ffffff';
+          ctx.fillRect(0, 0, slice.width, slice.height);
+
           ctx.drawImage(canvas, 0, srcY, imgW, srcSliceH, 0, 0, imgW, Math.round(srcSliceH));
 
-          pdf.addImage(slice.toDataURL('image/jpeg', 0.92), 'JPEG', MARGIN, HEADER_H + 2, CONTENT_W, sliceH);
+          pdf.addImage(slice.toDataURL('image/png'), 'PNG', MARGIN, HEADER_H + 2, CONTENT_W, sliceH);
           yOffset += sliceH;
         }
       }
@@ -411,13 +438,34 @@ export default function MonthlyReportPage() {
       const el = ref.current;
       if (!el) continue;
 
-      // ── 탭 콘텐츠 캡처 ──
       const canvas = await html2canvas(el, {
         scale: 2,
         useCORS: true,
         backgroundColor: '#ffffff',
         logging: false,
         windowWidth: 1280,
+        onclone: (doc) => {
+          const style = doc.createElement('style');
+          style.innerHTML = `
+            /* 전체 텍스트 수직 위치 보정 */
+            * {
+              font-family: 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif !important;
+              letter-spacing: -0.02em !important; /* 자간 미세 조정으로 밀림 방지 */
+              -webkit-font-smoothing: antialiased;
+            }
+            /* Recharts 등 SVG 텍스트가 아래로 처지는 현상 방지 */
+            svg text {
+              dominant-baseline: central !important;
+              transform: translateY(1px); /* 브라우저 렌더링 오차만큼 보정 */
+            }
+            /* 테이블 셀 내부 텍스트 처짐 방지 */
+            td, th {
+              vertical-align: middle !important;
+              line-height: 1.2 !important;
+            }
+          `;
+          doc.head.appendChild(style);
+        }
       });
 
       const imgW = canvas.width;
@@ -445,10 +493,14 @@ export default function MonthlyReportPage() {
         slice.width  = imgW;
         slice.height = Math.round(srcSliceH);
         const ctx = slice.getContext('2d')!;
+
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, slice.width, slice.height);
+
         ctx.drawImage(canvas, 0, srcY, imgW, srcSliceH, 0, 0, imgW, Math.round(srcSliceH));
 
         pdf.addImage(
-          slice.toDataURL('image/jpeg', 0.92),
+          slice.toDataURL('image/jpeg', 1.0),
           'JPEG',
           MARGIN,
           HEADER_H + 2,   // 헤더 바로 아래부터 시작
@@ -648,14 +700,24 @@ export default function MonthlyReportPage() {
               })()}
 
               {/* 🤖 AI 분석 갱신 버튼 (날짜와 같은 라인 끝에 배치) */}
-              <button
-                onClick={() => llmMutation.mutate(true)}
-                disabled={isLlmLoading || isExporting}
-                className="print:hidden flex items-center justify-center gap-2 px-6 py-2 rounded-xl text-sm font-bold shadow-sm transition-all bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed group"
-              >
-                <RefreshCcw size={16} className={`${isLlmLoading ? 'animate-spin' : 'group-hover:rotate-180 transition-transform duration-700'}`} />
-                {isLlmLoading ? "AI 분석 리포트 생성 중..." : (insights ? "분석 리포트 갱신" : "AI 분석 리포트 생성")}
-              </button>
+              {isPro ? (
+                <button
+                  onClick={() => llmMutation.mutate(true)}
+                  disabled={isLlmLoading || isExporting}
+                  className="print:hidden flex items-center justify-center gap-2 px-6 py-2 rounded-xl text-sm font-bold shadow-sm transition-all bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed group"
+                >
+                  <RefreshCcw size={16} className={`${isLlmLoading ? 'animate-spin' : 'group-hover:rotate-180 transition-transform duration-700'}`} />
+                  {isLlmLoading ? "AI 분석 리포트 생성 중..." : (insights ? "분석 리포트 갱신" : "AI 분석 리포트 생성")}
+                </button>
+              ) : (
+                <button
+                  onClick={() => navigate('/payment')}
+                  className="print:hidden flex items-center justify-center gap-2 px-6 py-2 rounded-xl text-sm font-bold shadow-sm transition-all bg-gray-100 text-gray-400 hover:bg-indigo-50 hover:text-indigo-600 border border-dashed border-gray-300 group"
+                >
+                  <Sparkles size={16} />
+                  PRO 전용 · AI 분석
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -666,28 +728,35 @@ export default function MonthlyReportPage() {
         <div ref={reportRef} className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8" key={animKey}>
 
           {/* ===== 탭 1: 종합 현황 ===== */}
-          <div ref={overviewRef} className={`${(activeTab === "overview" || isExporting) ? "block" : "hidden"} animate-fade-in-up space-y-6 ${isExporting ? 'mb-24 page-break-after' : ''}`}>
+          <div ref={overviewRef} className={`${(activeTab === "overview" || isExporting) ? "block" : "hidden"} ${!isExporting ? 'animate-fade-in-up' : ''} space-y-6 ${isExporting ? 'mb-24 page-break-after' : ''}`}>
 
               {/* 🤖 [2026-03-13] 각 탭 내부에 AI 분석 블록 표시 (overall) */}
-              <div className="bg-indigo-50/40 border-2 border-dashed border-indigo-500/50 rounded-xl p-5 relative print:hidden">
-                <div className="absolute top-0 left-0 w-1 h-full bg-indigo-400 rounded-l-xl opacity-70" />
-                <div className="flex items-center gap-2 mb-3">
-                  <div className="p-1 px-2 bg-indigo-500 text-white rounded-md flex items-center gap-1.5 shadow-sm">
-                    <Sparkles size={12} />
-                    <span className="text-[10px] font-black uppercase tracking-wider">AI 인공지능 종합 진단 리포트</span>
+              {isPro ? (
+                <div className="bg-indigo-50/40 border-2 border-dashed border-indigo-500/50 rounded-xl p-5 relative print:hidden">
+                  <div className="absolute top-0 left-0 w-1 h-full bg-indigo-400 rounded-l-xl opacity-70" />
+                  <div className="flex items-center gap-2 mb-3">
+                    <div className="p-1 px-2 bg-indigo-500 text-white rounded-md flex items-center gap-1.5 shadow-sm">
+                      <Sparkles size={12} />
+                      <span className="text-[10px] font-black uppercase tracking-wider">AI 인공지능 종합 진단 리포트</span>
+                    </div>
+                  </div>
+                  <div className="text-sm text-gray-700 leading-relaxed font-medium">
+                    {isLlmLoading ? (
+                      <div className="space-y-2">
+                        <div className="h-4 bg-indigo-100/50 animate-pulse rounded w-full" />
+                        <div className="h-4 bg-indigo-100/50 animate-pulse rounded w-5/6" />
+                      </div>
+                    ) : (
+                      insights?.overall || "⚠️ 요약된 상세 분석 데이터가 없습니다. 상단 'AI 분석 갱신' 버튼을 클릭해주세요."
+                    )}
                   </div>
                 </div>
-                <div className="text-sm text-gray-700 leading-relaxed font-medium">
-                  {isLlmLoading ? (
-                    <div className="space-y-2">
-                      <div className="h-4 bg-indigo-100/50 animate-pulse rounded w-full" />
-                      <div className="h-4 bg-indigo-100/50 animate-pulse rounded w-5/6" />
-                    </div>
-                  ) : (
-                    insights?.overall || "⚠️ 요약된 상세 분석 데이터가 없습니다. 상단 'AI 분석 갱신' 버튼을 클릭해주세요."
-                  )}
+              ) : (
+                <div className="print:hidden flex items-center gap-3 bg-gray-50 border border-dashed border-gray-300 rounded-xl p-4 text-sm text-gray-400">
+                  <Sparkles size={16} className="text-indigo-300 shrink-0" />
+                  <span>AI 종합 진단은 <button onClick={() => navigate('/payment')} className="text-indigo-500 font-bold hover:underline">PRO 요금제</button>에서만 이용할 수 있습니다.</span>
                 </div>
-              </div>
+              )}
               {/* KPI 카드 */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 <KpiCard label="총 광고비" value={fmtKRW(cur.cost)} sub={`전월 ${fmtKRW(prev.cost)}`} delta={diff(cur.cost, prev.cost)} icon="💰" accent="#6366f1" />
@@ -797,7 +866,7 @@ export default function MonthlyReportPage() {
           </div>
 
           {/* ===== 탭 2: 채널별 분석 ===== */}
-          <div ref={platformRef} className={`${(activeTab === "platform" || isExporting) ? "block" : "hidden"} animate-fade-in-up space-y-6 ${isExporting ? 'mb-24 page-break-after' : ''}`}>
+          <div ref={platformRef} className={`${(activeTab === "platform" || isExporting) ? "block" : "hidden"} ${!isExporting ? 'animate-fade-in-up' : ''} space-y-6 ${isExporting ? 'mb-24 page-break-after' : ''}`}>
 
               {/* [2026-03-13] 채널별 KPI 카드 - 기존 4열 스타일 유지 + 개별 AI 진단 블록 추가 */}
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
@@ -833,25 +902,32 @@ export default function MonthlyReportPage() {
                     </div>
 
                     {/* 채널별 개별 AI 진단 */}
-                    <div className="mt-4 bg-indigo-50/40 border border-dashed border-indigo-400/60 rounded-xl p-4 relative print:hidden">
-                      <div className="absolute top-0 left-0 w-1 h-full bg-indigo-400 rounded-l-xl opacity-60" />
-                      <div className="flex items-center gap-1.5 mb-2">
-                        <div className="p-0.5 px-2 bg-indigo-500 text-white rounded flex items-center gap-1 shadow-sm">
-                          <Sparkles size={10} />
-                          <span className="text-[9px] font-black uppercase tracking-wider">AI {PLATFORM_LABELS[k]} 진단</span>
+                    {isPro ? (
+                      <div className="mt-4 bg-indigo-50/40 border border-dashed border-indigo-400/60 rounded-xl p-4 relative print:hidden">
+                        <div className="absolute top-0 left-0 w-1 h-full bg-indigo-400 rounded-l-xl opacity-60" />
+                        <div className="flex items-center gap-1.5 mb-2">
+                          <div className="p-0.5 px-2 bg-indigo-500 text-white rounded flex items-center gap-1 shadow-sm">
+                            <Sparkles size={10} />
+                            <span className="text-[9px] font-black uppercase tracking-wider">AI {PLATFORM_LABELS[k]} 진단</span>
+                          </div>
+                        </div>
+                        <div className="text-[11px] text-gray-700 leading-relaxed font-medium">
+                          {isLlmLoading ? (
+                            <div className="space-y-1.5">
+                              <div className="h-3 bg-indigo-100/50 animate-pulse rounded w-full" />
+                              <div className="h-3 bg-indigo-100/50 animate-pulse rounded w-4/5" />
+                            </div>
+                          ) : (
+                            insights?.channels?.[k] || "⚠️ 상단 'AI 분석 갱신' 버튼을 클릭해주세요."
+                          )}
                         </div>
                       </div>
-                      <div className="text-[11px] text-gray-700 leading-relaxed font-medium">
-                        {isLlmLoading ? (
-                          <div className="space-y-1.5">
-                            <div className="h-3 bg-indigo-100/50 animate-pulse rounded w-full" />
-                            <div className="h-3 bg-indigo-100/50 animate-pulse rounded w-4/5" />
-                          </div>
-                        ) : (
-                          insights?.channels?.[k] || "⚠️ 상단 'AI 분석 갱신' 버튼을 클릭해주세요."
-                        )}
+                    ) : (
+                      <div className="print:hidden mt-4 flex items-center gap-2 bg-gray-50 border border-dashed border-gray-300 rounded-xl p-3 text-[11px] text-gray-400">
+                        <Sparkles size={12} className="text-indigo-300 shrink-0" />
+                        <span>PRO 전용 AI 진단</span>
                       </div>
-                    </div>
+                    )}
                   </div>
                 ))}
               </div>
@@ -940,28 +1016,35 @@ export default function MonthlyReportPage() {
           </div>
 
           {/* ===== 탭 3: 추이 분석 ===== */}
-          <div  ref={trendRef} className={`${(activeTab === "trend" || isExporting) ? "block" : "hidden"} animate-fade-in-up space-y-6`}>
+          <div  ref={trendRef} className={`${(activeTab === "trend" || isExporting) ? "block" : "hidden"} ${!isExporting ? 'animate-fade-in-up' : ''} space-y-6`}>
               
               {/* 🤖 [2026-03-13] 각 탭 내부에 AI 분석 블록 표시 (trendSummary) */}
-              <div className="bg-indigo-50/40 border-2 border-dashed border-indigo-500/50 rounded-xl p-5 relative print:hidden">
-                <div className="absolute top-0 left-0 w-1 h-full bg-indigo-400 rounded-l-xl opacity-70" />
-                <div className="flex items-center gap-2 mb-3">
-                  <div className="p-1 px-2 bg-indigo-500 text-white rounded-md flex items-center gap-1.5 shadow-sm">
-                    <Sparkles size={12} />
-                    <span className="text-[10px] font-black uppercase tracking-wider">AI 인공지능 최근 6개월 추세 진단</span>
+              {isPro ? (
+                <div className="bg-indigo-50/40 border-2 border-dashed border-indigo-500/50 rounded-xl p-5 relative print:hidden">
+                  <div className="absolute top-0 left-0 w-1 h-full bg-indigo-400 rounded-l-xl opacity-70" />
+                  <div className="flex items-center gap-2 mb-3">
+                    <div className="p-1 px-2 bg-indigo-500 text-white rounded-md flex items-center gap-1.5 shadow-sm">
+                      <Sparkles size={12} />
+                      <span className="text-[10px] font-black uppercase tracking-wider">AI 인공지능 최근 6개월 추세 진단</span>
+                    </div>
+                  </div>
+                  <div className="text-sm text-gray-700 leading-relaxed font-medium">
+                    {isLlmLoading ? (
+                      <div className="space-y-2">
+                        <div className="h-4 bg-indigo-100/50 animate-pulse rounded w-full" />
+                        <div className="h-4 bg-indigo-100/50 animate-pulse rounded w-5/6" />
+                      </div>
+                    ) : (
+                      insights?.trendSummary || "⚠️ 요약된 상세 분석 데이터가 없습니다. 상단 'AI 분석 갱신' 버튼을 클릭해주세요."
+                    )}
                   </div>
                 </div>
-                <div className="text-sm text-gray-700 leading-relaxed font-medium">
-                  {isLlmLoading ? (
-                    <div className="space-y-2">
-                      <div className="h-4 bg-indigo-100/50 animate-pulse rounded w-full" />
-                      <div className="h-4 bg-indigo-100/50 animate-pulse rounded w-5/6" />
-                    </div>
-                  ) : (
-                    insights?.trendSummary || "⚠️ 요약된 상세 분석 데이터가 없습니다. 상단 'AI 분석 갱신' 버튼을 클릭해주세요."
-                  )}
+              ) : (
+                <div className="print:hidden flex items-center gap-3 bg-gray-50 border border-dashed border-gray-300 rounded-xl p-4 text-sm text-gray-400">
+                  <Sparkles size={16} className="text-indigo-300 shrink-0" />
+                  <span>AI 추세 진단은 <button onClick={() => navigate('/payment')} className="text-indigo-500 font-bold hover:underline">PRO 요금제</button>에서만 이용할 수 있습니다.</span>
                 </div>
-              </div>
+              )}
 
               {/* 광고비 & 매출 추이 */}
               <div className="bg-white border border-gray-100 rounded-2xl p-6 shadow-sm">
@@ -1075,7 +1158,7 @@ export default function MonthlyReportPage() {
 
           {/* [2026-03-12 16:02] 수정 이유: 인사이트 페이지 양식에 맞춘 캠페인 성과 탭 구현
               상세 설명: 캠페인별 광고 성과를 채널, 비용, 노출, 클릭, 전환, ROAS 지표로 세분화하여 리포팅함. */}
-          <div ref={campaignRef} className={`${(activeTab === "campaign" || isExporting) ? "block" : "hidden"} animate-fade-in-up space-y-6 ${isExporting ? 'mb-24 page-break-after' : ''}`}>
+          <div ref={campaignRef} className={`${(activeTab === "campaign" || isExporting) ? "block" : "hidden"} ${!isExporting ? 'animate-fade-in-up' : ''} space-y-6 ${isExporting ? 'mb-24 page-break-after' : ''}`}>
 
             {campaigns.length === 0 ? (
               <div className="bg-white border border-gray-100 rounded-2xl p-12 shadow-sm text-center">
@@ -1163,26 +1246,33 @@ export default function MonthlyReportPage() {
                         </div>
 
                         {/* 4. AI 인공지능 캠페인 진단 리포트 (하단 배치) */}
-                        <div className="bg-indigo-50/40 border-2 border-dashed border-indigo-500/50 rounded-xl p-5 mt-2 relative">
-                          <div className="absolute top-3 right-3 bg-indigo-600 text-white text-[10px] px-2 py-1 rounded-full font-bold shadow-sm z-20 animate-pulse"> AI 분석</div>
-                          <div className="absolute top-0 left-0 w-1 h-full bg-indigo-400 rounded-l-xl opacity-70" />
-                          <div className="flex items-center gap-2 mb-3">
-                            <div className="p-1 px-2 bg-indigo-500 text-white rounded-md flex items-center gap-1.5 shadow-sm">
-                              <Sparkles size={12} />
-                              <span className="text-[10px] font-black uppercase tracking-wider">AI 인공지능 캠페인 진단 리포트</span>
+                        {isPro ? (
+                          <div className="bg-indigo-50/40 border-2 border-dashed border-indigo-500/50 rounded-xl p-5 mt-2 relative">
+                            <div className="absolute top-3 right-3 bg-indigo-600 text-white text-[10px] px-2 py-1 rounded-full font-bold shadow-sm z-20 animate-pulse"> AI 분석</div>
+                            <div className="absolute top-0 left-0 w-1 h-full bg-indigo-400 rounded-l-xl opacity-70" />
+                            <div className="flex items-center gap-2 mb-3">
+                              <div className="p-1 px-2 bg-indigo-500 text-white rounded-md flex items-center gap-1.5 shadow-sm">
+                                <Sparkles size={12} />
+                                <span className="text-[10px] font-black uppercase tracking-wider">AI 인공지능 캠페인 진단 리포트</span>
+                              </div>
+                            </div>
+                            <div className="text-[12px] text-gray-700 leading-relaxed font-medium">
+                              {isLlmLoading ? (
+                                <div className="space-y-2">
+                                  <div className="h-3 bg-indigo-100/50 animate-pulse rounded w-full" />
+                                  <div className="h-3 bg-indigo-100/50 animate-pulse rounded w-5/6" />
+                                </div>
+                              ) : (
+                                insights?.campaigns?.[c.campaign_id] || "⚠️ 해당 캠페인의 상세 분석 데이터가 없습니다. 상단 AI 분석 버튼을 클릭하여 생성해주세요."
+                              )}
                             </div>
                           </div>
-                          <div className="text-[12px] text-gray-700 leading-relaxed font-medium">
-                            {isLlmLoading ? (
-                              <div className="space-y-2">
-                                <div className="h-3 bg-indigo-100/50 animate-pulse rounded w-full" />
-                                <div className="h-3 bg-indigo-100/50 animate-pulse rounded w-5/6" />
-                              </div>
-                            ) : (
-                              insights?.campaigns?.[c.campaign_id] || "⚠️ 해당 캠페인의 상세 분석 데이터가 없습니다. 상단 AI 분석 버튼을 클릭하여 생성해주세요."
-                            )}
+                        ) : (
+                          <div className="print:hidden mt-2 flex items-center gap-2 bg-gray-50 border border-dashed border-gray-300 rounded-xl p-3 text-[11px] text-gray-400">
+                            <Sparkles size={12} className="text-indigo-300 shrink-0" />
+                            <span>AI 캠페인 진단은 <button onClick={() => navigate('/payment')} className="text-indigo-500 font-bold hover:underline">PRO 요금제</button>에서만 이용할 수 있습니다.</span>
                           </div>
-                        </div>
+                        )}
                       </div>
                     );
                   })}

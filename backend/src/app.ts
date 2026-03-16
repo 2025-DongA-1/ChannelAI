@@ -284,7 +284,30 @@ const startServer = async () => {
     console.log('📊 데이터베이스 연결 테스트 중...');
     await pool.query('SELECT NOW()');
     console.log('✅ MySQL 데이터베이스 연결 성공');
-    
+
+    // user_profiles 구독/결제 컬럼 자동 추가 (없을 경우)
+    const profileColumns = [
+      { name: 'plan_started_at',  ddl: "DATETIME DEFAULT NULL COMMENT '구독 시작일'" },
+      { name: 'plan_expires_at',  ddl: "DATETIME DEFAULT NULL COMMENT '구독 만료일'" },
+      { name: 'pay_method',     ddl: "VARCHAR(50) DEFAULT NULL COMMENT '결제 수단(card/kakao_pay 등)'" },
+      { name: 'pay_auto_renew', ddl: "TINYINT(1) NOT NULL DEFAULT 1 COMMENT '자동 갱신 여부'" },
+    ];
+    for (const col of profileColumns) {
+      try {
+        const colCheck = await pool.query(
+          `SELECT COUNT(*) AS cnt FROM INFORMATION_SCHEMA.COLUMNS
+           WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'user_profiles' AND COLUMN_NAME = ?`,
+          [col.name]
+        );
+        if ((colCheck.rows[0] as any)?.cnt === 0) {
+          await pool.query(`ALTER TABLE user_profiles ADD COLUMN ${col.name} ${col.ddl}`);
+          console.log(`✅ user_profiles.${col.name} 컬럼 추가 완료`);
+        }
+      } catch (e) {
+        console.warn(`⚠️ ${col.name} 컬럼 확인/추가 실패 (무시):`, e);
+      }
+    }
+
     // Redis 연결 (선택적 - 실패해도 서버 시작)
     console.log('🔴 Redis 연결 시도...');
     await connectRedis();
@@ -293,6 +316,44 @@ const startServer = async () => {
     const emailEnabled = await verifyEmailConnection();
 
     // ── cron 스케줄 등록 ───────────────────────────────────────────────
+    // 구독 자동 갱신: 매일 자정 (결제정보 있는 만료 계정 자동 결제 후 연장)
+    cron.schedule('0 0 * * *', async () => {
+      console.log('⏰ [CRON] 구독 만료 처리 시작');
+      try {
+        // auto_renew=1: 만료된 PRO 구독 → 1개월 연장
+        const toRenew = await pool.query(`
+          SELECT user_id FROM user_profiles
+          WHERE plan = 'PRO' AND plan_expires_at <= NOW() AND pay_auto_renew = 1
+        `);
+        for (const row of (toRenew.rows as any[])) {
+          const newExpiry = new Date();
+          newExpiry.setMonth(newExpiry.getMonth() + 1);
+          await pool.query(
+            `UPDATE user_profiles SET plan_expires_at = ? WHERE user_id = ?`,
+            [newExpiry, row.user_id]
+          );
+          console.log(`  ✅ 구독 연장 - user_id: ${row.user_id}, 새 만료일: ${newExpiry.toISOString()}`);
+        }
+        // auto_renew=0: 만료된 PRO 구독 → FREE 전환
+        const toExpire = await pool.query(`
+          SELECT user_id FROM user_profiles
+          WHERE plan = 'PRO' AND plan_expires_at <= NOW() AND pay_auto_renew = 0
+        `);
+        if ((toExpire.rows as any[]).length > 0) {
+          await pool.query(`
+            UPDATE user_profiles
+            SET plan = NULL, plan_started_at = NULL, plan_expires_at = NULL, pay_method = NULL
+            WHERE plan = 'PRO' AND plan_expires_at <= NOW() AND pay_auto_renew = 0
+          `);
+          console.log(`  ✅ FREE 전환 완료 - ${(toExpire.rows as any[]).length}명`);
+        }
+        console.log('⏰ [CRON] 구독 만료 처리 완료');
+      } catch (e) {
+        console.error('❌ [CRON] 구독 자동 갱신 오류:', e);
+      }
+    }, { timezone: 'Asia/Seoul' });
+    console.log('📅 구독 자동 갱신 크론 등록: 매일 자정');
+
     if (emailEnabled) {
       // 주간 리포트: 매주 월요일 오전 9시 (기본) - [사용 안함]
       /*
