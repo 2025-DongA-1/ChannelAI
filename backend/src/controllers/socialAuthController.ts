@@ -15,7 +15,7 @@ export const getKakaoAuthUrl = (req: Request, res: Response) => {
   if (authHeader && authHeader.startsWith('Bearer ')) {
     try {
       const token = authHeader.split(' ')[1];
-      const secret = process.env.JWT_SECRET || 'default-secret-key';
+      const secret = process.env.JWT_SECRET!;
       const decoded = jwt.verify(token, secret) as any;
       if (decoded && decoded.id) {
         state = `${state}:${decoded.id}`;
@@ -144,7 +144,7 @@ export const handleKakaoCallback = async (req: Request, res: Response) => {
         }
 
         // 4. JWT 토큰 생성
-        const secret: Secret = process.env.JWT_SECRET || 'default-secret-key';
+        const secret: Secret = process.env.JWT_SECRET!;
         const token = jwt.sign(
           { id: user.id, email: user.email, role: user.role, provider: 'kakao' },
           secret,
@@ -179,7 +179,7 @@ export const getNaverAuthUrl = (req: Request, res: Response) => {
   if (authHeader && authHeader.startsWith('Bearer ')) {
     try {
       const token = authHeader.split(' ')[1];
-      const secret = process.env.JWT_SECRET || 'default-secret-key';
+      const secret = process.env.JWT_SECRET!;
       const decoded = jwt.verify(token, secret) as any;
       
       if (decoded && decoded.id) {
@@ -314,7 +314,7 @@ export const handleNaverCallback = async (req: Request, res: Response) => {
       }
 
       // 2. JWT 토큰 생성
-      const secret: Secret = process.env.JWT_SECRET || 'default-secret-key';
+      const secret: Secret = process.env.JWT_SECRET!;
       const token = jwt.sign(
         { id: user.id, email: user.email, role: user.role, provider: 'naver' },
         secret,
@@ -346,7 +346,7 @@ export const getGoogleAuthUrl = (req: Request, res: Response) => {
   if (authHeader && authHeader.startsWith('Bearer ')) {
     try {
       const token = authHeader.split(' ')[1];
-      const secret = process.env.JWT_SECRET || 'default-secret-key';
+      const secret = process.env.JWT_SECRET!;
       const decoded = jwt.verify(token, secret) as any;
       if (decoded && decoded.id) {
         state = `${state}:${decoded.id}`;
@@ -472,7 +472,7 @@ export const handleGoogleCallback = async (req: Request, res: Response) => {
         }
 
         // 4. JWT 토큰 생성
-        const secret: Secret = process.env.JWT_SECRET || 'default-secret-key';
+        const secret: Secret = process.env.JWT_SECRET!;
         const token = jwt.sign(
           { id: user.id, email: user.email, role: user.role, provider: 'google' },
           secret,
