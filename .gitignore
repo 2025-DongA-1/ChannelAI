@@ -96,3 +96,4 @@ backend/ai/baseline_ridge_model.joblib
 backend/ai/optimal_budget_xgb_model.json
 backend/ai/predict_budget_debug.py
 *.pkl
+backend/ai/test_naver_api.py
