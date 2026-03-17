@@ -3,7 +3,7 @@ import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
 import { authenticate } from '../middlewares/auth';
-import { generateCreative, getHistory, getDetail } from '../controllers/creativeAgentController';
+import { generateCreative, getHistory, getDetail, deleteHistory } from '../controllers/creativeAgentController';
 
 const router = Router();
 
@@ -55,6 +55,9 @@ router.post('/generate', authenticate, uploadFields, generateCreative);
 
 // 생성 이력 조회
 router.get('/history', authenticate, getHistory);
+
+// 생성 이력 삭제
+router.delete('/:id', authenticate, deleteHistory);
 
 // 생성 결과 상세 조회
 router.get('/:id', authenticate, getDetail);

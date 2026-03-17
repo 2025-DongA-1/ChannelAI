@@ -4,7 +4,7 @@ import { creativeAPI, campaignAPI } from '@/lib/api';
 import {
   Sparkles, Upload, FileText, Image, Send, Copy, ChevronDown, ChevronUp,
   CheckCircle2, AlertCircle, Loader2, Clock, Palette, LayoutTemplate, Shield,
-  PlusCircle, BarChart3
+  PlusCircle, BarChart3, Trash2, Wand2, TrendingUp
 } from 'lucide-react';
 import { useTutorialStore } from '../store/tutorialStore';
 
@@ -22,9 +22,15 @@ interface CreativeResult {
     textOverlay: string;
     specs: Record<string, string>;
     abTestSuggestion: string;
+    aiImagePrompts?: {
+      main: string;
+      variation: string;
+      story: string;
+    };
   };
   strategy: string;
   complianceNotes: string;
+  trendKeywords?: string;
 }
 
 const TONE_OPTIONS = [
@@ -250,8 +256,29 @@ export default function CreativeAgentPage() {
     }
   };
 
+  // 생성 이력 삭제
+  const handleDeleteHistory = async (e: React.MouseEvent, id: number) => {
+    e.stopPropagation(); // 이력 클릭 이벤트 버블링 방지
+    if (!confirm('이 생성 이력을 삭제하시겠습니까?')) return;
+    try {
+      await creativeAPI.deleteHistory(id);
+      historyQuery.refetch();
+      // 삭제된 항목이 현재 표시 중이면 초기화
+      if (selectedHistoryResult) setSelectedHistoryResult(null);
+    } catch {
+      alert('삭제에 실패했습니다.');
+    }
+  };
+
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
+  };
+
+  const [copiedPrompt, setCopiedPrompt] = useState<string | null>(null);
+  const handleCopyPrompt = (text: string, label: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedPrompt(label);
+    setTimeout(() => setCopiedPrompt(null), 2000);
   };
 
   const togglePlatform = (p: string) => {
@@ -518,19 +545,30 @@ export default function CreativeAgentPage() {
               </h3>
               <div className="space-y-2">
                 {historyQuery.data.slice(0, 5).map((h: any) => (
-                  <button 
-                    key={h.id} 
-                    onClick={() => loadHistoryDetail(h.id)}
-                    className="w-full text-left flex items-center justify-between text-sm bg-gray-50 hover:bg-violet-50 transition-colors px-3 py-2 rounded-lg"
+                  <div
+                    key={h.id}
+                    className="flex items-center gap-1 bg-gray-50 hover:bg-violet-50 transition-colors rounded-lg"
                   >
-                    <div>
-                      <span className="font-medium text-gray-800">{h.product_name}</span>
-                      <span className="text-gray-400 ml-2">({h.business_type})</span>
-                    </div>
-                    <span className="text-xs text-gray-400">
-                      {new Date(h.created_at).toLocaleDateString('ko-KR')}
-                    </span>
-                  </button>
+                    <button
+                      onClick={() => loadHistoryDetail(h.id)}
+                      className="flex-1 text-left flex items-center justify-between text-sm px-3 py-2"
+                    >
+                      <div>
+                        <span className="font-medium text-gray-800">{h.product_name}</span>
+                        <span className="text-gray-400 ml-2">({h.business_type})</span>
+                      </div>
+                      <span className="text-xs text-gray-400">
+                        {new Date(h.created_at).toLocaleDateString('ko-KR')}
+                      </span>
+                    </button>
+                    <button
+                      onClick={(e) => handleDeleteHistory(e, h.id)}
+                      className="p-2 text-gray-300 hover:text-red-500 transition-colors flex-shrink-0"
+                      title="삭제"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
                 ))}
               </div>
             </div>
@@ -656,6 +694,65 @@ export default function CreativeAgentPage() {
                   </div>
                 )}
               </div>
+
+              {/* AI 이미지 생성 프롬프트 */}
+              {result.visualGuide.aiImagePrompts && (
+                <div className="bg-gradient-to-br from-fuchsia-50 to-violet-50 rounded-xl shadow-sm border border-fuchsia-200 p-4 sm:p-5 space-y-4">
+                  <h3 className="font-semibold text-fuchsia-900 flex items-center gap-2">
+                    <Wand2 className="w-5 h-5 text-fuchsia-500" /> 실제 이미지 생성 AI에게 프롬프트 입력하기
+                  </h3>
+                  <p className="text-xs text-fuchsia-700">
+                    아래 프롬프트를 복사하여 Midjourney, DALL-E, Gemini, 바나나 등 이미지 생성 AI에 붙여넣으면 광고 이미지를 제작할 수 있습니다.
+                  </p>
+  
+                  {[
+                    { key: 'main' as const, label: '메인 광고 이미지', desc: '피드/배너용 대표 이미지', color: 'fuchsia' },
+                    { key: 'variation' as const, label: '변형 버전', desc: '다른 각도/색감의 대안 이미지', color: 'violet' },
+                    { key: 'story' as const, label: '스토리/릴스용', desc: '9:16 세로형 모바일 최적화', color: 'purple' },
+                  ].map(({ key, label, desc }) => {
+                    const prompt = result.visualGuide.aiImagePrompts?.[key];
+                    if (!prompt) return null;
+                    return (
+                      <div key={key} className="bg-white rounded-lg border border-fuchsia-100 p-3 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-sm font-semibold text-gray-800">{label}</p>
+                            <p className="text-xs text-gray-400">{desc}</p>
+                          </div>
+                          <button
+                            onClick={() => handleCopyPrompt(prompt, key)}
+                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                              copiedPrompt === key
+                                ? 'bg-green-100 text-green-700'
+                                : 'bg-fuchsia-100 text-fuchsia-700 hover:bg-fuchsia-200'
+                            }`}
+                          >
+                            {copiedPrompt === key ? (
+                              <><CheckCircle2 className="w-3.5 h-3.5" /> 복사 완료!</>
+                            ) : (
+                              <><Copy className="w-3.5 h-3.5" /> 프롬프트 복사</>
+                            )}
+                          </button>
+                        </div>
+                        <div className="bg-gray-50 rounded-md p-3 text-sm text-gray-700 font-mono leading-relaxed break-all select-all">
+                          {prompt}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* 트렌드 키워드 */}
+              {result.trendKeywords && (
+                <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 flex items-start gap-3">
+                  <TrendingUp className="w-5 h-5 text-blue-500 mt-0.5 flex-shrink-0" />
+                  <div>
+                    <h4 className="font-semibold text-blue-900 text-sm">반영된 최신 트렌드 키워드</h4>
+                    <p className="text-sm text-blue-700 mt-1">{result.trendKeywords}</p>
+                  </div>
+                </div>
+              )}
 
               {/* 전략 + 준수사항 */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

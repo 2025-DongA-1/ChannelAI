@@ -135,7 +135,6 @@ function MarketingAnalysis() {
       // DB 데이터(realPerformance)가 없으면 빈 배열로 처리
       const dbList = dbData?.data?.performance || [];
       
-      console.log("🔥 DB 원본 데이터:", dbList);
 
       // ★ [수정됨] 마케팅 도메인 지식을 반영한 '플랫폼별 동적 트렌드 스코어(휴리스틱 모델)' 적용
       features = targetPlatforms.map(pName => {
@@ -182,12 +181,10 @@ function MarketingAnalysis() {
         };
       });
       
-      console.log("✅ AI로 보내는 최종 데이터 :", features);
 
       // 백엔드 요청
       const cleanBudget = Number(budget.toString().replace(/,/g, ''));
       
-      console.log("🚀 [보안 검문] 현재 로그인의 주인공 ID:", user?.id);
 
       // [2026-03-06] 로컬과 운영 서버 모두 Node.js(3000포트) 환경의 단일 통신 경로로 일원화
       const response = await api.post(`/ai/recommend`, {

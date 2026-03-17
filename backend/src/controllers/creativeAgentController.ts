@@ -5,6 +5,7 @@ import {
   saveCreativeGeneration,
   getCreativeHistory,
   getCreativeDetail,
+  deleteCreativeHistory,
   CreativeInput,
 } from '../services/ai/creativeAgentService';
 
@@ -102,6 +103,27 @@ export const getHistory = async (req: Request, res: Response) => {
   } catch (error: any) {
     console.error('[Creative Controller] 이력 조회 오류:', error);
     return res.status(500).json({ error: 'HISTORY_FAILED', message: error.message });
+  }
+};
+
+/**
+ * DELETE /api/v1/ai/creative/:id
+ * 특정 생성 이력 삭제
+ */
+export const deleteHistory = async (req: Request, res: Response) => {
+  try {
+    const user = (req as AuthRequest).user;
+    if (!user) return res.status(401).json({ error: 'UNAUTHORIZED' });
+
+    const id = parseInt(req.params.id);
+    if (isNaN(id)) return res.status(400).json({ error: 'INVALID_ID' });
+
+    await deleteCreativeHistory(user.id, id);
+
+    return res.json({ success: true });
+  } catch (error: any) {
+    console.error('[Creative Controller] 삭제 오류:', error);
+    return res.status(500).json({ error: 'DELETE_FAILED', message: error.message });
   }
 };
 

@@ -385,17 +385,20 @@ export const getSubscription = async (req: Request, res: Response) => {
     const userId = (req as any).user.id;
     const result = await pool.query(
       `SELECT plan, plan_started_at, plan_expires_at,
-              pay_method, pay_auto_renew
-       FROM user_profiles WHERE user_id = ?`,
+              pay_method, pay_auto_renew, pay_card_company, pay_card_last4, pay_monthly_amt
+       FROM v_subscription WHERE user_id = ?`,
       [userId]
     );
     const row = result.rows[0] || {};
     return res.json({
-      plan:            row.plan            ?? null,
-      plan_started_at: row.plan_started_at ?? null,
-      plan_expires_at: row.plan_expires_at ?? null,
-      pay_method:      row.pay_method      ?? null,
-      pay_auto_renew:  row.pay_auto_renew  ?? 1,
+      plan:             row.plan             ?? null,
+      plan_started_at:  row.plan_started_at  ?? null,
+      plan_expires_at:  row.plan_expires_at  ?? null,
+      pay_method:       row.pay_method       ?? null,
+      pay_auto_renew:   row.pay_auto_renew   ?? 1,
+      pay_card_company: row.pay_card_company ?? null,
+      pay_card_last4:   row.pay_card_last4   ?? null,
+      pay_monthly_amt:  row.pay_monthly_amt  ?? null,
     });
   } catch (error) {
     console.error('GetSubscription error:', error);
@@ -413,13 +416,23 @@ export const getSubscription = async (req: Request, res: Response) => {
 export const cancelSubscription = async (req: Request, res: Response) => {
   try {
     const userId = (req as any).user.id;
+    // user_profiles plan 초기화
     await pool.query(
-      `UPDATE user_profiles
-       SET plan = NULL, plan_started_at = NULL, plan_expires_at = NULL,
-           pay_method = NULL, pay_auto_renew = 1
-       WHERE user_id = ?`,
+      `UPDATE user_profiles SET plan = NULL WHERE user_id = ?`,
       [userId]
     );
+    // payment_methods 자동갱신 OFF
+    await pool.query(
+      `UPDATE payment_methods SET auto_renew = 0 WHERE user_id = ?`,
+      [userId]
+    );
+    // 결제 이력 기록 (해지)
+    await pool.query(
+      `INSERT INTO payments (user_id, amount, plan, status)
+       VALUES (?, 0, 'PRO', 'cancelled')`,
+      [userId]
+    );
+
     return res.json({ message: '구독이 해지되었습니다.' });
   } catch (error) {
     console.error('CancelSubscription error:', error);
@@ -444,14 +457,23 @@ export const activateSubscription = async (req: Request, res: Response) => {
     const expiresAt = new Date(now);
     expiresAt.setMonth(expiresAt.getMonth() + Number(months));
 
+    // user_profiles plan = PRO
     await pool.query(
-      `INSERT INTO user_profiles (user_id, plan, plan_started_at, plan_expires_at, pay_auto_renew)
-       VALUES (?, 'PRO', ?, ?, 1)
-       ON DUPLICATE KEY UPDATE
-         plan            = 'PRO',
-         plan_started_at = VALUES(plan_started_at),
-         plan_expires_at = VALUES(plan_expires_at),
-         pay_auto_renew  = 1`,
+      `INSERT INTO user_profiles (user_id, plan) VALUES (?, 'PRO')
+       ON DUPLICATE KEY UPDATE plan = 'PRO'`,
+      [userId]
+    );
+    // payment_methods upsert
+    await pool.query(
+      `INSERT INTO payment_methods (user_id, method, monthly_amount, auto_renew)
+       VALUES (?, 'card', 9900, 1)
+       ON DUPLICATE KEY UPDATE monthly_amount = 9900, auto_renew = 1`,
+      [userId]
+    );
+    // 결제 이력 기록
+    await pool.query(
+      `INSERT INTO payments (user_id, plan, amount, status, plan_started_at, plan_expires_at, paid_at)
+       VALUES (?, 'PRO', 9900, 'success', ?, ?, NOW())`,
       [userId, now, expiresAt]
     );
 
@@ -478,7 +500,7 @@ export const updateAutoRenew = async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'INVALID_INPUT', message: 'auto_renew는 0 또는 1이어야 합니다.' });
     }
     await pool.query(
-      `UPDATE user_profiles SET pay_auto_renew = ? WHERE user_id = ?`,
+      `UPDATE payment_methods SET auto_renew = ? WHERE user_id = ?`,
       [auto_renew, userId]
     );
     return res.json({ message: '자동 갱신 설정이 변경되었습니다.', pay_auto_renew: auto_renew });
@@ -500,26 +522,26 @@ export const testExpireSubscription = async (req: Request, res: Response) => {
     const userId = (req as any).user.id;
     // pay_auto_renew 값 확인
     const check = await pool.query(
-      `SELECT pay_auto_renew FROM user_profiles WHERE user_id = ?`,
+      `SELECT auto_renew FROM payment_methods WHERE user_id = ?`,
       [userId]
     );
-    const autoRenew = (check.rows[0] as any)?.pay_auto_renew ?? 1;
+    const autoRenew = (check.rows[0] as any)?.auto_renew ?? 1;
 
     if (autoRenew === 1) {
       // 자동 갱신 ON → 1개월 연장
       const newExpiry = new Date();
       newExpiry.setMonth(newExpiry.getMonth() + 1);
       await pool.query(
-        `UPDATE user_profiles SET plan_expires_at = ? WHERE user_id = ?`,
+        `UPDATE payments SET plan_expires_at = ?
+         WHERE user_id = ? AND status = 'success'
+         ORDER BY paid_at DESC LIMIT 1`,
         [newExpiry, userId]
       );
       return res.json({ message: '자동 갱신 ON: 구독이 1개월 연장되었습니다. (테스트)', plan_expires_at: newExpiry });
     } else {
       // 자동 갱신 OFF → FREE 전환
       await pool.query(
-        `UPDATE user_profiles
-         SET plan = NULL, plan_started_at = NULL, plan_expires_at = NULL
-         WHERE user_id = ?`,
+        `UPDATE user_profiles SET plan = NULL WHERE user_id = ?`,
         [userId]
       );
       return res.json({ message: '자동 갱신 OFF: FREE 요금제로 전환되었습니다. (테스트)', plan: null });
@@ -538,9 +560,7 @@ export const deletePaymentMethod = async (req: Request, res: Response) => {
   try {
     const userId = (req as any).user.id;
     await pool.query(
-      `UPDATE user_profiles
-       SET pay_method = NULL, pay_auto_renew = 1
-       WHERE user_id = ?`,
+      `DELETE FROM payment_methods WHERE user_id = ?`,
       [userId]
     );
     return res.json({ message: '결제 수단이 삭제되었습니다.' });

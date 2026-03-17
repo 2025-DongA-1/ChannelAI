@@ -650,9 +650,6 @@ export default function DashboardPage() {
           <h1 className="text-lg sm:text-2xl md:text-3xl font-bold text-gray-900 mb-2">통합 성과 대시보드</h1>
           <p className="text-gray-500 text-xs sm:text-sm md:text-base mt-2">실시간 마케팅 성과를 한눈에 확인하세요</p>
         </div>
-        <button className="hidden sm:block px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm">
-          리포트 다운로드
-        </button>
       </div>
 
       {/* 탭 버튼 */}

@@ -666,7 +666,7 @@ export default function InsightsPage() {
             {/* Platform Performance Chart */}
             <div className="bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-gray-100">
               <h2 className="text-lg font-semibold text-gray-900 mb-4">플랫폼별 광고비 분포</h2>
-              <div className="h-[250px] sm:h-[300px]">
+              <div className="h-[250px] sm:h-[300px] min-w-0">
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
                     <Pie
@@ -691,7 +691,7 @@ export default function InsightsPage() {
             {/* Platform ROAS Comparison */}
             <div className="bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-gray-100">
               <h2 className="text-lg font-semibold text-gray-900 mb-4">플랫폼별 ROAS 비교</h2>
-              <div className="h-[250px] sm:h-[300px]">
+              <div className="h-[250px] sm:h-[300px] min-w-0">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={comparison.platforms}>
                     <CartesianGrid strokeDasharray="3 3" />

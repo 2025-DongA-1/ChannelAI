@@ -2,7 +2,10 @@ import { AIAnalysisService } from './aiAnalysisService';
 import pool from '../../config/database';
 import fs from 'fs';
 import path from 'path';
-import { PDFParse } from 'pdf-parse';
+import axios from 'axios';
+import * as cheerio from 'cheerio';
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const { PDFParse } = require('pdf-parse') as any;
 
 const aiService = new AIAnalysisService();
 
@@ -10,12 +13,11 @@ const aiService = new AIAnalysisService();
 // 파일에서 텍스트 추출 유틸리티
 // ──────────────────────────────────────────────
 
-/** PDF 파일에서 텍스트 추출 (최대 3000자) */
+/** PDF 파일에서 텍스트 추출 (최대 3000자) - pdf-parse v2 API */
 async function extractTextFromPDF(filePath: string): Promise<string> {
   const buffer = fs.readFileSync(filePath);
-  const pdf = new PDFParse({ data: new Uint8Array(buffer) });
-  const result = await pdf.getText();
-  await pdf.destroy();
+  const parser = new PDFParse({ data: buffer });
+  const result = await parser.getText();
   return result.text.slice(0, 3000);
 }
 
@@ -122,6 +124,76 @@ async function getUserTopCampaignContext(userId: number): Promise<string> {
 }
 
 // ──────────────────────────────────────────────
+// 실시간 트렌드 검색 (네이버 뉴스 API → DuckDuckGo 폴백)
+// ──────────────────────────────────────────────
+
+/** 네이버 검색 API로 최신 뉴스/블로그 트렌드 수집 */
+async function fetchNaverTrend(keyword: string): Promise<string> {
+  const clientId = process.env.NAVER_CLIENT_ID;
+  const clientSecret = process.env.NAVER_CLIENT_SECRET;
+  if (!clientId || !clientSecret) return '';
+
+  try {
+    const res = await axios.get('https://openapi.naver.com/v1/search/news.json', {
+      params: { query: keyword, display: 7, sort: 'date' },
+      headers: {
+        'X-Naver-Client-Id': clientId,
+        'X-Naver-Client-Secret': clientSecret,
+      },
+      timeout: 5000,
+    });
+    const items = res.data?.items || [];
+    if (items.length === 0) return '';
+    return items
+      .map((item: any) => {
+        const title = item.title.replace(/<[^>]+>/g, '');
+        const desc = item.description.replace(/<[^>]+>/g, '').slice(0, 120);
+        return `- ${title}: ${desc}`;
+      })
+      .join('\n');
+  } catch (e) {
+    console.error('[Trend] 네이버 검색 실패:', e);
+    return '';
+  }
+}
+
+/** DuckDuckGo HTML 스크래핑 폴백 (API 키 불필요) */
+async function fetchDuckDuckGoTrend(keyword: string): Promise<string> {
+  try {
+    const res = await axios.get('https://html.duckduckgo.com/html/', {
+      params: { q: `${keyword} 트렌드 2026`, kl: 'kr-kr' },
+      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; PlanBe/1.0)' },
+      timeout: 5000,
+    });
+    const $ = cheerio.load(res.data);
+    const results: string[] = [];
+    $('.result__body').each((i, el) => {
+      if (i >= 5) return false;
+      const title = $(el).find('.result__a').text().trim();
+      const snippet = $(el).find('.result__snippet').text().trim().slice(0, 120);
+      if (title) results.push(`- ${title}: ${snippet}`);
+    });
+    return results.join('\n');
+  } catch (e) {
+    console.error('[Trend] DuckDuckGo 스크래핑 실패:', e);
+    return '';
+  }
+}
+
+/** 트렌드 컨텍스트 통합 함수 */
+async function fetchTrendContext(businessType: string, productName: string): Promise<string> {
+  const keyword = `${businessType} ${productName} 광고 트렌드`;
+  // 1차: 네이버 뉴스
+  let trend = await fetchNaverTrend(keyword);
+  // 2차: DuckDuckGo 폴백
+  if (!trend) {
+    trend = await fetchDuckDuckGoTrend(keyword);
+  }
+  if (!trend) return '';
+  return `\n[최신 온라인 트렌드 검색 결과 (${new Date().toISOString().split('T')[0]})]\n${trend}\n→ 위 트렌드 키워드와 소비자 관심사를 카피라이팅에 자연스럽게 반영하세요.\n`;
+}
+
+// ──────────────────────────────────────────────
 // 핵심: 광고 소재 생성 메인 함수
 // ──────────────────────────────────────────────
 
@@ -150,9 +222,15 @@ export interface CreativeResult {
     textOverlay: string;
     specs: Record<string, string>;
     abTestSuggestion: string;
+    aiImagePrompts: {
+      main: string;
+      variation: string;
+      story: string;
+    };
   };
   strategy: string;
   complianceNotes: string;
+  trendKeywords?: string;
 }
 
 export async function generateCreativePackage(
@@ -196,10 +274,18 @@ export async function generateCreativePackage(
     campaignContext = await getUserTopCampaignContext(input.userId);
   }
 
-  // 4) 통합 프롬프트 구성 & LLM 호출
-  const result = await callCreativeLLM(input, documentContext, imageAnalysis, campaignContext);
+  // 4) 실시간 트렌드 검색
+  let trendContext = '';
+  try {
+    trendContext = await fetchTrendContext(input.businessType, input.productName);
+  } catch (e) {
+    console.error('[Creative Agent] 트렌드 검색 실패:', e);
+  }
 
-  // 5) 파일 정리 (업로드 임시파일 삭제)
+  // 5) 통합 프롬프트 구성 & LLM 호출
+  const result = await callCreativeLLM(input, documentContext, imageAnalysis, campaignContext, trendContext);
+
+  // 6) 파일 정리 (업로드 임시파일 삭제)
   if (documentPath && fs.existsSync(documentPath)) {
     fs.unlinkSync(documentPath);
   }
@@ -277,6 +363,7 @@ async function callCreativeLLM(
   documentContext: string,
   imageAnalysis: string,
   campaignContext: string,
+  trendContext: string = '',
 ): Promise<CreativeResult> {
 
   const docSection = documentContext
@@ -291,6 +378,8 @@ async function callCreativeLLM(
     ? `\n[이 사용자의 고성과 캠페인 데이터 (RAG)]\n${campaignContext}\n→ 이 사용자에게 효과적이었던 플랫폼/전략 패턴을 참고하세요.\n`
     : '';
 
+  const trendSection = trendContext || '';
+
   const prompt = `당신은 한국 소상공인을 돕는 디지털 마케팅 크리에이티브 전문가입니다.
 아래 정보를 바탕으로 4개 광고 플랫폼(Meta, Google, Naver, 당근마켓)용 광고 소재 패키지를 생성하세요.
 
@@ -301,7 +390,7 @@ async function callCreativeLLM(
 - 톤앤매너: ${input.tone}
 - 광고 목적: ${input.objective}
 ${input.additionalInfo ? `- 추가 정보: ${input.additionalInfo}` : ''}
-${docSection}${imageSection}${campaignSection}
+${docSection}${imageSection}${campaignSection}${trendSection}
 
 반드시 아래 JSON 형식으로만 응답하세요 (마크다운 코드블록 없이 순수 JSON만):
 {
@@ -339,10 +428,16 @@ ${docSection}${imageSection}${campaignSection}
       "naver_banner": "1200×628px",
       "karrot": "720×720px"
     },
-    "abTestSuggestion": "A/B 테스트 제안 (소재A vs 소재B 차이점)"
+    "abTestSuggestion": "A/B 테스트 제안 (소재A vs 소재B 차이점)",
+    "aiImagePrompts": {
+      "main": "이 상품의 메인 광고 이미지를 생성하기 위한 영문 프롬프트. Midjourney/DALL-E/Gemini 등 이미지 생성 AI에 바로 붙여넣기 가능한 상세한 영문 묘사 (구도, 조명, 색감, 스타일, 분위기 등 포함). 200자 내외.",
+      "variation": "메인 이미지의 변형 버전용 영문 프롬프트 (다른 각도, 색상, 또는 계절감 반영). 200자 내외.",
+      "story": "Instagram 스토리/릴스용 세로형 이미지 생성 영문 프롬프트 (9:16 비율, 모바일 최적화 구도). 200자 내외."
+    }
   },
   "strategy": "총 200자 이내의 통합 광고 전략 요약 (예산 배분 방향, 타이밍, 주의점 포함)",
-  "complianceNotes": "매체별 광고 심사 통과를 위한 주의사항 (금지 표현, 글자수 규정 등)"
+  "complianceNotes": "매체별 광고 심사 통과를 위한 주의사항 (금지 표현, 글자수 규정 등)",
+  "trendKeywords": "카피라이팅에 반영한 최신 트렌드 키워드 3~5개를 쉼표로 나열 (트렌드 데이터가 없으면 빈 문자열)"
 }`;
 
   try {
@@ -368,6 +463,7 @@ ${docSection}${imageSection}${campaignSection}
         textOverlay: '',
         specs: {},
         abTestSuggestion: '',
+        aiImagePrompts: { main: '', variation: '', story: '' },
       },
       strategy: '',
       complianceNotes: '',
@@ -432,4 +528,12 @@ export async function getCreativeDetail(userId: number, id: number) {
     [id, userId]
   );
   return result.rows?.[0] || null;
+}
+
+/** 특정 생성 이력 삭제 */
+export async function deleteCreativeHistory(userId: number, id: number) {
+  await pool.query(
+    `DELETE FROM creative_generations WHERE id = ? AND user_id = ?`,
+    [id, userId]
+  );
 }
