@@ -275,16 +275,6 @@ jobs:
             # ========== 4. 의존성 설치 ==========
             npm install --include=dev --no-audit --no-fund
 
-            # ========== 4-1. 프록시 주입 스크립트 생성 ==========
-            cat > /opt/marketing-platform/inject-proxy.py << 'PROXYEOF'
-            ...
-            PROXYEOF
-
-            # ========== 4-2. 프록시 코드 주입 실행 ==========
-            python3 /opt/marketing-platform/inject-proxy.py
-
-            # ========== 4-3. 빌드 ==========
-            npx tsc
             # ========== 5-1. 프록시 주입 스크립트 생성 ==========
             cat > /opt/marketing-platform/inject-proxy.py << 'PROXYEOF'
             import os
@@ -326,6 +316,9 @@ jobs:
 
             # ========== 5-2. 프록시 코드 주입 실행 ==========
             python3 /opt/marketing-platform/inject-proxy.py
+
+            # ========== 5-3. 빌드 (프록시 주입 후) ==========
+            npx tsc
 
             # ========== 5. ecosystem.config.js 생성 (프록시 환경변수 포함) ==========
             # 배포할 때마다 ecosystem.config.js를 자동 생성
@@ -385,6 +378,10 @@ jobs:
             pm2 delete marketing-api 2>/dev/null || true
             pm2 start deploy/ecosystem.config.js
             pm2 save
+
+            # ========== 8. 편의 alias 등록 (proxy 주입 → 빌드 → pm2 재시작) ==========
+            sed -i '/alias proxy=/d' /root/.bashrc
+            echo "alias proxy='cd /opt/marketing-platform && python3 inject-proxy.py && cd backend && npx tsc && pm2 restart marketing-api --update-env'" >> /root/.bashrc
 
   # ============================================
   # WEB 서버 배포 (수동 트리거에서만 실행)

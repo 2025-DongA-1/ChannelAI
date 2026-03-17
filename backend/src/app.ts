@@ -1,5 +1,6 @@
 import express, { Request, Response } from 'express';
 import cors from 'cors';
+import rateLimit from 'express-rate-limit';
 import dotenv from 'dotenv';
 import cookieParser from 'cookie-parser';
 import cron from 'node-cron';
@@ -18,6 +19,7 @@ import aiRoutes from './routes/aiRoutes';
 import reportRoutes from './routes/reportRoutes';
 import metricRoutes from './routes/metricRoutes';
 import creativeRoutes from './routes/creativeRoutes';
+import paymentRoutes from './routes/paymentRoutes';
 import { spawn } from 'child_process';
 import path from 'path';
 
@@ -33,7 +35,6 @@ const PORT = parseInt(process.env.PORT || '3000', 10);
 const allowedOrigins = [
   'http://localhost:5173',
   'http://localhost:3000',
-  'http://211.188.63.79',
   'http://channelai.kro.kr',
   'https://channelai.kro.kr',
   process.env.FRONTEND_URL,
@@ -53,6 +54,21 @@ app.use(cors({
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 app.use(cookieParser());
+
+// Rate Limiting
+const globalLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 200,
+  message: { error: '너무 많은 요청입니다. 잠시 후 다시 시도해주세요.' },
+});
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  message: { error: '로그인 시도가 너무 많습니다. 15분 후 다시 시도해주세요.' },
+});
+app.use('/api', globalLimiter);
+app.use('/api/v1/auth/login', authLimiter);
+app.use('/api/v1/auth/register', authLimiter);
 
 // 기본 라우트
 app.get('/', (req: Request, res: Response) => {
@@ -241,6 +257,7 @@ app.use('/api/v1/ai', aiRoutes);
 app.use('/api/v1/ai/creative', creativeRoutes);  // AI 소재 에이전트 API
 app.use('/api/v1/report', reportRoutes);   // 리포트 이메일 발송 API
 app.use('/api/v1/metrics', metricRoutes);  // 로우 데이터/메트릭 관리 API
+app.use('/api/v1/payment', paymentRoutes); // 결제 API
 
 app.get('/api/v1', (req: Request, res: Response) => {
   res.json({ 

@@ -10,7 +10,6 @@ import {
   uploadCSV,
   exportCSV,
   connectPlatform,
-  crawlKarrotAdResult,
   crawlKarrotAdResultManual,
   deleteKarrotManualCampaign,
   updateKarrotManualCampaign,
@@ -71,7 +70,5 @@ router.get('/export/csv', authenticate, exportCSV);
 // 계정 연동 해제 (인증 필요)
 router.delete('/disconnect/:platform', authenticate, disconnectAccount);
 
-// 🥕 당근마켓 광고 결과 크롤링 (사용자 입력 기반)
-router.post('/karrot', authenticate, crawlKarrotAdResult);
 
 export default router;

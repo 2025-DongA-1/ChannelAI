@@ -11,6 +11,8 @@ import {
   handleKarrotCallback,
 } from '../controllers/socialAuthController';
 import { authenticate } from '../middlewares/auth';
+import { validate } from '../middlewares/validate';
+import { registerSchema, loginSchema, changePasswordSchema, activateSubscriptionSchema, updateAutoRenewSchema } from '../schemas';
 
 const router = Router();
 
@@ -18,10 +20,10 @@ const router = Router();
 router.get('/check-email', checkEmail);
 
 // 회원가입
-router.post('/register', register);
+router.post('/register', validate(registerSchema), register);
 
 // 로그인
-router.post('/login', login);
+router.post('/login', validate(loginSchema), login);
 
 // 내 정보 조회 (인증 필요)
 router.get('/me', authenticate, getMe);
@@ -30,7 +32,7 @@ router.get('/me', authenticate, getMe);
 router.put('/me', authenticate, updateProfile);
 
 // 비밀번호 변경
-router.put('/me/password', authenticate, changePassword);
+router.put('/me/password', authenticate, validate(changePasswordSchema), changePassword);
 
 // 구독 정보 조회
 router.get('/subscription', authenticate, getSubscription);
@@ -39,10 +41,10 @@ router.get('/subscription', authenticate, getSubscription);
 router.post('/subscription/cancel', authenticate, cancelSubscription);
 
 // 구독 활성화
-router.post('/subscription/activate', authenticate, activateSubscription);
+router.post('/subscription/activate', authenticate, validate(activateSubscriptionSchema), activateSubscription);
 
 // 자동 갱신 설정 변경
-router.patch('/subscription/auto-renew', authenticate, updateAutoRenew);
+router.patch('/subscription/auto-renew', authenticate, validate(updateAutoRenewSchema), updateAutoRenew);
 
 // [TEST] 구독 만료일 현재로 초기화
 router.post('/subscription/test-expire', authenticate, testExpireSubscription);

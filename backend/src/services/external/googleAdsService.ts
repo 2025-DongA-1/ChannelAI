@@ -132,9 +132,6 @@ export class GoogleAdsService implements IAdService {
    */
   async getAccounts(accessToken: string): Promise<AdAccount[]> {
     console.log('[Google Ads] 계정 목록 조회');
-    console.log('[Google Ads] accessToken:', accessToken ? `${accessToken.substring(0, 15)}...` : 'EMPTY');
-    console.log('[Google Ads] developerToken:', this.developerToken ? `${this.developerToken.substring(0, 8)}...` : 'EMPTY');
-    console.log('[Google Ads] mccId:', this.mccId || 'EMPTY');
 
     // 먼저 현재 설정된 버전으로 시도, 실패 시 폴백 버전들 시도
     const versionsToTry = [this.apiVersion, ...this.versionFallbacks.filter(v => v !== this.apiVersion)];

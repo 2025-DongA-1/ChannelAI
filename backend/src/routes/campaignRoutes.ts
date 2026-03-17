@@ -8,6 +8,8 @@ import {
   getCampaignMetrics,
 } from '../controllers/campaignController';
 import { authenticate } from '../middlewares/auth';
+import { validate } from '../middlewares/validate';
+import { createCampaignSchema, updateCampaignSchema } from '../schemas';
 
 const router = Router();
 
@@ -17,8 +19,8 @@ router.use(authenticate);
 // 캠페인 CRUD
 router.get('/', getCampaigns);
 router.get('/:id', getCampaignById);
-router.post('/', createCampaign);
-router.put('/:id', updateCampaign);
+router.post('/', validate(createCampaignSchema), createCampaign);
+router.put('/:id', validate(updateCampaignSchema), updateCampaign);
 router.delete('/:id', deleteCampaign);
 
 // 캠페인 메트릭

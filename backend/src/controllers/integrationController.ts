@@ -214,40 +214,6 @@ export const crawlKarrotAdResultManual = async (req: AuthRequest, res: Response)
     if (conn) conn.release();
   }
 };
-export const crawlKarrotAdResult = async (req: AuthRequest, res: Response) => {
-  try {
-    const { adUrl, sessionCookie } = req.body;
-    const userId = req.user?.id;
-    if (!adUrl || !sessionCookie) {
-      return res.status(400).json({ error: 'adUrl과 sessionCookie가 필요합니다.' });
-    }
-    // 크롤링 시도
-    let result: any = undefined;
-    try {
-      // TODO: Implement or import crawlKarrotAdResultService
-      // result = await crawlKarrotAdResultService(adUrl, sessionCookie);
-    } catch (err: any) {
-      return res.status(500).json({ error: err.message || '크롤링 실패' });
-    }
-    if (!result) {
-      return res.status(500).json({ error: '크롤링 결과가 없습니다.' });
-    }
-    // DB 저장 (예시: karrot_ad_results 테이블, 필요시 테이블 생성)
-    try {
-      await pool.query(
-        `INSERT INTO karrot_ad_results (user_id, campaign_name, impressions, clicks, cost, conversions, crawled_at, ad_url)
-         VALUES (?, ?, ?, ?, ?, ?, NOW(), ?)`,
-        [userId, result.campaignName, result.impressions, result.clicks, result.cost, result.conversions, adUrl]
-      );
-    } catch (dbErr: any) {
-      return res.status(500).json({ error: 'DB 저장 실패: ' + (dbErr.message || dbErr) });
-    }
-    return res.json({ success: true, message: '광고 데이터가 정상적으로 수집 및 저장되었습니다.', data: result });
-  } catch (error) {
-    console.error('당근마켓 광고 크롤링 오류:', error);
-    res.status(500).json({ error: '당근마켓 광고 크롤링 중 서버 오류가 발생했습니다.' });
-  }
-};
 import { Response } from 'express';
 import { AuthRequest } from '../middlewares/auth';
 import pool from '../config/database';
