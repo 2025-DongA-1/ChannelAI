@@ -206,7 +206,6 @@ const DummyDataPage: React.FC = () => {
             alert(`✅ 성공: ${response.data.message}`);
         }
     } catch (err: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
-        console.error(err);
         alert(`❌ 저장 실패: ${err.response?.data?.error || err.response?.data?.message || err.message}`);
     } finally {
         setIsSaving(false);

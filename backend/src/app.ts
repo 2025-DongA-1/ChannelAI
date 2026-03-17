@@ -289,8 +289,11 @@ const startServer = async () => {
     const profileColumns = [
       { name: 'plan_started_at',  ddl: "DATETIME DEFAULT NULL COMMENT '구독 시작일'" },
       { name: 'plan_expires_at',  ddl: "DATETIME DEFAULT NULL COMMENT '구독 만료일'" },
-      { name: 'pay_method',     ddl: "VARCHAR(50) DEFAULT NULL COMMENT '결제 수단(card/kakao_pay 등)'" },
-      { name: 'pay_auto_renew', ddl: "TINYINT(1) NOT NULL DEFAULT 1 COMMENT '자동 갱신 여부'" },
+      { name: 'pay_method',       ddl: "VARCHAR(50) DEFAULT NULL COMMENT '결제 수단(card/kakao_pay 등)'" },
+      { name: 'pay_card_company', ddl: "VARCHAR(50) DEFAULT NULL COMMENT '카드사명'" },
+      { name: 'pay_card_last4',   ddl: "VARCHAR(4) DEFAULT NULL COMMENT '카드 뒤 4자리'" },
+      { name: 'pay_monthly_amt',  ddl: "INT DEFAULT NULL COMMENT '월 결제 금액(원)'" },
+      { name: 'pay_auto_renew',   ddl: "TINYINT(1) NOT NULL DEFAULT 1 COMMENT '자동 갱신 여부'" },
     ];
     for (const col of profileColumns) {
       try {
@@ -308,6 +311,32 @@ const startServer = async () => {
       }
     }
 
+    // payments 테이블 자동 생성 (없을 경우)
+    try {
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS payments (
+          id             BIGINT AUTO_INCREMENT PRIMARY KEY,
+          user_id        BIGINT       NOT NULL                    COMMENT '결제한 사용자 ID',
+          amount         INT          NOT NULL                    COMMENT '결제 금액 (원, 예: 9900)',
+          plan           VARCHAR(20)  NOT NULL                    COMMENT '구독 플랜 (PRO 등)',
+          pay_method     VARCHAR(50)  DEFAULT NULL                COMMENT '결제 수단 (card, kakao_pay 등)',
+          status         VARCHAR(20)  NOT NULL DEFAULT 'success'  COMMENT '결제 상태 (success|failed|cancelled|refunded)',
+          transaction_id VARCHAR(200) DEFAULT NULL                COMMENT '외부 PG사 거래 ID',
+          period_start   DATETIME     DEFAULT NULL                COMMENT '구독 시작일',
+          period_end     DATETIME     DEFAULT NULL                COMMENT '구독 만료일',
+          note           VARCHAR(500) DEFAULT NULL                COMMENT '비고 (수동 처리 사유 등)',
+          paid_at        DATETIME     NOT NULL DEFAULT NOW()      COMMENT '결제 일시',
+          FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+          INDEX idx_payments_user_id (user_id),
+          INDEX idx_payments_status  (status),
+          INDEX idx_payments_paid_at (paid_at)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='결제 이력'
+      `);
+      console.log('✅ payments 테이블 확인/생성 완료');
+    } catch (e) {
+      console.warn('⚠️ payments 테이블 생성 실패 (무시):', e);
+    }
+
     // Redis 연결 (선택적 - 실패해도 서버 시작)
     console.log('🔴 Redis 연결 시도...');
     await connectRedis();
@@ -322,29 +351,32 @@ const startServer = async () => {
       try {
         // auto_renew=1: 만료된 PRO 구독 → 1개월 연장
         const toRenew = await pool.query(`
-          SELECT user_id FROM user_profiles
+          SELECT user_id FROM v_subscription
           WHERE plan = 'PRO' AND plan_expires_at <= NOW() AND pay_auto_renew = 1
         `);
         for (const row of (toRenew.rows as any[])) {
-          const newExpiry = new Date();
+          const renewNow = new Date();
+          const newExpiry = new Date(renewNow);
           newExpiry.setMonth(newExpiry.getMonth() + 1);
           await pool.query(
-            `UPDATE user_profiles SET plan_expires_at = ? WHERE user_id = ?`,
-            [newExpiry, row.user_id]
+            `INSERT INTO payments (user_id, plan, amount, status, plan_started_at, plan_expires_at, paid_at)
+             VALUES (?, 'PRO', 9900, 'success', ?, ?, NOW())`,
+            [row.user_id, renewNow, newExpiry]
           );
           console.log(`  ✅ 구독 연장 - user_id: ${row.user_id}, 새 만료일: ${newExpiry.toISOString()}`);
         }
         // auto_renew=0: 만료된 PRO 구독 → FREE 전환
         const toExpire = await pool.query(`
-          SELECT user_id FROM user_profiles
+          SELECT user_id FROM v_subscription
           WHERE plan = 'PRO' AND plan_expires_at <= NOW() AND pay_auto_renew = 0
         `);
+        for (const row of (toExpire.rows as any[])) {
+          await pool.query(
+            `UPDATE user_profiles SET plan = NULL WHERE user_id = ?`,
+            [row.user_id]
+          );
+        }
         if ((toExpire.rows as any[]).length > 0) {
-          await pool.query(`
-            UPDATE user_profiles
-            SET plan = NULL, plan_started_at = NULL, plan_expires_at = NULL, pay_method = NULL
-            WHERE plan = 'PRO' AND plan_expires_at <= NOW() AND pay_auto_renew = 0
-          `);
           console.log(`  ✅ FREE 전환 완료 - ${(toExpire.rows as any[]).length}명`);
         }
         console.log('⏰ [CRON] 구독 만료 처리 완료');

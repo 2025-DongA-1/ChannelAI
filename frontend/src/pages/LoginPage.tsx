@@ -26,15 +26,10 @@ export default function LoginPage() {
     setError('');
 
     try {
-      console.log('로그인 시도:', { email, password });
       const response = await authAPI.login({ email, password });
-      console.log('로그인 응답:', response);
       setAuth(response.data.user, response.data.token);
-      console.log('인증 상태 업데이트 완료');
       navigate('/dashboard');
     } catch (err: any) {
-      console.error('로그인 오류:', err);
-      console.error('오류 응답:', err.response);
       setError(err.response?.data?.message || '로그인에 실패했습니다.');
     } finally {
       setLoading(false);

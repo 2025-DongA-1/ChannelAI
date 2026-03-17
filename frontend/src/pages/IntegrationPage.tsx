@@ -16,8 +16,6 @@ export default function IntegrationPage() {
   // [2026-03-11 11:21] 유저 role 확인 (role === 'user'이면 CSV 업로드, 테스트 데이터 생성 버튼 숨김)
   const user = useAuthStore((state) => state.user);
   const isAdmin = user?.role !== 'user';
-  // [디버그] 브라우저 콘솔(F12)에서 role 값 확인용 - 확인 후 삭제
-  console.log('[IntegrationPage] user:', user, '| role:', user?.role, '| isAdmin:', isAdmin);
   // 수정 상태 관리 (반드시 함수 내부에서 선언)
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editForm, setEditForm] = useState<any>({});
