@@ -40,6 +40,9 @@ Thumbs.db
 coverage/
 .nyc_output/
 
+# Backend test scripts (ts-node 직접 실행용, 빌드/업로드 제외)
+backend/src/__tests__/
+
 # Docker
 docker-compose.override.yml
 
