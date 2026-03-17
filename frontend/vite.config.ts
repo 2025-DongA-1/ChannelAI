@@ -10,6 +10,14 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src'),
     },
   },
+  test: {
+    environment: 'jsdom',
+    globals: true,
+    setupFiles: './src/__tests__/setup.ts',
+    alias: {
+      '@/': path.resolve(__dirname, './src') + '/',
+    },
+  },
   server: {
     allowedHosts: true, // 터널(localtunnel, pinggy 등) 외부 접속 허용
     proxy: {
