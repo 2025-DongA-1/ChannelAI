@@ -349,4 +349,6 @@ export const creativeAPI = {
   getHistory: () => api.get('/ai/creative/history'),
   // 특정 생성 결과 상세 조회
   getDetail: (id: number) => api.get(`/ai/creative/${id}`),
+  // 생성 이력 삭제
+  deleteHistory: (id: number) => api.delete(`/ai/creative/${id}`),
 };

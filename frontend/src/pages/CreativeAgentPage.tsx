@@ -4,7 +4,7 @@ import { creativeAPI, campaignAPI } from '@/lib/api';
 import {
   Sparkles, Upload, FileText, Image, Send, Copy, ChevronDown, ChevronUp,
   CheckCircle2, AlertCircle, Loader2, Clock, Palette, LayoutTemplate, Shield,
-  PlusCircle, BarChart3
+  PlusCircle, BarChart3, Trash2
 } from 'lucide-react';
 import { useTutorialStore } from '../store/tutorialStore';
 
@@ -247,6 +247,20 @@ export default function CreativeAgentPage() {
     } catch (error) {
       console.error('이력 상세 정보 로드 실패:', error);
       alert('이력 정보를 불러오는 데 실패했습니다.');
+    }
+  };
+
+  // 생성 이력 삭제
+  const handleDeleteHistory = async (e: React.MouseEvent, id: number) => {
+    e.stopPropagation(); // 이력 클릭 이벤트 버블링 방지
+    if (!confirm('이 생성 이력을 삭제하시겠습니까?')) return;
+    try {
+      await creativeAPI.deleteHistory(id);
+      historyQuery.refetch();
+      // 삭제된 항목이 현재 표시 중이면 초기화
+      if (selectedHistoryResult) setSelectedHistoryResult(null);
+    } catch {
+      alert('삭제에 실패했습니다.');
     }
   };
 
@@ -518,19 +532,30 @@ export default function CreativeAgentPage() {
               </h3>
               <div className="space-y-2">
                 {historyQuery.data.slice(0, 5).map((h: any) => (
-                  <button 
-                    key={h.id} 
-                    onClick={() => loadHistoryDetail(h.id)}
-                    className="w-full text-left flex items-center justify-between text-sm bg-gray-50 hover:bg-violet-50 transition-colors px-3 py-2 rounded-lg"
+                  <div
+                    key={h.id}
+                    className="flex items-center gap-1 bg-gray-50 hover:bg-violet-50 transition-colors rounded-lg"
                   >
-                    <div>
-                      <span className="font-medium text-gray-800">{h.product_name}</span>
-                      <span className="text-gray-400 ml-2">({h.business_type})</span>
-                    </div>
-                    <span className="text-xs text-gray-400">
-                      {new Date(h.created_at).toLocaleDateString('ko-KR')}
-                    </span>
-                  </button>
+                    <button
+                      onClick={() => loadHistoryDetail(h.id)}
+                      className="flex-1 text-left flex items-center justify-between text-sm px-3 py-2"
+                    >
+                      <div>
+                        <span className="font-medium text-gray-800">{h.product_name}</span>
+                        <span className="text-gray-400 ml-2">({h.business_type})</span>
+                      </div>
+                      <span className="text-xs text-gray-400">
+                        {new Date(h.created_at).toLocaleDateString('ko-KR')}
+                      </span>
+                    </button>
+                    <button
+                      onClick={(e) => handleDeleteHistory(e, h.id)}
+                      className="p-2 text-gray-300 hover:text-red-500 transition-colors flex-shrink-0"
+                      title="삭제"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
                 ))}
               </div>
             </div>

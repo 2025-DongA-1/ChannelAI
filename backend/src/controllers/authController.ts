@@ -423,7 +423,7 @@ export const cancelSubscription = async (req: Request, res: Response) => {
     );
     // payment_methods 자동갱신 OFF
     await pool.query(
-      `UPDATE payment_methods SET auto_renew = 1 WHERE user_id = ?`,
+      `UPDATE payment_methods SET auto_renew = 0 WHERE user_id = ?`,
       [userId]
     );
     // 결제 이력 기록 (해지)

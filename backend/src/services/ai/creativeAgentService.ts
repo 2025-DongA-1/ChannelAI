@@ -2,7 +2,8 @@ import { AIAnalysisService } from './aiAnalysisService';
 import pool from '../../config/database';
 import fs from 'fs';
 import path from 'path';
-import { PDFParse } from 'pdf-parse';
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const { PDFParse } = require('pdf-parse') as any;
 
 const aiService = new AIAnalysisService();
 
@@ -10,12 +11,11 @@ const aiService = new AIAnalysisService();
 // 파일에서 텍스트 추출 유틸리티
 // ──────────────────────────────────────────────
 
-/** PDF 파일에서 텍스트 추출 (최대 3000자) */
+/** PDF 파일에서 텍스트 추출 (최대 3000자) - pdf-parse v2 API */
 async function extractTextFromPDF(filePath: string): Promise<string> {
   const buffer = fs.readFileSync(filePath);
-  const pdf = new PDFParse({ data: new Uint8Array(buffer) });
-  const result = await pdf.getText();
-  await pdf.destroy();
+  const parser = new PDFParse({ data: buffer });
+  const result = await parser.getText();
   return result.text.slice(0, 3000);
 }
 
@@ -432,4 +432,12 @@ export async function getCreativeDetail(userId: number, id: number) {
     [id, userId]
   );
   return result.rows?.[0] || null;
+}
+
+/** 특정 생성 이력 삭제 */
+export async function deleteCreativeHistory(userId: number, id: number) {
+  await pool.query(
+    `DELETE FROM creative_generations WHERE id = ? AND user_id = ?`,
+    [id, userId]
+  );
 }

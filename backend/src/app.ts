@@ -337,6 +337,37 @@ const startServer = async () => {
       console.warn('⚠️ payments 테이블 생성 실패 (무시):', e);
     }
 
+    // creative_generations 테이블 자동 생성 (없을 경우)
+    try {
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS creative_generations (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          user_id INT NOT NULL,
+          business_type VARCHAR(100) NOT NULL,
+          product_name VARCHAR(200) NOT NULL,
+          target_audience VARCHAR(300) NOT NULL,
+          tone VARCHAR(100) NOT NULL,
+          objective VARCHAR(100) NOT NULL,
+          additional_info TEXT DEFAULT NULL,
+          had_document TINYINT(1) DEFAULT 0,
+          had_image TINYINT(1) DEFAULT 0,
+          usp_analysis TEXT DEFAULT NULL,
+          generated_copies JSON NOT NULL,
+          visual_guide JSON DEFAULT NULL,
+          strategy_summary TEXT DEFAULT NULL,
+          compliance_notes TEXT DEFAULT NULL,
+          user_rating TINYINT DEFAULT NULL,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          INDEX idx_creative_user (user_id),
+          INDEX idx_creative_created (created_at),
+          FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+      `);
+      console.log('✅ creative_generations 테이블 확인/생성 완료');
+    } catch (e) {
+      console.warn('⚠️ creative_generations 테이블 생성 실패 (무시):', e);
+    }
+
     // Redis 연결 (선택적 - 실패해도 서버 시작)
     console.log('🔴 Redis 연결 시도...');
     await connectRedis();
