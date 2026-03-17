@@ -458,15 +458,20 @@ def main():
             user_data_map["karrot"] = {"roas": item.get('ROAS', 0), "trend": item.get('trend_score', 50)}
 
     # ======================================================
-    # ★ [NEW] 진짜 트렌드 데이터로 덮어쓰기 (가짜 점수 삭제)
+    # ★ [NEW] 진짜 트렌드(시장) + 기간전략 블렌딩
     # ======================================================
     real_trends = load_real_trend_scores()
     
     # json에서 가져온 채널 이름들이 정확히 매칭되도록 덮어씌움
     for ch in base_channel_metrics.keys():
         if ch in real_trends:
-            # ROAS는 유저의 것을 유지하되, trend만 실제 데이터랩 점수로 갈아끼움
-            user_data_map[ch]["trend"] = real_trends[ch]
+            frontend_strategy_score = user_data_map[ch]["trend"] # 7일/30일이 반영된 프론트 점수
+            market_real_score = real_trends[ch]                  # 네이버 API가 알려준 오늘 시장 점수
+            
+            # 💡 [핵심] 실제 시장 상황(60%)에 캠페인 기간 특성(40%)을 섞어서 최종 점수 산출
+            blended_score = (market_real_score * 0.6) + (frontend_strategy_score * 0.4)
+            
+            user_data_map[ch]["trend"] = blended_score
     # ======================================================
 
     # ------------------------------------------------------
