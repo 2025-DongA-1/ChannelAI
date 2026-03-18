@@ -1,6 +1,8 @@
 // 💡 [수정됨] React에서 useEffect를 추가로 불러옵니다.
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
+import html2canvas from 'html2canvas';
+import { jsPDF } from 'jspdf';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { insightsAPI, api } from '@/lib/api';
 import {

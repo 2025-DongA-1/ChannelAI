@@ -444,12 +444,18 @@ export default function MonthlyReportPage() {
       }
     }
 
-    await new Promise(resolve => setTimeout(resolve, 3500));
-
     try {
-      const TAB_LABELS = ["종합 성과 현황", "기간별 성과 추이", "채널별 분석 데이터", "캠페인별 성과", "캠페인별 상세 성과"];
-      const pdf = await generatePDF(TAB_REFS, TAB_LABELS, selectedMonth);
-      pdf.save(`ChannelAI_통합리포트_${selectedMonth}.pdf`);
+      const response = await api.get(`/report/generate-pdf?month=${selectedMonth}&type=monthly`, {
+        responseType: 'blob',
+      });
+      
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `ChannelAI_통합리포트_${selectedMonth}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.parentNode?.removeChild(link);
     } catch (err) {
       console.error('PDF 생성 실패:', err);
       alert('PDF 생성 중 오류가 발생했습니다.');
