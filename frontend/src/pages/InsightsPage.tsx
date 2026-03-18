@@ -1,16 +1,20 @@
 // 💡 [수정됨] React에서 useEffect를 추가로 불러옵니다.
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation } from '@tanstack/react-query';
 import { insightsAPI, api } from '@/lib/api';
 import {
   TrendingUp,
   TrendingDown,
+  BarChart3,
   Calendar,
   Download,
+  AlertCircle,
   Target,
+  Sparkles,
+  RefreshCw,
   Send,
   CheckCircle2,
   FileText
@@ -46,15 +50,21 @@ const TOUR_STEPS = [
     position: 'bottom',
   },
   {
+    targetId: 'tour-ai-recommendations',
+    title: 'AI 최적화 추천',
+    description: '인공지능이 분석한 개선점과 예산 재배분 우선순위를 확인하여 캠페인 성과를 극대화할 수 있습니다.',
+    position: 'top',
+  },
+  {
     targetId: 'tour-trend-chart',
-    title: '상대적 성과 추세',
-    description: '각 지표별 흐름을 차트로 비교하여 기간별 성과 변화를 확인해 보세요.',
+    title: '상대적 성과 추세 및 AI 분석',
+    description: '각 지표별 흐름을 차트로 비교하고, AI 분석 실행 버튼을 눌러 상세 리포트를 확인해 보세요.',
     position: 'top',
   },
   {
     targetId: 'tour-platform-comparison',
     title: '플랫폼 분석',
-    description: '매체별 효율을 비교 분석하여 예산 분배 최적화 가이드를 확인합니다.',
+    description: '매체별 효율을 비교 분석하고 크로스 미디어 전략 리포트를 통해 예산 분배 최적화 가이드를 받습니다.',
     position: 'top',
   }
 ];
@@ -63,10 +73,7 @@ export default function InsightsPage() {
   const navigate = useNavigate();
   const contentRef = useRef<HTMLDivElement>(null);
   const [isExporting, setIsExporting] = useState(false);
-  const [dateRange, setDateRange] = useState({
-    start: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-    end: new Date().toISOString().split('T')[0],
-  });
+  const [selectedMonth, setSelectedMonth] = useState(() => new Date().toISOString().slice(0, 7));
   
   // 튜토리얼 상태
   const [showTour, setShowTour] = useState(false);
@@ -101,6 +108,16 @@ export default function InsightsPage() {
   // 💡 [추가됨] 캠페인 선택 상태 관리 ('all'이면 모든 캠페인 종합 보기)
   const [selectedCampaign, setSelectedCampaign] = useState<string>('all');
 
+  // selectedMonth → dateRange 자동 계산 (useQuery보다 먼저 선언)
+  const dateRange = useMemo(() => {
+    const [year, month] = selectedMonth.split('-').map(Number);
+    const lastDay = new Date(year, month, 0).getDate();
+    return {
+      start: `${selectedMonth}-01`,
+      end: `${selectedMonth}-${String(lastDay).padStart(2, '0')}`,
+    };
+  }, [selectedMonth]);
+
   // 💡 [추가됨] 백엔드에 뚫어둔 analyze API를 호출해서 '활성 캠페인 목록'을 가져옵니다.
   const { data: analyzeData } = useQuery({
     queryKey: ['ai-analyze-base'],
@@ -130,59 +147,98 @@ export default function InsightsPage() {
     }),
   });
 
+  // AI 추천 데이터 (캠페인 ID 파라미터 추가)
+  const { data: recommendationsData } = useQuery({
+    queryKey: ['insights-recommendations', selectedCampaign],
+    queryFn: () => insightsAPI.getRecommendations({
+      campaign_id: selectedCampaign === 'all' ? undefined : selectedCampaign,
+    }),
+  });
+
   const trends = trendsData?.data;
   const comparison = comparisonData?.data;
+  const recommendations = recommendationsData?.data;
   // 💡 [추가됨] 드롭다운에 뿌려줄 캠페인 목록 데이터
   const availableCampaigns = analyzeData?.data?.availableCampaigns || [];
 
-  // 💡 [추가됨] 페이지 최초 진입 시, 캠페인 목록 로딩이 끝나면 날짜를 전체 캠페인 최초 개시일로 자동 셋팅!
-  useEffect(() => {
-    if (availableCampaigns.length > 0 && selectedCampaign === 'all') {
-      const today = new Date().toISOString().split('T')[0];
-      const earliestDate = availableCampaigns.reduce((min: string, c: any) => {
-        if (!c.start_date) return min;
-        const cDate = new Date(c.start_date).toISOString().split('T')[0];
-        return cDate < min ? cDate : min;
-      }, today);
-
-      // 이미 계산된 날짜와 다를 때만 업데이트 (무한 렌더링 방지)
-      if (dateRange.start !== earliestDate) {
-        setDateRange({ start: earliestDate, end: today });
-      }
+  // 데이터 기반 월 목록 생성 (YYYY-MM 형식)
+  const MONTHS = useMemo(() => {
+    const today = new Date();
+    const currentYM = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
+    let earliestYM = currentYM;
+    if (availableCampaigns.length > 0) {
+      earliestYM = availableCampaigns.reduce((min: string, c: any) => {
+        const d = c.start_date?.slice(0, 7) || currentYM;
+        return d < min ? d : min;
+      }, currentYM);
+    } else {
+      const d = new Date(today);
+      d.setMonth(d.getMonth() - 11);
+      earliestYM = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
     }
-  }, [availableCampaigns]); // availableCampaigns 데이터가 준비될 때 한 번 실행됩니다.
+    const months: string[] = [];
+    let [ey, em] = earliestYM.split('-').map(Number);
+    const [cy, cm] = currentYM.split('-').map(Number);
+    while (ey < cy || (ey === cy && em <= cm)) {
+      months.push(`${ey}-${String(em).padStart(2, '0')}`);
+      em++;
+      if (em > 12) { em = 1; ey++; }
+    }
+    return months;
+  }, [availableCampaigns]);
 
-  // 💡 [추가됨] 캠페인 드롭다운 변경 시 시작 날짜를 해당 캠페인의 최초 개시일로 자동 업데이트합니다!
+
+  // 🤖 DB에서 기존 인사이트 조회
+  const { data: dbInsightsData } = useQuery({
+    queryKey: ['insights-llm', selectedMonth],
+    queryFn: async () => {
+      const res = await api.get(`/ai/agent/monthly-report-insights?month=${selectedMonth}`);
+      return res.data?.success ? res.data.data : null;
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+
+  // 🤖 LLM 새 생성 (월별리포트와 동일 엔드포인트)
+  const llmMutation = useMutation({
+    mutationFn: async (forceRefresh: boolean = false) => {
+      const response = await api.post('/ai/agent/monthly-report-insights', {
+        trendsData: trends,
+        platformData: comparison,
+        selectedMonth,
+        forceRefresh,
+        reportType: 'monthly',
+      });
+      return response.data;
+    }
+  });
+
+  const insights = llmMutation.data?.data || dbInsightsData;
+  const isLlmLoading = llmMutation.isPending;
+
+  // 월 변경 시 mutation 리셋
+  useEffect(() => {
+    llmMutation.reset();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedMonth]);
+
+
+  // 💡 [추가됨] 캠페인 드롭다운 변경 시 해당 캠페인의 최초 월로 자동 업데이트합니다!
   const handleCampaignChange = (e: any) => {
     const val = e.target.value;
     setSelectedCampaign(val);
-    
-    const today = new Date().toISOString().split('T')[0];
-
+    const today = new Date().toISOString().slice(0, 7);
     if (val === 'all') {
-      // 전체 캠페인 중 가장 빠른 시작일 찾기
-      const earliestDate = availableCampaigns.reduce((min: string, c: any) => {
+      const earliestYM = availableCampaigns.reduce((min: string, c: any) => {
         if (!c.start_date) return min;
-        const cDate = new Date(c.start_date).toISOString().split('T')[0];
-        return cDate < min ? cDate : min;
+        const d = c.start_date.slice(0, 7);
+        return d < min ? d : min;
       }, today);
-      setDateRange({ start: earliestDate, end: today });
+      setSelectedMonth(earliestYM);
     } else {
-      // 선택한 캠페인의 시작일 찾기
       const targetCampaign = availableCampaigns.find((c: any) => c.id.toString() === val);
-      if (targetCampaign && targetCampaign.start_date) {
-        const cDate = new Date(targetCampaign.start_date).toISOString().split('T')[0];
-        setDateRange({ start: cDate, end: today });
-      } else {
-        // 데이터가 없으면 기본 30일
-        const fallbackStart = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-        setDateRange({ start: fallbackStart, end: today });
-      }
+      const ym = targetCampaign?.start_date?.slice(0, 7) || today;
+      setSelectedMonth(ym);
     }
-  };
-
-  const handleDateChange = (field: 'start' | 'end', value: string) => {
-    setDateRange(prev => ({ ...prev, [field]: value }));
   };
 
   const handleExportPDF = async () => {
@@ -192,47 +248,17 @@ export default function InsightsPage() {
       const canvas = await html2canvas(contentRef.current, {
         scale: 2,
         useCORS: true,
-        backgroundColor: '#f9fafb',
+        backgroundColor: '#ffffff',
         logging: false,
         windowWidth: 1280,
-        scrollX: 0,
-        scrollY: -window.scrollY,
         onclone: (doc) => {
           const style = doc.createElement('style');
           style.innerHTML = `
-            /* 전체 텍스트 수직 위치 보정 */
-            * {
-              font-family: 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif !important;
-              letter-spacing: -0.02em !important; /* 자간 미세 조정으로 밀림 방지 */
-              -webkit-font-smoothing: antialiased;
-            }
-            /* Recharts 등 SVG 텍스트가 아래로 처지는 현상 방지 */
-            svg text {
-              dominant-baseline: central !important;
-              transform: translateY(1px); /* 브라우저 렌더링 오차만큼 보정 */
-            }
-            /* 테이블 셀 내부 텍스트 처짐 방지 */
-            td, th {
-              vertical-align: middle !important;
-              line-height: 1.2 !important;
-            }
+            svg text { dominant-baseline: central !important; }
+            td, th { vertical-align: middle !important; }
           `;
           doc.head.appendChild(style);
-
-          // 네이티브 폼 요소는 html2canvas에서 글자 간격이 틀어지므로 텍스트로 교체
-          doc.querySelectorAll('select').forEach((sel) => {
-            const span = doc.createElement('span');
-            span.textContent = (sel as HTMLSelectElement).options[(sel as HTMLSelectElement).selectedIndex]?.text ?? '';
-            span.style.cssText = 'font-size:14px;color:#1f2937;display:inline-block;vertical-align:middle;';
-            sel.parentNode?.replaceChild(span, sel);
-          });
-          doc.querySelectorAll('input[type="date"]').forEach((input) => {
-            const span = doc.createElement('span');
-            span.textContent = (input as HTMLInputElement).value;
-            span.style.cssText = 'font-size:14px;color:#1f2937;display:inline-block;vertical-align:middle;';
-            input.parentNode?.replaceChild(span, input);
-          });
-        },
+        }
       });
 
       const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
@@ -254,14 +280,20 @@ export default function InsightsPage() {
         slice.width = imgW;
         slice.height = Math.round(srcSliceH);
         const ctx = slice.getContext('2d')!;
-        
         ctx.fillStyle = '#ffffff';
         ctx.fillRect(0, 0, slice.width, slice.height);
-        
         ctx.drawImage(canvas, 0, srcY, imgW, srcSliceH, 0, 0, imgW, Math.round(srcSliceH));
-        pdf.addImage(slice.toDataURL('image/jpeg', 1.0), 'JPEG', MARGIN, MARGIN, CONTENT_W, sliceH);
+        pdf.addImage(slice.toDataURL('image/png'), 'PNG', MARGIN, MARGIN, CONTENT_W, sliceH);
         yOffset += sliceH;
+
+        // 슬라이스 캔버스 메모리 해제
+        slice.width = 0;
+        slice.height = 0;
       }
+
+      // 원본 캔버스 메모리 해제
+      canvas.width = 0;
+      canvas.height = 0;
 
       const today = new Date().toISOString().split('T')[0];
       pdf.save(`ChannelAI_인사이트_${today}.pdf`);
@@ -284,6 +316,7 @@ export default function InsightsPage() {
     if (change < 0) return 'text-red-600';
     return 'text-gray-600';
   };
+
 
   const COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6'];
 
@@ -361,26 +394,47 @@ export default function InsightsPage() {
 
         <div className="hidden sm:block w-px h-6 bg-gray-200"></div> {/* 구분선 */}
 
-        {/* 기존 날짜 선택기 */}
+        {/* 년/월 선택기 */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 w-full sm:w-auto">
           <div className="flex items-center gap-2 w-full sm:w-auto">
             <Calendar className="w-5 h-5 text-gray-500 flex-shrink-0" />
             <span className="text-sm font-medium text-gray-700 flex-shrink-0">분석 기간:</span>
           </div>
-          <div className="flex items-center gap-2 w-full sm:w-auto">
-            <input
-              type="date"
-              value={dateRange.start}
-              onChange={(e) => handleDateChange('start', e.target.value)}
-              className="flex-1 sm:flex-none px-3 py-1.5 border border-gray-300 rounded-lg text-sm w-full sm:w-auto"
-            />
-            <span className="text-gray-500 flex-shrink-0">~</span>
-            <input
-              type="date"
-              value={dateRange.end}
-              onChange={(e) => handleDateChange('end', e.target.value)}
-              className="flex-1 sm:flex-none px-3 py-1.5 border border-gray-300 rounded-lg text-sm w-full sm:w-auto"
-            />
+          <div className="flex gap-2 items-center bg-gray-50/80 p-1.5 rounded-xl border border-gray-100">
+            <select
+              value={selectedMonth.split('-')[0]}
+              onChange={(e) => {
+                const newYear = e.target.value;
+                const monthsInYear = MONTHS.filter(m => m.startsWith(newYear)).map(m => m.split('-')[1]);
+                const curMonth = selectedMonth.split('-')[1];
+                if (monthsInYear.includes(curMonth)) {
+                  setSelectedMonth(`${newYear}-${curMonth}`);
+                } else {
+                  setSelectedMonth(`${newYear}-${monthsInYear[monthsInYear.length - 1]}`);
+                }
+              }}
+              className="px-3 py-1.5 rounded-lg text-sm font-medium bg-white border border-gray-200 text-gray-700 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 cursor-pointer hover:bg-gray-50 transition-colors"
+            >
+              {Array.from(new Set(MONTHS.map(m => m.split('-')[0]))).map(year => (
+                <option key={year} value={year}>{year}년</option>
+              ))}
+            </select>
+            <select
+              value={selectedMonth.split('-')[1]}
+              onChange={(e) => setSelectedMonth(`${selectedMonth.split('-')[0]}-${e.target.value}`)}
+              className="px-3 py-1.5 rounded-lg text-sm font-medium bg-white border border-gray-200 text-gray-700 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 cursor-pointer hover:bg-gray-50 transition-colors"
+            >
+              {MONTHS.filter(m => m.startsWith(selectedMonth.split('-')[0]))
+                .map(m => m.split('-')[1])
+                .map(month => (
+                  <option key={month} value={month}>{parseInt(month, 10)}월</option>
+                ))}
+            </select>
+            {selectedMonth === new Date().toISOString().slice(0, 7) && (
+              <span className="px-2 py-0.5 text-xs font-semibold bg-green-100 text-green-700 rounded-full border border-green-200">
+                진행중
+              </span>
+            )}
           </div>
         </div>
       </div>
@@ -529,6 +583,42 @@ export default function InsightsPage() {
               </LineChart>
             </ResponsiveContainer>
             
+            {/* AI 인사이트 박스 (월별리포트 스타일) */}
+            <div className="mt-4 bg-gradient-to-br from-indigo-50 to-blue-50 rounded-xl border border-indigo-100 shadow-sm overflow-hidden">
+              <div className="flex items-center justify-between px-5 py-3 border-b border-indigo-100">
+                <div>
+                  <p className="font-bold text-indigo-900 text-base flex items-center gap-2">
+                    <Sparkles className="w-4 h-4 text-indigo-500" />
+                    AI 성과 분석
+                    {isLlmLoading && <span className="text-xs text-indigo-500 font-normal animate-pulse">분석 중...</span>}
+                  </p>
+                  {selectedMonth === new Date().toISOString().slice(0, 7) && (
+                    <p className="text-xs text-indigo-400 mt-0.5">
+                      {new Date().getMonth() + 1}월 {new Date().getDate()}일까지의 분석 내용
+                    </p>
+                  )}
+                </div>
+                <button
+                  onClick={() => llmMutation.mutate(!!insights)}
+                  disabled={isLlmLoading}
+                  className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-medium bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 transition-colors"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${isLlmLoading ? 'animate-spin' : ''}`} />
+                  {isLlmLoading ? 'AI 분석 중...' : insights ? 'AI 분석 갱신' : 'AI 진단 시작'}
+                </button>
+              </div>
+              <div className="px-5 py-4 text-sm text-indigo-800 leading-relaxed whitespace-pre-line">
+                {isLlmLoading ? (
+                  <div className="space-y-2 animate-pulse">
+                    <div className="h-4 bg-indigo-100/50 rounded w-3/4" />
+                    <div className="h-4 bg-indigo-100/50 rounded w-full" />
+                    <div className="h-4 bg-indigo-100/50 rounded w-5/6" />
+                  </div>
+                ) : (
+                  insights?.overall || "⚠️ 상단 'AI 진단 시작' 버튼을 클릭해 분석을 실행하세요."
+                )}
+              </div>
+            </div>
           </div>
         );
       })()}
@@ -540,7 +630,7 @@ export default function InsightsPage() {
             {/* Platform Performance Chart */}
             <div className="bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-gray-100">
               <h2 className="text-lg font-semibold text-gray-900 mb-4">플랫폼별 광고비 분포</h2>
-              <div className="h-[250px] sm:h-[300px] min-w-0">
+              <div className="h-[250px] sm:h-[300px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
                     <Pie
@@ -565,7 +655,7 @@ export default function InsightsPage() {
             {/* Platform ROAS Comparison */}
             <div className="bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-gray-100">
               <h2 className="text-lg font-semibold text-gray-900 mb-4">플랫폼별 ROAS 비교</h2>
-              <div className="h-[250px] sm:h-[300px] min-w-0">
+              <div className="h-[250px] sm:h-[300px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={comparison.platforms}>
                     <CartesianGrid strokeDasharray="3 3" />
@@ -636,11 +726,90 @@ export default function InsightsPage() {
             </table>
           </div>
           
+          {/* 💡 [수정됨] 매체 비교 분석 전용 AI 돋보기 */}
+          <div className="bg-gradient-to-br from-blue-50 to-indigo-50 p-5 border-t border-blue-100">
+            {/* AI 채널별 분석 박스 */}
+            <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl border border-blue-100 shadow-sm overflow-hidden">
+              <div className="flex items-center justify-between px-5 py-3 border-b border-blue-100">
+                <div>
+                  <p className="font-bold text-blue-900 text-base flex items-center gap-2">
+                    <Sparkles className="w-4 h-4 text-blue-500" />
+                    AI 채널별 분석
+                    {isLlmLoading && <span className="text-xs text-blue-500 font-normal animate-pulse">분석 중...</span>}
+                  </p>
+                  {selectedMonth === new Date().toISOString().slice(0, 7) && (
+                    <p className="text-xs text-blue-400 mt-0.5">
+                      {new Date().getMonth() + 1}월 {new Date().getDate()}일까지의 분석 내용
+                    </p>
+                  )}
+                </div>
+                <button
+                  onClick={() => llmMutation.mutate(!!insights)}
+                  disabled={isLlmLoading}
+                  className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-medium bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${isLlmLoading ? 'animate-spin' : ''}`} />
+                  {isLlmLoading ? 'AI 분석 중...' : insights ? 'AI 분석 갱신' : 'AI 진단 시작'}
+                </button>
+              </div>
+              <div className="px-5 py-4 text-sm text-blue-900 leading-relaxed whitespace-pre-line">
+                {isLlmLoading ? (
+                  <div className="space-y-2 animate-pulse">
+                    <div className="h-4 bg-blue-100/50 rounded w-3/4" />
+                    <div className="h-4 bg-blue-100/50 rounded w-full" />
+                    <div className="h-4 bg-blue-100/50 rounded w-5/6" />
+                  </div>
+                ) : (
+                  insights?.channelSummary || "⚠️ 상단 'AI 진단 시작' 버튼을 클릭해 채널별 분석을 실행하세요."
+                )}
+              </div>
+            </div>
+          </div>
         </div>
         </div>
       )}
 
 
+      {/* Summary Statistics */}
+      {recommendations && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 sm:gap-6">
+          <div className="bg-gradient-to-br from-blue-50 to-blue-100 p-4 sm:p-6 rounded-xl border border-blue-200">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs sm:text-sm text-blue-600 font-medium">분석 캠페인 수</p>
+                <p className="text-2xl sm:text-3xl font-bold text-blue-900 mt-1 sm:mt-2">
+                  {recommendations.summary.total_campaigns}
+                </p>
+              </div>
+              <BarChart3 className="w-8 h-8 sm:w-12 sm:h-12 text-blue-400" />
+            </div>
+          </div>
+
+          <div className="bg-gradient-to-br from-green-50 to-green-100 p-4 sm:p-6 rounded-xl border border-green-200">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs sm:text-sm text-green-600 font-medium">고성과 캠페인</p>
+                <p className="text-2xl sm:text-3xl font-bold text-green-900 mt-1 sm:mt-2">
+                  {recommendations.summary.high_performers}
+                </p>
+              </div>
+              <TrendingUp className="w-8 h-8 sm:w-12 sm:h-12 text-green-400" />
+            </div>
+          </div>
+
+          <div className="bg-gradient-to-br from-yellow-50 to-yellow-100 p-4 sm:p-6 rounded-xl border border-yellow-200 sm:col-span-2 md:col-span-1">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs sm:text-sm text-yellow-600 font-medium">개선 필요 캠페인</p>
+                <p className="text-2xl sm:text-3xl font-bold text-yellow-900 mt-1 sm:mt-2">
+                  {recommendations.summary.needs_optimization}
+                </p>
+              </div>
+              <AlertCircle className="w-8 h-8 sm:w-12 sm:h-12 text-yellow-400" />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
 
     {/* --- 튜토리얼 오버레이 --- */}
