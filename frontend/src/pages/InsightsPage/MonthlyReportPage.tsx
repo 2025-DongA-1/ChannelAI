@@ -335,8 +335,22 @@ export default function MonthlyReportPage() {
           onclone: (doc) => {
             const style = doc.createElement('style');
             style.innerHTML = `
-              svg text { dominant-baseline: central !important; }
-              td, th { vertical-align: middle !important; }
+              /* 전체 텍스트 수직 위치 보정 */
+              * {
+                font-family: 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif !important;
+                letter-spacing: -0.02em !important; /* 자간 미세 조정으로 밀림 방지 */
+                -webkit-font-smoothing: antialiased;
+              }
+              /* Recharts 등 SVG 텍스트가 아래로 처지는 현상 방지 */
+              svg text {
+                dominant-baseline: central !important;
+                transform: translateY(1px); /* 브라우저 렌더링 오차만큼 보정 */
+              }
+              /* 테이블 셀 내부 텍스트 처짐 방지 */
+              td, th {
+                vertical-align: middle !important;
+                line-height: 1.2 !important;
+              }
             `;
             doc.head.appendChild(style);
           }
@@ -415,6 +429,10 @@ export default function MonthlyReportPage() {
   // Recharts SVG 애니메이션 완료 대기
   await new Promise(resolve => setTimeout(resolve, 3500)); // [2026-03-13] 차트 렌더링 대기 1500→3500ms
 
+  // 실제 DOM에 PDF 렌더링 보정 클래스 적용 (computed style에 반영되도록)
+  document.body.classList.add('pdf-rendering');
+  await new Promise(resolve => setTimeout(resolve, 100));
+
   try {
     const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
     const A4_W = 210;
@@ -438,8 +456,22 @@ export default function MonthlyReportPage() {
         onclone: (doc) => {
           const style = doc.createElement('style');
           style.innerHTML = `
-            svg text { dominant-baseline: central !important; }
-            td, th { vertical-align: middle !important; }
+            /* 전체 텍스트 수직 위치 보정 */
+            * {
+              font-family: 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif !important;
+              letter-spacing: -0.02em !important; /* 자간 미세 조정으로 밀림 방지 */
+              -webkit-font-smoothing: antialiased;
+            }
+            /* Recharts 등 SVG 텍스트가 아래로 처지는 현상 방지 */
+            svg text {
+              dominant-baseline: central !important;
+              transform: translateY(1px); /* 브라우저 렌더링 오차만큼 보정 */
+            }
+            /* 테이블 셀 내부 텍스트 처짐 방지 */
+            td, th {
+              vertical-align: middle !important;
+              line-height: 1.2 !important;
+            }
           `;
           doc.head.appendChild(style);
         }
@@ -496,6 +528,7 @@ export default function MonthlyReportPage() {
     console.error('PDF 생성 실패:', err);
     alert('PDF 생성 중 오류가 발생했습니다.');
   } finally {
+    document.body.classList.remove('pdf-rendering');
     setIsExporting(false);
   }
 };
@@ -524,7 +557,7 @@ export default function MonthlyReportPage() {
           scale: 2, useCORS: true, backgroundColor: '#ffffff', logging: false, windowWidth: 1280,
           onclone: (doc) => {
             const style = doc.createElement('style');
-            style.innerHTML = `svg text { dominant-baseline:central !important; } td,th { vertical-align:middle !important; }`;
+            style.innerHTML = `* { font-family: 'Malgun Gothic','Apple SD Gothic Neo',sans-serif !important; letter-spacing:-0.02em !important; } svg text { dominant-baseline:central !important; transform:translateY(1px); } td,th { vertical-align:middle !important; line-height:1.2 !important; }`;
             doc.head.appendChild(style);
           }
         });
