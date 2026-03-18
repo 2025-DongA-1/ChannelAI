@@ -660,7 +660,7 @@ export default function CreativeAgentPage() {
                 {/* 당근마켓 */}
                 <PlatformSection
                   platform="karrot"
-                  label="당근마켓"
+                  label="당근"
                   color="orange"
                   expanded={expandedPlatform === 'karrot'}
                   onToggle={() => togglePlatform('karrot')}
