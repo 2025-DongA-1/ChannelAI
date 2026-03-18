@@ -251,46 +251,19 @@ export default function InsightsPage() {
   };
 
   const handleExportPDF = async () => {
-    if (!contentRef.current) return;
     setIsExporting(true);
     try {
-      const canvas = await html2canvas(contentRef.current, {
-        scale: 2,
-        useCORS: true,
-        backgroundColor: '#f9fafb',
-        logging: false,
-        windowWidth: 1280,
+      const response = await api.get(`/report/generate-pdf?month=${selectedMonth}&type=insights`, {
+        responseType: 'blob',
       });
-
-      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-      const A4_W = 210, A4_H = 297, MARGIN = 10;
-      const CONTENT_W = A4_W - MARGIN * 2;
-      const imgW = canvas.width, imgH = canvas.height;
-      const renderedH = (imgH * CONTENT_W) / imgW;
-      let yOffset = 0, isFirstPage = true;
-
-      while (yOffset < renderedH) {
-        if (!isFirstPage) pdf.addPage();
-        isFirstPage = false;
-        const pageH = A4_H - MARGIN * 2;
-        const sliceH = Math.min(pageH, renderedH - yOffset);
-        const srcY = (yOffset / renderedH) * imgH;
-        const srcSliceH = (sliceH / renderedH) * imgH;
-
-        const slice = document.createElement('canvas');
-        slice.width = imgW;
-        slice.height = Math.round(srcSliceH);
-        const ctx = slice.getContext('2d')!;
-        ctx.fillStyle = '#ffffff';
-        ctx.fillRect(0, 0, slice.width, slice.height);
-        ctx.drawImage(canvas, 0, srcY, imgW, srcSliceH, 0, 0, imgW, Math.round(srcSliceH));
-        pdf.addImage(slice.toDataURL('image/jpeg', 0.92), 'JPEG', MARGIN, MARGIN, CONTENT_W, sliceH);
-        slice.width = 0; slice.height = 0;
-        yOffset += sliceH;
-      }
-      canvas.width = 0; canvas.height = 0;
-
-      pdf.save(`ChannelAI_인사이트_${selectedMonth}.pdf`);
+      
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `ChannelAI_인사이트_${selectedMonth}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.parentNode?.removeChild(link);
     } catch (err) {
       console.error('PDF 생성 실패:', err);
       alert('PDF 생성 중 오류가 발생했습니다.');
