@@ -367,32 +367,154 @@ export const generatePdfFromHtml = async (req: AuthRequest, res: Response) => {
   }
 };
 
-// [2026-03-11 12:07] 프론트에서 생성한 PDF를 업로드받아 이메일로 발송
-/** PDF 파일 업로드 → 이메일 발송 (POST /api/v1/report/send-pdf) */
+// ─── [2026-03-18] Puppeteer 스크린샷 기반 PDF 생성 공통 헬퍼 ───────────────────────
+// 화면 레이아웃을 100% 그대로 캡처하여 PDF로 변환
+// html2canvas와 달리 동일한 Chrome 렌더링 엔진을 사용하므로 CSS 해석 차이 없음
+const generatePdfWithPuppeteer = async (month: string, userId: number): Promise<Buffer> => {
+  const tempToken = jwt.sign(
+    { id: userId, email: 'pdf-generator@internal' },
+    process.env.JWT_SECRET || 'channel_ai_secret_key_2024',
+    { expiresIn: '1h' }
+  );
+
+  const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+  const reportUrl = `${frontendUrl}/monthly-report?month=${month}&pdfMode=true`;
+  console.log(`  🌐 [PDF] 리포트 페이지 접속: ${reportUrl}`);
+
+  let browser;
+  try {
+    browser = await puppeteer.launch({
+      headless: true,
+      args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
+    });
+    const page = await browser.newPage();
+    await page.setViewport({ width: 1280, height: 1800, deviceScaleFactor: 2 });
+
+    // evaluateOnNewDocument: 페이지 로드 전에 localStorage에 인증 정보 주입
+    await page.evaluateOnNewDocument((token: string, uid: number) => {
+      const authState = {
+        state: {
+          user: { id: uid, email: 'pdf-generator@internal', name: 'PDF Generator', role: 'admin' },
+          token: token,
+          isAuthenticated: true,
+        },
+        version: 0,
+      };
+      (globalThis as any).localStorage.setItem('auth-storage', JSON.stringify(authState));
+      (globalThis as any).localStorage.setItem('token', token);
+    }, tempToken, userId);
+
+    // 리포트 페이지로 직접 이동
+    await page.goto(reportUrl, { waitUntil: 'networkidle0', timeout: 45000 });
+
+    // 데이터 렌더링 대기
+    try {
+      await page.waitForSelector('.recharts-responsive-container, .bg-white.border.border-gray-100', { timeout: 15000 });
+      console.log('  ✅ [PDF] 데이터 렌더링 확인됨');
+    } catch (e) {
+      console.warn('  ⚠️ [PDF] 데이터 렌더링 대기 시간 초과');
+    }
+
+    // 네비게이션, 불필요 UI 숨기기
+    await page.addStyleTag({
+      content: `
+        nav, .floating-tutorial-button, [class*="tutorial"], .pdf-header-container,
+        button[class*="download"], button[class*="email"],
+        [class*="sticky"][class*="top-0"] { display: none !important; }
+        .flex.gap-1.bg-gray-100 { display: none !important; }
+        
+        /* 페이지 잘림 방지 (네이티브 PDF 활용) */
+        tr, .bg-white.border {
+          page-break-inside: avoid !important;
+          break-inside: avoid !important;
+        }
+      `
+    });
+
+    // 화면(screen) 모드 에뮬레이션 - 인쇄용 모바일 뷰로 깨지는 것 방지
+    await page.emulateMediaType('screen');
+
+    // 차트 애니메이션 완료 대기
+    await new Promise(resolve => setTimeout(resolve, 5000));
+
+    // ── 1단계: Puppeteer 네이티브 PDF 생성 (A4 비율 유지) ──
+    const pdf = await page.pdf({
+      width: '1280px',     // 뷰포트 너비 유지
+      height: '1810px',    // A4 비율 맞춤 (1280 / 0.707)
+      printBackground: true,
+      displayHeaderFooter: true,
+      headerTemplate: `
+        <div style="width: 100%; border-bottom: 2px solid #2563eb; margin: 0 40px; padding-bottom: 15px; display: flex; justify-content: space-between; align-items: flex-end; font-family: 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif;">
+          <span style="font-size: 24px; font-weight: bold; color: #1e3a8a;">ChannelAI <span style="font-weight: normal; color: #3b82f6;">월별 통합 성과 보고서</span></span>
+          <span style="font-size: 18px; font-weight: bold; color: #3b82f6;">${month}</span>
+        </div>`,
+      footerTemplate: `
+        <div style="width: 100%; text-align: center; font-size: 14px; color: #9ca3af; font-family: sans-serif;">
+          Page <span class="pageNumber"></span> of <span class="totalPages"></span>
+        </div>`,
+      margin: {
+        top: '100px',
+        bottom: '80px',
+        left: '0px',
+        right: '0px'
+      }
+    });
+
+    const pdfBuffer = Buffer.from(pdf);
+    console.log(`  📎 [PDF] 네이티브 PDF(선명도+잘림방지 적용) 생성 완료 (${pdfBuffer.length} bytes)`);
+    return pdfBuffer;
+  } finally {
+    if (browser) await browser.close();
+  }
+};
+
+/** [2026-03-18] 서버에서 Puppeteer로 텍스트 PDF 생성 후 다운로드 (GET /api/v1/report/generate-pdf) */
+export const generatePdfFromPage = async (req: AuthRequest, res: Response) => {
+  try {
+    const month = (req.query.month as string) || new Date().toISOString().slice(0, 7);
+    const userId = req.user?.id || 1;
+
+    const pdfBuffer = await generatePdfWithPuppeteer(month, userId);
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename=${encodeURIComponent(`ChannelAI_통합리포트_${month}.pdf`)}`);
+    res.send(pdfBuffer);
+  } catch (error) {
+    console.error('PDF 생성 오류:', error);
+    res.status(500).json({ success: false, message: 'PDF 생성 실패' });
+  }
+};
+
+// [2026-03-18] 서버에서 PDF를 직접 생성하여 이메일 발송 (프론트에서 PDF 업로드 불필요)
+/** 서버 Puppeteer PDF 생성 → 이메일 발송 (POST /api/v1/report/send-pdf) */
 export const sendPdfByEmail = async (req: AuthRequest, res: Response) => {
   try {
     const { email, month } = req.body;
-    const file = (req as any).file;
 
     if (!email || typeof email !== 'string') {
       return res.status(400).json({ success: false, message: '이메일 주소를 입력하세요.' });
     }
-    if (!file) {
-      return res.status(400).json({ success: false, message: 'PDF 파일이 첨부되지 않았습니다.' });
-    }
 
     const userId = req.user?.id || 1;
-
-    // 사용자 이름 조회
-    const userResult = await pool.query(
-      'SELECT up.name FROM users u LEFT JOIN user_profiles up ON up.user_id = u.id WHERE u.id = ?',
-      [userId]
-    );
-    const userName = userResult.rows[0]?.name || '사용자';
     const reportMonth = month || new Date().toISOString().slice(0, 7);
 
-    // 이메일 HTML 본문
-    const emailHtml = `<!DOCTYPE html>
+    // 즉시 응답 후 비동기 발송
+    res.json({ success: true, message: `${email}로 ${reportMonth} 보고서를 발송합니다. 잠시 후 확인하세요.` });
+
+    (async () => {
+      try {
+        // 1. Puppeteer로 텍스트 기반 PDF 생성
+        const pdfBuffer = await generatePdfWithPuppeteer(reportMonth, userId);
+
+        // 2. 사용자 이름 조회
+        const userResult = await pool.query(
+          'SELECT up.name FROM users u LEFT JOIN user_profiles up ON up.user_id = u.id WHERE u.id = ?',
+          [userId]
+        );
+        const userName = userResult.rows[0]?.name || '사용자';
+
+        // 3. 이메일 발송
+        const emailHtml = `<!DOCTYPE html>
 <html lang="ko">
 <head><meta charset="UTF-8"></head>
 <body style="margin:0;padding:0;background:#f3f4f6;font-family:'Apple SD Gothic Neo',Malgun Gothic,sans-serif;">
@@ -416,18 +538,48 @@ export const sendPdfByEmail = async (req: AuthRequest, res: Response) => {
 </body>
 </html>`;
 
-    const subject = `📊 [ChannelAI] ${reportMonth} 월별 광고 성과 보고서`;
-    const attachments = [{
-      filename: `ChannelAI_통합리포트_${reportMonth}.pdf`,
-      content: file.buffer,
-    }];
-
-    await sendEmail(email, subject, emailHtml, attachments);
-    console.log(`  ✅ PDF 보고서 이메일 발송 완료: ${email}`);
-    res.json({ success: true, message: `${email}로 월별 보고서 PDF를 발송했습니다.` });
+        const subject = `📊 [ChannelAI] ${reportMonth} 월별 광고 성과 보고서`;
+        await sendEmail(email, subject, emailHtml, [{
+          filename: `ChannelAI_통합리포트_${reportMonth}.pdf`,
+          content: pdfBuffer,
+        }]);
+        console.log(`  ✅ PDF 보고서 이메일 발송 완료: ${email}`);
+      } catch (err) {
+        console.error('❌ PDF 이메일 발송 오류:', err);
+      }
+    })();
 
   } catch (error) {
     console.error('PDF 이메일 발송 오류:', error);
     res.status(500).json({ success: false, message: 'PDF 이메일 발송 실패' });
   }
 };
+
+/* ── [LEGACY] 기존 프론트 PDF 업로드 방식 (html2canvas+jsPDF) ──────────────────
+export const sendPdfByEmail_legacy = async (req: AuthRequest, res: Response) => {
+  try {
+    const { email, month } = req.body;
+    const file = (req as any).file;
+    if (!email || typeof email !== 'string') {
+      return res.status(400).json({ success: false, message: '이메일 주소를 입력하세요.' });
+    }
+    if (!file) {
+      return res.status(400).json({ success: false, message: 'PDF 파일이 첨부되지 않았습니다.' });
+    }
+    const userId = req.user?.id || 1;
+    const userResult = await pool.query(
+      'SELECT up.name FROM users u LEFT JOIN user_profiles up ON up.user_id = u.id WHERE u.id = ?',
+      [userId]
+    );
+    const userName = userResult.rows[0]?.name || '사용자';
+    const reportMonth = month || new Date().toISOString().slice(0, 7);
+    const subject = `📊 [ChannelAI] ${reportMonth} 월별 광고 성과 보고서`;
+    const attachments = [{ filename: `ChannelAI_통합리포트_${reportMonth}.pdf`, content: file.buffer }];
+    // ... emailHtml 생략 ...
+    // await sendEmail(email, subject, emailHtml, attachments);
+    res.json({ success: true, message: `${email}로 월별 보고서 PDF를 발송했습니다.` });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'PDF 이메일 발송 실패' });
+  }
+};
+── LEGACY END ── */

@@ -188,31 +188,30 @@ export default function InsightsPage() {
   }, [availableCampaigns]);
 
 
-  // 🤖 DB에서 기존 인사이트 조회
-  const { data: dbInsightsData } = useQuery({
-    queryKey: ['insights-llm', selectedMonth],
+  // 🔵 DB에서 기존 인사이트 조회 (인사이트 전용 레코드)
+  const { data: dbInsightData } = useQuery({
+    queryKey: ['insight-report', selectedMonth],
     queryFn: async () => {
-      const res = await api.get(`/ai/agent/monthly-report-insights?month=${selectedMonth}`);
+      const res = await api.get(`/ai/agent/insight-report?month=${selectedMonth}`);
       return res.data?.success ? res.data.data : null;
     },
     staleTime: 5 * 60 * 1000,
   });
 
-  // 🤖 LLM 새 생성 (월별리포트와 동일 엔드포인트)
+  // 🔵 인사이트 전용 LLM 생성 + DB 저장
   const llmMutation = useMutation({
     mutationFn: async (forceRefresh: boolean = false) => {
-      const response = await api.post('/ai/agent/monthly-report-insights', {
+      const response = await api.post('/ai/agent/insight-report', {
         trendsData: trends,
         platformData: comparison,
         selectedMonth,
         forceRefresh,
-        reportType: 'monthly',
       });
       return response.data;
     }
   });
 
-  const insights = llmMutation.data?.data || dbInsightsData;
+  const insightText: string | null = llmMutation.data?.data?.insightText ?? dbInsightData?.insightText ?? null;
   const isLlmLoading = llmMutation.isPending;
 
   // 월 변경 시 mutation 리셋
@@ -599,12 +598,12 @@ export default function InsightsPage() {
                   )}
                 </div>
                 <button
-                  onClick={() => llmMutation.mutate(!!insights)}
+                  onClick={() => llmMutation.mutate(!!insightText)}
                   disabled={isLlmLoading}
                   className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-medium bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 transition-colors"
                 >
                   <RefreshCw className={`w-3.5 h-3.5 ${isLlmLoading ? 'animate-spin' : ''}`} />
-                  {isLlmLoading ? 'AI 분석 중...' : insights ? 'AI 분석 갱신' : 'AI 진단 시작'}
+                  {isLlmLoading ? 'AI 분석 중...' : insightText ? 'AI 분석 갱신' : 'AI 진단 시작'}
                 </button>
               </div>
               <div className="px-5 py-4 text-sm text-indigo-800 leading-relaxed whitespace-pre-line">
@@ -615,7 +614,7 @@ export default function InsightsPage() {
                     <div className="h-4 bg-indigo-100/50 rounded w-5/6" />
                   </div>
                 ) : (
-                  insights?.overall || "⚠️ 상단 'AI 진단 시작' 버튼을 클릭해 분석을 실행하세요."
+                  insightText || "⚠️ 상단 'AI 진단 시작' 버튼을 클릭해 분석을 실행하세요."
                 )}
               </div>
             </div>
@@ -631,7 +630,7 @@ export default function InsightsPage() {
             <div className="bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-gray-100">
               <h2 className="text-lg font-semibold text-gray-900 mb-4">플랫폼별 광고비 분포</h2>
               <div className="h-[250px] sm:h-[300px]">
-                <ResponsiveContainer width="100%" height="100%">
+                <ResponsiveContainer width="100%" height="100%" minWidth={0}>
                   <PieChart>
                     <Pie
                       data={comparison.platforms}
@@ -656,7 +655,7 @@ export default function InsightsPage() {
             <div className="bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-gray-100">
               <h2 className="text-lg font-semibold text-gray-900 mb-4">플랫폼별 ROAS 비교</h2>
               <div className="h-[250px] sm:h-[300px]">
-                <ResponsiveContainer width="100%" height="100%">
+                <ResponsiveContainer width="100%" height="100%" minWidth={0}>
                   <BarChart data={comparison.platforms}>
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="platform" tick={{ fontSize: 12 }} />
@@ -744,12 +743,12 @@ export default function InsightsPage() {
                   )}
                 </div>
                 <button
-                  onClick={() => llmMutation.mutate(!!insights)}
+                  onClick={() => llmMutation.mutate(!!insightText)}
                   disabled={isLlmLoading}
                   className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-medium bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 transition-colors"
                 >
                   <RefreshCw className={`w-3.5 h-3.5 ${isLlmLoading ? 'animate-spin' : ''}`} />
-                  {isLlmLoading ? 'AI 분석 중...' : insights ? 'AI 분석 갱신' : 'AI 진단 시작'}
+                  {isLlmLoading ? 'AI 분석 중...' : insightText ? 'AI 분석 갱신' : 'AI 진단 시작'}
                 </button>
               </div>
               <div className="px-5 py-4 text-sm text-blue-900 leading-relaxed whitespace-pre-line">
@@ -760,7 +759,7 @@ export default function InsightsPage() {
                     <div className="h-4 bg-blue-100/50 rounded w-5/6" />
                   </div>
                 ) : (
-                  insights?.channelSummary || "⚠️ 상단 'AI 진단 시작' 버튼을 클릭해 채널별 분석을 실행하세요."
+                  insightText || "⚠️ 상단 'AI 진단 시작' 버튼을 클릭해 채널별 분석을 실행하세요."
                 )}
               </div>
             </div>

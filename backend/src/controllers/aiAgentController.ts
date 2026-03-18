@@ -1075,6 +1075,95 @@ export const generateMonthlyReportInsights = async (req: AuthRequest, res: Respo
   }
 };
 
+// 🔵 [인사이트 페이지 전용] DB 조회 (type='insight_report')
+export const getInsightReport = async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    const { month } = req.query;
+
+    if (!userId || !month) return res.status(400).json({ success: false, error: '유효하지 않은 요청입니다.' });
+
+    const result = await pool.query(
+      `SELECT content FROM insights WHERE user_id = ? AND type = 'insight_report' AND title = ? ORDER BY created_at DESC LIMIT 1`,
+      [userId, month]
+    );
+
+    if ((result as any).rows.length > 0) {
+      const parsed = JSON.parse((result as any).rows[0].content);
+      return res.json({ success: true, data: parsed });
+    }
+    return res.json({ success: true, data: null });
+  } catch (error: any) {
+    console.error('인사이트 AI 분석 DB 조회 오류:', error);
+    return res.status(500).json({ success: false, error: '조회 중 오류가 발생했습니다.' });
+  }
+};
+
+// 🔵 [인사이트 페이지 전용] LLM 생성 후 DB 저장 (type='insight_report')
+export const generateInsightReport = async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    const { trendsData, platformData, selectedMonth, forceRefresh } = req.body;
+
+    if (!userId) return res.status(401).json({ success: false, error: '인증이 필요합니다.' });
+    if (!process.env.OPENAI_API_KEY) return res.status(500).json({ success: false, error: 'OpenAI API 키가 설정되지 않았습니다.' });
+
+    const cacheKey = generateCacheKey('insight_report', { userId, selectedMonth, trendsData, platformData });
+    const cachedData = insightsCache.get(cacheKey);
+    if (!forceRefresh && cachedData && (Date.now() - cachedData.timestamp < CACHE_TTL)) {
+      return res.json({ success: true, data: JSON.parse(cachedData.result) });
+    }
+
+    const model = new ChatOpenAI({ modelName: 'gpt-4o-mini', temperature: 0.2 });
+
+    const prompt = PromptTemplate.fromTemplate(`
+      너는 'ChannelAI'의 수석 데이터 분석가야.
+      사용자가 방금 [노출수, 클릭수, 광고비, 전환수] 4가지 지표의 최근 약 한 달(30일)간 시계열 추세를 보여주는 차트를 확인했어.
+      아래의 [마케팅 성과 추세 데이터]를 바탕으로, 지표 간 상관관계를 심도 깊게 분석해 줘.
+
+      [마케팅 성과 추세 데이터]
+      {trends}
+
+      [플랫폼 성과 데이터]
+      {platforms}
+
+      [🚨 절대 지켜야 할 작성 수칙]
+      1. 일반론적인 마케팅 조언(예: 랜딩페이지 최적화, 사용자 경험(UX) 개선, 타겟팅 재검토, 소재 다양화 등)은 **절대, 무조건 금지**한다.
+      2. 마케팅 초보자인 소상공인 사장님에게 직접 보고하듯, 반드시 친절하고 정중한 존댓말(해요/합니다 체)을 사용할 것. 반말이나 명령조("~해라")는 절대 금지한다.
+      3. 반드시 데이터에 나타난 '특정 날짜나 기간', '정확한 수치', '지표간의 상관관계'를 직접 인용하여 분석 근거를 댈 것.
+      4. 다음 3가지 소제목 구조를 완벽하게 지켜서 작성해 줘.
+
+      📉 1. 비용 대비 트래픽 확보 효율 (광고비 vs 노출·클릭)
+      🎯 2. 트래픽 대비 전환 달성률 (클릭 vs 전환)
+      💡 3. 근 한 달 추세 기반 맞춤 예산 액션 플랜
+    `);
+
+    const formattedPrompt = await prompt.format({
+      trends: JSON.stringify(trendsData || {}).substring(0, 2000),
+      platforms: JSON.stringify(platformData || {}).substring(0, 2000),
+    });
+
+    console.log(`🤖 [인사이트 LLM] 분석 시작 (${selectedMonth})...`);
+    const insightText = (await model.invoke(formattedPrompt)).content as string;
+    console.log('✅ [인사이트 LLM] 분석 완료!');
+
+    const content = JSON.stringify({ insightText });
+
+    await pool.query(`DELETE FROM insights WHERE user_id = ? AND type = 'insight_report' AND title = ?`, [userId, selectedMonth]);
+    await pool.query(
+      `INSERT INTO insights (user_id, type, title, content, metadata, priority, is_read, is_applied) VALUES (?, 'insight_report', ?, ?, ?, 3, 0, 0)`,
+      [userId, selectedMonth, content, JSON.stringify({ generated_from: 'gpt-4o-mini', timestamp: Date.now() })]
+    );
+
+    insightsCache.set(cacheKey, { result: content, timestamp: Date.now() });
+    return res.json({ success: true, data: { insightText } });
+
+  } catch (error: any) {
+    console.error('인사이트 AI 분석 생성 오류:', error);
+    return res.status(500).json({ success: false, error: '인사이트 분석 생성 중 오류가 발생했습니다.' });
+  }
+};
+
 // =============================================================
 // 내부 분석 함수 (추후 ML 모델로 교체 예정)
 // =============================================================

@@ -21,7 +21,7 @@ export default function FloatingTutorialButton() {
   };
 
   return (
-    <div className="fixed bottom-6 right-6 z-[100] flex flex-col items-end gap-2">
+    <div className="floating-tutorial-button fixed bottom-6 right-6 z-[100] flex flex-col items-end gap-2">
       {/* Menu Items */}
       <div
         className={`flex flex-col items-end gap-2 transition-all duration-300 origin-bottom-right ${isTutorialMenuOpen ? 'opacity-100 scale-100' : 'opacity-0 scale-0 pointer-events-none'}`}
