@@ -33,9 +33,6 @@ import {
   Cell,
 } from 'recharts';
 import { formatCurrency, formatCompactNumber, getPlatformColor } from '@/lib/utils';
-import html2canvas from 'html2canvas';
-import jsPDF from 'jspdf';
-
 
 
 const TOUR_STEPS = [
