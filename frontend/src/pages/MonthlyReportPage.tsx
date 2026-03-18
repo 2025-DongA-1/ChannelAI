@@ -22,9 +22,9 @@ const makeHeaderImg = (tabLabel: string, month: string): string => {
   const c = document.createElement('canvas');
   c.width = W; c.height = H;
   const ctx = c.getContext('2d')!;
-  ctx.fillStyle = '#2563eb';
-  ctx.fillRect(0, 0, W, H);
   ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = '#1e3a8a';
   ctx.textBaseline = 'middle';
   ctx.font = 'bold 39px sans-serif';
   ctx.textAlign = 'left';
@@ -247,7 +247,13 @@ export default function MonthlyReportPage() {
   const [isLoading, setIsLoading] = useState(true);
   
   // PDF 내보내기 중인지 여부 (모든 탭을 렌더링하기 위함)
-  const [isExporting, setIsExporting] = useState(false);
+  const [isExporting, setIsExporting] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      return params.get('pdfMode') === 'true';
+    }
+    return false;
+  });
 
   // 이메일 발송 관련 상태
   const [showEmailPanel, setShowEmailPanel] = useState(false);
@@ -263,11 +269,12 @@ export default function MonthlyReportPage() {
    * 상세 설명: 각 탭별(종합, 채널, 추이, 캠페인) DOM 요소를 참조하여 PDF 캡처 시 활용하며, 
    * 캠페인 데이터의 실시간 정렬(Sort) 및 가공을 위한 Hook들임. Early Return 규칙 준수를 위해 최상단에 배치.
    */
-  const overviewRef  = useRef<HTMLDivElement>(null);
-  const platformRef  = useRef<HTMLDivElement>(null);
-  const trendRef     = useRef<HTMLDivElement>(null);
-  const campaignRef  = useRef<HTMLDivElement>(null);
-  const TAB_REFS = [overviewRef, platformRef, trendRef, campaignRef];
+  const overviewRef       = useRef<HTMLDivElement>(null);
+  const platformRef       = useRef<HTMLDivElement>(null);
+  const trendRef          = useRef<HTMLDivElement>(null);
+  const campaignRef       = useRef<HTMLDivElement>(null);
+  const campaignTableRef  = useRef<HTMLDivElement>(null);
+  const TAB_REFS = [overviewRef, trendRef, platformRef, campaignRef, campaignTableRef];
   const reportRef = useRef<HTMLDivElement>(null);
 
   const [campaignSort, setCampaignSort] = useState<{ key: string; asc: boolean }>({ key: 'cost', asc: false });
@@ -374,9 +381,13 @@ export default function MonthlyReportPage() {
             : (mData[prevMonthStr] ? prevMonthStr : (sorted[sorted.length - 1] || ''));
           if (finalMonth) setSelectedMonth(finalMonth);
 
-          // export=true 이면 렌더링 후 자동 캡처
+          // export=true 이면 렌더링 후 자동 캡처 (기존 로직)
           if (params.get('export') === 'true' && finalMonth) {
-            setTimeout(() => autoExportPDF(finalMonth), 3500); // [2026-03-13] 차트 렌더링 대기 1500→3500ms
+            setTimeout(() => autoExportPDF(finalMonth), 3500); 
+          }
+          // 백엔드 Puppeteer가 방문할 때 (pdfMode=true) 모든 탭을 화면에 렌더링하도록 강제
+          if (params.get('pdfMode') === 'true') {
+            setIsExporting(true);
           }
         }
       } catch (err) {
@@ -393,7 +404,7 @@ export default function MonthlyReportPage() {
     setIsExporting(true);
     await new Promise(resolve => setTimeout(resolve, 500));
     try {
-      const TAB_LABELS = ["종합 성과 현황", "채널별 분석 데이터", "기간별 성과 추이", "캠페인별 상세 성과"];
+      const TAB_LABELS = ["종합 성과 현황", "기간별 성과 추이", "채널별 분석 데이터", "캠페인별 성과", "캠페인별 상세 성과"];
       const pdf = await generatePDF(TAB_REFS, TAB_LABELS, month);
       pdf.save(`ChannelAI_통합리포트_${month}.pdf`);
     } catch (e) {
@@ -420,7 +431,7 @@ export default function MonthlyReportPage() {
 
   /**
    * 화면의 통계표와 전체 탭 내용을 포함한 오프라인 확인용 HTML 문서를 서버에 전송하여
-   * 즉시 다운로드 가능한 완벽한 PDF 파일로 변환하여 받아옵니다.
+   * 즉시 다운로드 가능한 완벽한 PDF 파일(텍스트 선택 가능)로 변환하여 받아옵니다.
    */
   const handleDownloadPDF = async () => {
     setIsExporting(true);
@@ -436,7 +447,7 @@ export default function MonthlyReportPage() {
     await new Promise(resolve => setTimeout(resolve, 3500));
 
     try {
-      const TAB_LABELS = ["종합 성과 현황", "채널별 분석 데이터", "기간별 성과 추이", "캠페인별 상세 성과"];
+      const TAB_LABELS = ["종합 성과 현황", "기간별 성과 추이", "채널별 분석 데이터", "캠페인별 성과", "캠페인별 상세 성과"];
       const pdf = await generatePDF(TAB_REFS, TAB_LABELS, selectedMonth);
       pdf.save(`ChannelAI_통합리포트_${selectedMonth}.pdf`);
     } catch (err) {
@@ -459,7 +470,7 @@ export default function MonthlyReportPage() {
     await new Promise(resolve => setTimeout(resolve, 3500));
 
     try {
-      const TAB_LABELS = ["종합 성과 현황", "채널별 분석 데이터", "기간별 성과 추이", "캠페인별 상세 성과"];
+      const TAB_LABELS = ["종합 성과 현황", "기간별 성과 추이", "채널별 분석 데이터", "캠페인별 성과", "캠페인별 상세 성과"];
       const pdf = await generatePDF(TAB_REFS, TAB_LABELS, selectedMonth);
 
       const blob = pdf.output('blob');
@@ -550,7 +561,7 @@ export default function MonthlyReportPage() {
   return (
     <div className="min-h-[calc(100vh-64px)] bg-gray-50 flex flex-col">
       {/* ── 헤더 ── */}
-      <div className="bg-white border-b border-gray-200">
+      <div className="pdf-header-container bg-white border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8 pb-6">
           <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
             <div>
@@ -867,6 +878,147 @@ export default function MonthlyReportPage() {
               </div>
           </div>
 
+          {/* ===== 탭 3: 추이 분석 ===== */}
+          <div  ref={trendRef} className={`${(activeTab === "trend" || isExporting) ? "block" : "hidden"} ${!isExporting ? 'animate-fade-in-up' : ''} space-y-6 ${isExporting ? 'mb-24 page-break-after' : ''}`}>
+              
+              {/* 🤖 [2026-03-13] 각 탭 내부에 AI 분석 블록 표시 (trendSummary) */}
+              {isPro ? (
+                <div className="bg-indigo-50/40 border-2 border-dashed border-indigo-500/50 rounded-xl p-5 relative print:hidden">
+                  <div className="absolute top-0 left-0 w-1 h-full bg-indigo-400 rounded-l-xl opacity-70" />
+                  <div className="flex items-center gap-2 mb-3">
+                    <div className="p-1 px-2 bg-indigo-500 text-white rounded-md flex items-center gap-1.5 shadow-sm">
+                      <Sparkles size={12} />
+                      <span className="text-[10px] font-black uppercase tracking-wider">AI 인공지능 최근 6개월 추세 진단</span>
+                    </div>
+                  </div>
+                  <div className="text-sm text-gray-700 leading-relaxed font-medium">
+                    {isLlmLoading ? (
+                      <div className="space-y-2">
+                        <div className="h-4 bg-indigo-100/50 animate-pulse rounded w-full" />
+                        <div className="h-4 bg-indigo-100/50 animate-pulse rounded w-5/6" />
+                      </div>
+                    ) : (
+                      insights?.trendSummary || "⚠️ 요약된 상세 분석 데이터가 없습니다. 상단 'AI 분석 갱신' 버튼을 클릭해주세요."
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div className="print:hidden flex items-center gap-3 bg-gray-50 border border-dashed border-gray-300 rounded-xl p-4 text-sm text-gray-400">
+                  <Sparkles size={16} className="text-indigo-300 shrink-0" />
+                  <span>AI 추세 진단은 <button onClick={() => navigate('/payment')} className="text-indigo-500 font-bold hover:underline">PRO 요금제</button>에서만 이용할 수 있습니다.</span>
+                </div>
+              )}
+
+              {/* 광고비 & 매출 추이 */}
+              <div className="bg-white border border-gray-100 rounded-2xl p-6 shadow-sm">
+                <SectionTitle sub="최근 6개월 광고비 지출 대비 매출 획득 변화 트렌드">광고비 · 매출 트렌드 (최근 6개월)</SectionTitle>
+                <ResponsiveContainer width="100%" height={320}>
+                  <AreaChart data={trendData} margin={{ top: 20, right: 20, left: 20, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id="gCost" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#4f46e5" stopOpacity={0.2} />
+                        <stop offset="95%" stopColor="#4f46e5" stopOpacity={0} />
+                      </linearGradient>
+                      <linearGradient id="gRevenue" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#06b6d4" stopOpacity={0.2} />
+                        <stop offset="95%" stopColor="#06b6d4" stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
+                    <XAxis dataKey="month" tick={{ fill:"#6b7280", fontSize:12, fontWeight: 500 }} axisLine={false} tickLine={false} />
+                    <YAxis tick={{ fill:"#9ca3af", fontSize:11 }} axisLine={false} tickLine={false} tickFormatter={v => fmt(v,"원")} />
+                    <Tooltip content={<CustomTooltip />} />
+                    <Area type="monotone" dataKey="비용" stroke="#4f46e5" fill="url(#gCost)" strokeWidth={3} dot={{ fill:"#4f46e5", r:4, strokeWidth: 2, stroke: "#fff" }} activeDot={{ r:6 }} />
+                    <Area type="monotone" dataKey="매출" stroke="#06b6d4" fill="url(#gRevenue)" strokeWidth={3} dot={{ fill:"#06b6d4", r:4, strokeWidth: 2, stroke: "#fff" }} activeDot={{ r:6 }} />
+                  </AreaChart>
+                </ResponsiveContainer>
+                <div className="flex justify-center gap-8 mt-4">
+                  {[{c:"#4f46e5",l:"광고비 총액"},{c:"#06b6d4",l:"전환 매출액"}].map(x => (
+                    <div key={x.l} className="flex items-center gap-2 text-xs font-bold text-gray-600">
+                      <div style={{ width:12, height:12, background:x.c, borderRadius:2 }} />{x.l}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* 전환수 + ROAS */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div className="bg-white border border-gray-100 rounded-2xl p-6 shadow-sm">
+                  <SectionTitle sub="월별 총 전환 획득 건수 변화">전환 수 트렌드</SectionTitle>
+                  <ResponsiveContainer width="100%" height={260}>
+                    <BarChart data={trendData} barSize={36} margin={{ top: 20 }}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
+                      <XAxis dataKey="month" tick={{ fill:"#6b7280", fontSize:12, fontWeight: 500 }} axisLine={false} tickLine={false} />
+                      <YAxis tick={{ fill:"#9ca3af", fontSize:11 }} axisLine={false} tickLine={false} />
+                      <Tooltip cursor={{ fill: '#f9fafb' }} content={<CustomTooltip />} />
+                      <Bar dataKey="전환" fill="#8b5cf6" radius={[6,6,0,0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+
+                <div className="bg-white border border-gray-100 rounded-2xl p-6 shadow-sm">
+                  <SectionTitle sub="광고 지출 대비 매출 효율 변화 퍼센트">ROAS 변화 트렌드 (%)</SectionTitle>
+                  <ResponsiveContainer width="100%" height={260}>
+                    <LineChart data={trendData} margin={{ top: 20 }}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
+                      <XAxis dataKey="month" tick={{ fill:"#6b7280", fontSize:12, fontWeight: 500 }} axisLine={false} tickLine={false} />
+                      <YAxis tick={{ fill:"#9ca3af", fontSize:11 }} axisLine={false} tickLine={false} domain={["auto","auto"]} />
+                      <Tooltip content={<CustomTooltip />} />
+                      <Line type="monotone" dataKey="ROAS" stroke="#f59e0b" strokeWidth={3} dot={{ fill:"#f59e0b", r:5, strokeWidth: 2, stroke: "#fff" }} activeDot={{ r:7 }} />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+
+              {/* 6개월 요약 테이블 */}
+              <div className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
+                <div className="p-6 border-b border-gray-100 flex items-center gap-2">
+                  <SectionTitle sub="기간별 메트릭 비교표 (클릭시 해당 월로 요약 이동)">최근 6개월 월별 성과 데이터 추이</SectionTitle>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm text-left whitespace-nowrap">
+                    <thead className="bg-gray-50 text-gray-500 font-semibold border-b border-gray-100">
+                      <tr>
+                        {["월","노출","클릭","광고비","전환","매출","CTR","ROAS"].map((h, i) => (
+                          <th key={h} className={`px-6 py-4 uppercase text-xs tracking-wider ${i > 0 ? 'text-right' : ''}`}>{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {MONTHS.slice(-6).reverse().map((m) => {
+                        const d = monthlyData[m];
+                        const isSelected = m === selectedMonth;
+                        return (
+                          <tr key={m} 
+                            onClick={() => { setSelectedMonth(m); setActiveTab("overview"); }}
+                            className={`cursor-pointer transition-colors ${
+                              isSelected ? "bg-blue-50/50 hover:bg-blue-50" : "hover:bg-gray-50"
+                            }`} 
+                          >
+                            <td className="px-6 py-4">
+                              <div className="flex items-center gap-2">
+                                {isSelected && <div className="w-2 h-2 rounded-full bg-blue-600 animate-pulse" />}
+                                <span className={`font-medium ${isSelected ? "text-blue-700 font-bold" : "text-gray-700"}`}>{fmtLabel(m)}</span>
+                              </div>
+                            </td>
+                            <td className="px-6 py-4 text-right text-gray-600">{fmt(d.impressions)}</td>
+                            <td className="px-6 py-4 text-right text-gray-600">{fmt(d.clicks)}</td>
+                            <td className="px-6 py-4 text-right font-bold text-gray-800">{fmtKRW(d.cost)}</td>
+                            <td className="px-6 py-4 text-right font-medium text-gray-700">{d.conversions.toLocaleString()}</td>
+                            <td className="px-6 py-4 text-right font-bold text-teal-600">{fmtKRW(d.revenue)}</td>
+                            <td className="px-6 py-4 text-right text-gray-600">{d.ctr}%</td>
+                            <td className="px-6 py-4 text-right">
+                              <span className="font-bold text-amber-500 bg-amber-50 px-2 py-0.5 rounded-md">{d.roas}%</span>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+
           {/* ===== 탭 2: 채널별 분석 ===== */}
           <div ref={platformRef} className={`${(activeTab === "platform" || isExporting) ? "block" : "hidden"} ${!isExporting ? 'animate-fade-in-up' : ''} space-y-6 ${isExporting ? 'mb-24 page-break-after' : ''}`}>
 
@@ -1017,147 +1169,6 @@ export default function MonthlyReportPage() {
               </div>
           </div>
 
-          {/* ===== 탭 3: 추이 분석 ===== */}
-          <div  ref={trendRef} className={`${(activeTab === "trend" || isExporting) ? "block" : "hidden"} ${!isExporting ? 'animate-fade-in-up' : ''} space-y-6 ${isExporting ? 'mb-24 page-break-after' : ''}`}>
-              
-              {/* 🤖 [2026-03-13] 각 탭 내부에 AI 분석 블록 표시 (trendSummary) */}
-              {isPro ? (
-                <div className="bg-indigo-50/40 border-2 border-dashed border-indigo-500/50 rounded-xl p-5 relative print:hidden">
-                  <div className="absolute top-0 left-0 w-1 h-full bg-indigo-400 rounded-l-xl opacity-70" />
-                  <div className="flex items-center gap-2 mb-3">
-                    <div className="p-1 px-2 bg-indigo-500 text-white rounded-md flex items-center gap-1.5 shadow-sm">
-                      <Sparkles size={12} />
-                      <span className="text-[10px] font-black uppercase tracking-wider">AI 인공지능 최근 6개월 추세 진단</span>
-                    </div>
-                  </div>
-                  <div className="text-sm text-gray-700 leading-relaxed font-medium">
-                    {isLlmLoading ? (
-                      <div className="space-y-2">
-                        <div className="h-4 bg-indigo-100/50 animate-pulse rounded w-full" />
-                        <div className="h-4 bg-indigo-100/50 animate-pulse rounded w-5/6" />
-                      </div>
-                    ) : (
-                      insights?.trendSummary || "⚠️ 요약된 상세 분석 데이터가 없습니다. 상단 'AI 분석 갱신' 버튼을 클릭해주세요."
-                    )}
-                  </div>
-                </div>
-              ) : (
-                <div className="print:hidden flex items-center gap-3 bg-gray-50 border border-dashed border-gray-300 rounded-xl p-4 text-sm text-gray-400">
-                  <Sparkles size={16} className="text-indigo-300 shrink-0" />
-                  <span>AI 추세 진단은 <button onClick={() => navigate('/payment')} className="text-indigo-500 font-bold hover:underline">PRO 요금제</button>에서만 이용할 수 있습니다.</span>
-                </div>
-              )}
-
-              {/* 광고비 & 매출 추이 */}
-              <div className="bg-white border border-gray-100 rounded-2xl p-6 shadow-sm">
-                <SectionTitle sub="최근 6개월 광고비 지출 대비 매출 획득 변화 트렌드">광고비 · 매출 트렌드 (최근 6개월)</SectionTitle>
-                <ResponsiveContainer width="100%" height={320}>
-                  <AreaChart data={trendData} margin={{ top: 20, right: 20, left: 20, bottom: 0 }}>
-                    <defs>
-                      <linearGradient id="gCost" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#4f46e5" stopOpacity={0.2} />
-                        <stop offset="95%" stopColor="#4f46e5" stopOpacity={0} />
-                      </linearGradient>
-                      <linearGradient id="gRevenue" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#06b6d4" stopOpacity={0.2} />
-                        <stop offset="95%" stopColor="#06b6d4" stopOpacity={0} />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
-                    <XAxis dataKey="month" tick={{ fill:"#6b7280", fontSize:12, fontWeight: 500 }} axisLine={false} tickLine={false} />
-                    <YAxis tick={{ fill:"#9ca3af", fontSize:11 }} axisLine={false} tickLine={false} tickFormatter={v => fmt(v,"원")} />
-                    <Tooltip content={<CustomTooltip />} />
-                    <Area type="monotone" dataKey="비용" stroke="#4f46e5" fill="url(#gCost)" strokeWidth={3} dot={{ fill:"#4f46e5", r:4, strokeWidth: 2, stroke: "#fff" }} activeDot={{ r:6 }} />
-                    <Area type="monotone" dataKey="매출" stroke="#06b6d4" fill="url(#gRevenue)" strokeWidth={3} dot={{ fill:"#06b6d4", r:4, strokeWidth: 2, stroke: "#fff" }} activeDot={{ r:6 }} />
-                  </AreaChart>
-                </ResponsiveContainer>
-                <div className="flex justify-center gap-8 mt-4">
-                  {[{c:"#4f46e5",l:"광고비 총액"},{c:"#06b6d4",l:"전환 매출액"}].map(x => (
-                    <div key={x.l} className="flex items-center gap-2 text-xs font-bold text-gray-600">
-                      <div style={{ width:12, height:12, background:x.c, borderRadius:2 }} />{x.l}
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* 전환수 + ROAS */}
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <div className="bg-white border border-gray-100 rounded-2xl p-6 shadow-sm">
-                  <SectionTitle sub="월별 총 전환 획득 건수 변화">전환 수 트렌드</SectionTitle>
-                  <ResponsiveContainer width="100%" height={260}>
-                    <BarChart data={trendData} barSize={36} margin={{ top: 20 }}>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
-                      <XAxis dataKey="month" tick={{ fill:"#6b7280", fontSize:12, fontWeight: 500 }} axisLine={false} tickLine={false} />
-                      <YAxis tick={{ fill:"#9ca3af", fontSize:11 }} axisLine={false} tickLine={false} />
-                      <Tooltip cursor={{ fill: '#f9fafb' }} content={<CustomTooltip />} />
-                      <Bar dataKey="전환" fill="#8b5cf6" radius={[6,6,0,0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-
-                <div className="bg-white border border-gray-100 rounded-2xl p-6 shadow-sm">
-                  <SectionTitle sub="광고 지출 대비 매출 효율 변화 퍼센트">ROAS 변화 트렌드 (%)</SectionTitle>
-                  <ResponsiveContainer width="100%" height={260}>
-                    <LineChart data={trendData} margin={{ top: 20 }}>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
-                      <XAxis dataKey="month" tick={{ fill:"#6b7280", fontSize:12, fontWeight: 500 }} axisLine={false} tickLine={false} />
-                      <YAxis tick={{ fill:"#9ca3af", fontSize:11 }} axisLine={false} tickLine={false} domain={["auto","auto"]} />
-                      <Tooltip content={<CustomTooltip />} />
-                      <Line type="monotone" dataKey="ROAS" stroke="#f59e0b" strokeWidth={3} dot={{ fill:"#f59e0b", r:5, strokeWidth: 2, stroke: "#fff" }} activeDot={{ r:7 }} />
-                    </LineChart>
-                  </ResponsiveContainer>
-                </div>
-              </div>
-
-              {/* 6개월 요약 테이블 */}
-              <div className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
-                <div className="p-6 border-b border-gray-100 flex items-center gap-2">
-                  <SectionTitle sub="기간별 메트릭 비교표 (클릭시 해당 월로 요약 이동)">최근 6개월 월별 성과 데이터 추이</SectionTitle>
-                </div>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm text-left whitespace-nowrap">
-                    <thead className="bg-gray-50 text-gray-500 font-semibold border-b border-gray-100">
-                      <tr>
-                        {["월","노출","클릭","광고비","전환","매출","CTR","ROAS"].map((h, i) => (
-                          <th key={h} className={`px-6 py-4 uppercase text-xs tracking-wider ${i > 0 ? 'text-right' : ''}`}>{h}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-100">
-                      {MONTHS.slice(-6).reverse().map((m) => {
-                        const d = monthlyData[m];
-                        const isSelected = m === selectedMonth;
-                        return (
-                          <tr key={m} 
-                            onClick={() => { setSelectedMonth(m); setActiveTab("overview"); }}
-                            className={`cursor-pointer transition-colors ${
-                              isSelected ? "bg-blue-50/50 hover:bg-blue-50" : "hover:bg-gray-50"
-                            }`} 
-                          >
-                            <td className="px-6 py-4">
-                              <div className="flex items-center gap-2">
-                                {isSelected && <div className="w-2 h-2 rounded-full bg-blue-600 animate-pulse" />}
-                                <span className={`font-medium ${isSelected ? "text-blue-700 font-bold" : "text-gray-700"}`}>{fmtLabel(m)}</span>
-                              </div>
-                            </td>
-                            <td className="px-6 py-4 text-right text-gray-600">{fmt(d.impressions)}</td>
-                            <td className="px-6 py-4 text-right text-gray-600">{fmt(d.clicks)}</td>
-                            <td className="px-6 py-4 text-right font-bold text-gray-800">{fmtKRW(d.cost)}</td>
-                            <td className="px-6 py-4 text-right font-medium text-gray-700">{d.conversions.toLocaleString()}</td>
-                            <td className="px-6 py-4 text-right font-bold text-teal-600">{fmtKRW(d.revenue)}</td>
-                            <td className="px-6 py-4 text-right text-gray-600">{d.ctr}%</td>
-                            <td className="px-6 py-4 text-right">
-                              <span className="font-bold text-amber-500 bg-amber-50 px-2 py-0.5 rounded-md">{d.roas}%</span>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </div>
-
           {/* [2026-03-12 16:02] 수정 이유: 인사이트 페이지 양식에 맞춘 캠페인 성과 탭 구현
               상세 설명: 캠페인별 광고 성과를 채널, 비용, 노출, 클릭, 전환, ROAS 지표로 세분화하여 리포팅함. */}
           <div ref={campaignRef} className={`${(activeTab === "campaign" || isExporting) ? "block" : "hidden"} ${!isExporting ? 'animate-fade-in-up' : ''} space-y-6 ${isExporting ? 'mb-24 page-break-after' : ''}`}>
@@ -1307,7 +1318,8 @@ export default function MonthlyReportPage() {
                   </ResponsiveContainer>
                 </div>
 
-                {/* 캠페인 상세 테이블 */}
+                {/* 캠페인 상세 테이블 - 별도 ref로 분리하여 PDF 페이지 경계에서 잘림 방지 */}
+                <div ref={campaignTableRef} className={`${(activeTab === "campaign" || isExporting) ? "block" : "hidden"} space-y-0`}>
                 <div className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
                   <div className="p-6 border-b border-gray-100 flex items-center justify-between">
                     <SectionTitle sub="전체 캠페인 상세 성과 지표 (헤더 클릭 시 정렬)">캠페인별 상세 성과</SectionTitle>
@@ -1396,6 +1408,7 @@ export default function MonthlyReportPage() {
                       </tbody>
                     </table>
                   </div>
+                </div>
                 </div>
               </>
             )}

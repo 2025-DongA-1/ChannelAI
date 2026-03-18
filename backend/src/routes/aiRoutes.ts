@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { analyzeAndRecommend, getAgentStatus, getAdvancedMetrics, getMLRealtime, generateLLMInsights, generatePlatformInsights, generateMonthlyReportInsights, getMonthlyReportInsights } from '../controllers/aiAgentController';
+import { analyzeAndRecommend, getAgentStatus, getAdvancedMetrics, getMLRealtime, generateLLMInsights, generatePlatformInsights, generateMonthlyReportInsights, getMonthlyReportInsights, getInsightReport, generateInsightReport } from '../controllers/aiAgentController';
 import { authenticate } from '../middlewares/auth';
 
 const router = Router();
@@ -27,5 +27,9 @@ router.get('/agent/monthly-report-insights', authenticate, getMonthlyReportInsig
 
 // 🤖 [2026-03-13] 월별 성과 보고서 고도화 분석 전용 엔드포인트
 router.post('/agent/monthly-report-insights', authenticate, generateMonthlyReportInsights);
+
+// 🔵 [인사이트 페이지 전용] DB 조회 및 LLM 생성 (type='insight_report')
+router.get('/agent/insight-report', authenticate, getInsightReport);
+router.post('/agent/insight-report', authenticate, generateInsightReport);
 
 export default router;
