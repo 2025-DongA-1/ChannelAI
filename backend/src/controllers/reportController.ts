@@ -487,9 +487,10 @@ export const generatePdfFromPage = async (req: AuthRequest, res: Response) => {
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename=${encodeURIComponent(filename)}`);
     res.send(pdfBuffer);
-  } catch (error) {
+  } catch (error: any) {
     console.error('PDF 생성 오류:', error);
-    res.status(500).json({ success: false, message: 'PDF 생성 실패' });
+    require('fs').appendFileSync('pdf-error.log', '\n['+new Date().toISOString()+'] Error: ' + (error?.stack || error?.message || error) + '\n');
+    res.status(500).json({ success: false, message: 'PDF 생성 실패', error: error?.message });
   }
 };
 

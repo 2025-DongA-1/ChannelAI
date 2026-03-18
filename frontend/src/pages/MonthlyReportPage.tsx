@@ -247,7 +247,13 @@ export default function MonthlyReportPage() {
   const [isLoading, setIsLoading] = useState(true);
   
   // PDF 내보내기 중인지 여부 (모든 탭을 렌더링하기 위함)
-  const [isExporting, setIsExporting] = useState(false);
+  const [isExporting, setIsExporting] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      return params.get('pdfMode') === 'true';
+    }
+    return false;
+  });
 
   // 이메일 발송 관련 상태
   const [showEmailPanel, setShowEmailPanel] = useState(false);
@@ -438,18 +444,12 @@ export default function MonthlyReportPage() {
       }
     }
 
+    await new Promise(resolve => setTimeout(resolve, 3500));
+
     try {
-      const response = await api.get(`/report/generate-pdf?month=${selectedMonth}`, {
-        responseType: 'blob',
-      });
-      
-      const url = window.URL.createObjectURL(new Blob([response.data]));
-      const link = document.createElement('a');
-      link.href = url;
-      link.setAttribute('download', `ChannelAI_통합리포트_${selectedMonth}.pdf`);
-      document.body.appendChild(link);
-      link.click();
-      link.parentNode?.removeChild(link);
+      const TAB_LABELS = ["종합 성과 현황", "기간별 성과 추이", "채널별 분석 데이터", "캠페인별 성과", "캠페인별 상세 성과"];
+      const pdf = await generatePDF(TAB_REFS, TAB_LABELS, selectedMonth);
+      pdf.save(`ChannelAI_통합리포트_${selectedMonth}.pdf`);
     } catch (err) {
       console.error('PDF 생성 실패:', err);
       alert('PDF 생성 중 오류가 발생했습니다.');
