@@ -1,8 +1,6 @@
 // 💡 [수정됨] React에서 useEffect를 추가로 불러옵니다.
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import html2canvas from 'html2canvas';
-import { jsPDF } from 'jspdf';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { insightsAPI, api } from '@/lib/api';
 import {
@@ -72,8 +70,20 @@ const TOUR_STEPS = [
 export default function InsightsPage() {
   const navigate = useNavigate();
   const contentRef = useRef<HTMLDivElement>(null);
-  const [isExporting, setIsExporting] = useState(false);
-  const [selectedMonth, setSelectedMonth] = useState(() => new Date().toISOString().slice(0, 7));
+  const [isExporting, setIsExporting] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      return params.get('pdfMode') === 'true';
+    }
+    return false;
+  });
+  const [selectedMonth, setSelectedMonth] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('month')) return params.get('month') as string;
+    }
+    return new Date().toISOString().slice(0, 7);
+  });
   
   // 튜토리얼 상태
   const [showTour, setShowTour] = useState(false);
@@ -159,7 +169,7 @@ export default function InsightsPage() {
   const comparison = comparisonData?.data;
   const recommendations = recommendationsData?.data;
   // 💡 [추가됨] 드롭다운에 뿌려줄 캠페인 목록 데이터
-  const availableCampaigns = analyzeData?.data?.availableCampaigns || [];
+  const availableCampaigns = useMemo(() => analyzeData?.data?.availableCampaigns || [], [analyzeData?.data?.availableCampaigns]);
 
   // 데이터 기반 월 목록 생성 (YYYY-MM 형식)
   const MONTHS = useMemo(() => {
@@ -241,61 +251,19 @@ export default function InsightsPage() {
   };
 
   const handleExportPDF = async () => {
-    if (!contentRef.current) return;
     setIsExporting(true);
     try {
-      const canvas = await html2canvas(contentRef.current, {
-        scale: 2,
-        useCORS: true,
-        backgroundColor: '#ffffff',
-        logging: false,
-        windowWidth: 1280,
-        onclone: (doc) => {
-          const style = doc.createElement('style');
-          style.innerHTML = `
-            svg text { dominant-baseline: central !important; }
-            td, th { vertical-align: middle !important; }
-          `;
-          doc.head.appendChild(style);
-        }
+      const response = await api.get(`/report/generate-pdf?month=${selectedMonth}&type=insights`, {
+        responseType: 'blob',
       });
-
-      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-      const A4_W = 210, A4_H = 297, MARGIN = 10;
-      const CONTENT_W = A4_W - MARGIN * 2;
-      const imgW = canvas.width, imgH = canvas.height;
-      const renderedH = (imgH * CONTENT_W) / imgW;
-      let yOffset = 0, isFirstPage = true;
-
-      while (yOffset < renderedH) {
-        if (!isFirstPage) pdf.addPage();
-        isFirstPage = false;
-        const pageH = A4_H - MARGIN * 2;
-        const sliceH = Math.min(pageH, renderedH - yOffset);
-        const srcY = (yOffset / renderedH) * imgH;
-        const srcSliceH = (sliceH / renderedH) * imgH;
-
-        const slice = document.createElement('canvas');
-        slice.width = imgW;
-        slice.height = Math.round(srcSliceH);
-        const ctx = slice.getContext('2d')!;
-        ctx.fillStyle = '#ffffff';
-        ctx.fillRect(0, 0, slice.width, slice.height);
-        ctx.drawImage(canvas, 0, srcY, imgW, srcSliceH, 0, 0, imgW, Math.round(srcSliceH));
-        pdf.addImage(slice.toDataURL('image/png'), 'PNG', MARGIN, MARGIN, CONTENT_W, sliceH);
-        yOffset += sliceH;
-
-        // 슬라이스 캔버스 메모리 해제
-        slice.width = 0;
-        slice.height = 0;
-      }
-
-      // 원본 캔버스 메모리 해제
-      canvas.width = 0;
-      canvas.height = 0;
-
-      const today = new Date().toISOString().split('T')[0];
-      pdf.save(`ChannelAI_인사이트_${today}.pdf`);
+      
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `ChannelAI_인사이트_${selectedMonth}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.parentNode?.removeChild(link);
     } catch (err) {
       console.error('PDF 생성 실패:', err);
       alert('PDF 생성 중 오류가 발생했습니다.');

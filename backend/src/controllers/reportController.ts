@@ -370,7 +370,7 @@ export const generatePdfFromHtml = async (req: AuthRequest, res: Response) => {
 // ─── [2026-03-18] Puppeteer 스크린샷 기반 PDF 생성 공통 헬퍼 ───────────────────────
 // 화면 레이아웃을 100% 그대로 캡처하여 PDF로 변환
 // html2canvas와 달리 동일한 Chrome 렌더링 엔진을 사용하므로 CSS 해석 차이 없음
-const generatePdfWithPuppeteer = async (month: string, userId: number): Promise<Buffer> => {
+const generatePdfWithPuppeteer = async (month: string, userId: number, type: string = 'monthly'): Promise<Buffer> => {
   const tempToken = jwt.sign(
     { id: userId, email: 'pdf-generator@internal' },
     process.env.JWT_SECRET || 'channel_ai_secret_key_2024',
@@ -378,7 +378,9 @@ const generatePdfWithPuppeteer = async (month: string, userId: number): Promise<
   );
 
   const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
-  const reportUrl = `${frontendUrl}/monthly-report?month=${month}&pdfMode=true`;
+  const reportUrl = type === 'insights'
+    ? `${frontendUrl}/insights?month=${month}&pdfMode=true`
+    : `${frontendUrl}/monthly-report?month=${month}&pdfMode=true`;
   console.log(`  🌐 [PDF] 리포트 페이지 접속: ${reportUrl}`);
 
   let browser;
@@ -437,7 +439,7 @@ const generatePdfWithPuppeteer = async (month: string, userId: number): Promise<
     // 차트 애니메이션 완료 대기
     await new Promise(resolve => setTimeout(resolve, 5000));
 
-    // ── 1단계: Puppeteer 네이티브 PDF 생성 (A4 비율 유지) ──
+    const headerTitle = type === 'insights' ? '인사이트 리포트' : '월별 통합 성과 보고서';
     const pdf = await page.pdf({
       width: '1280px',     // 뷰포트 너비 유지
       height: '1810px',    // A4 비율 맞춤 (1280 / 0.707)
@@ -445,7 +447,7 @@ const generatePdfWithPuppeteer = async (month: string, userId: number): Promise<
       displayHeaderFooter: true,
       headerTemplate: `
         <div style="width: 100%; border-bottom: 2px solid #2563eb; margin: 0 40px; padding-bottom: 15px; display: flex; justify-content: space-between; align-items: flex-end; font-family: 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif;">
-          <span style="font-size: 24px; font-weight: bold; color: #1e3a8a;">ChannelAI <span style="font-weight: normal; color: #3b82f6;">월별 통합 성과 보고서</span></span>
+          <span style="font-size: 24px; font-weight: bold; color: #1e3a8a;">ChannelAI <span style="font-weight: normal; color: #3b82f6;">${headerTitle}</span></span>
           <span style="font-size: 18px; font-weight: bold; color: #3b82f6;">${month}</span>
         </div>`,
       footerTemplate: `
@@ -472,12 +474,17 @@ const generatePdfWithPuppeteer = async (month: string, userId: number): Promise<
 export const generatePdfFromPage = async (req: AuthRequest, res: Response) => {
   try {
     const month = (req.query.month as string) || new Date().toISOString().slice(0, 7);
+    const type = (req.query.type as string) || 'monthly';
     const userId = req.user?.id || 1;
 
-    const pdfBuffer = await generatePdfWithPuppeteer(month, userId);
+    const pdfBuffer = await generatePdfWithPuppeteer(month, userId, type);
+
+    const filename = type === 'insights'
+      ? `ChannelAI_인사이트_${month}.pdf`
+      : `ChannelAI_통합리포트_${month}.pdf`;
 
     res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `attachment; filename=${encodeURIComponent(`ChannelAI_통합리포트_${month}.pdf`)}`);
+    res.setHeader('Content-Disposition', `attachment; filename=${encodeURIComponent(filename)}`);
     res.send(pdfBuffer);
   } catch (error) {
     console.error('PDF 생성 오류:', error);
