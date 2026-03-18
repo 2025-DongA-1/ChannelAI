@@ -662,7 +662,7 @@ export default function IntegrationPage() {
       {/* 당근마켓 광고 수동 입력 폼 */}
       <div id="tour-karrot" className="bg-orange-50 border border-orange-200 rounded-xl p-3 sm:p-6 mt-6 sm:mt-8">
         <h2 className="text-base sm:text-2xl font-bold text-orange-700 mb-1 sm:mb-2 flex items-center">
-          🥕 당근마켓 광고 데이터 직접 입력
+          🥕 당근 광고 데이터 직접 입력
         </h2>
         <p className="text-xs sm:text-sm text-orange-900 mb-2 sm:mb-4">
           당근마켓 광고센터에서 확인한 성과 데이터를 아래 입력란에 직접 입력해 주세요.<br className="sm:hidden" />
