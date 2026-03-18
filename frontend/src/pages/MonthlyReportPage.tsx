@@ -1287,7 +1287,7 @@ export default function MonthlyReportPage() {
                                   {c.status === 'active' ? '● ACTIVE' : '○ PAUSED'}
                                 </span>
                               </div>
-                              <p className="text-base font-bold text-gray-900 truncate max-w-[180px]" title={c.campaign_name}>
+                              <p className="text-base font-bold text-gray-900 truncate max-w-[280px]" title={c.campaign_name}>
                                 {c.campaign_name}
                               </p>
                             </div>
@@ -1373,7 +1373,7 @@ export default function MonthlyReportPage() {
                   <ResponsiveContainer width="100%" height={280}>
                     <BarChart
                       data={campaigns.slice(0, 8).map((c: any) => ({
-                        name: c.campaign_name.length > 12 ? c.campaign_name.slice(0, 12) + '…' : c.campaign_name,
+                        name: c.campaign_name.length > 16 ? c.campaign_name.slice(0, 16) + '…' : c.campaign_name,
                         광고비: c.cost,
                         ROAS: c.roas,
                         color: PLATFORM_COLORS[c.platform] || '#6b7280',
@@ -1437,7 +1437,7 @@ export default function MonthlyReportPage() {
                           return (
                             <tr key={c.campaign_id} className="hover:bg-gray-50/60 transition-colors">
                               {/* 캠페인명 */}
-                              <td className="px-4 py-4 max-w-[200px]">
+                              <td className="px-4 py-4 max-w-[280px]">
                                 <p className="font-semibold text-gray-800 truncate" title={c.campaign_name}>{c.campaign_name}</p>
                               </td>
                               {/* 채널 뱃지 */}

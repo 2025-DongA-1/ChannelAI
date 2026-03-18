@@ -1,5 +1,5 @@
 // 💡 [수정됨] React에서 useEffect를 추가로 불러옵니다.
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
@@ -75,10 +75,7 @@ export default function InsightsPage() {
   const navigate = useNavigate();
   const contentRef = useRef<HTMLDivElement>(null);
   const [isExporting, setIsExporting] = useState(false);
-  const [dateRange, setDateRange] = useState({
-    start: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-    end: new Date().toISOString().split('T')[0],
-  });
+  const [selectedMonth, setSelectedMonth] = useState(() => new Date().toISOString().slice(0, 7));
   
   // 튜토리얼 상태
   const [showTour, setShowTour] = useState(false);
@@ -112,6 +109,16 @@ export default function InsightsPage() {
 
   // 💡 [추가됨] 캠페인 선택 상태 관리 ('all'이면 모든 캠페인 종합 보기)
   const [selectedCampaign, setSelectedCampaign] = useState<string>('all');
+
+  // selectedMonth → dateRange 자동 계산 (useQuery보다 먼저 선언)
+  const dateRange = useMemo(() => {
+    const [year, month] = selectedMonth.split('-').map(Number);
+    const lastDay = new Date(year, month, 0).getDate();
+    return {
+      start: `${selectedMonth}-01`,
+      end: `${selectedMonth}-${String(lastDay).padStart(2, '0')}`,
+    };
+  }, [selectedMonth]);
 
   // 💡 [추가됨] 백엔드에 뚫어둔 analyze API를 호출해서 '활성 캠페인 목록'을 가져옵니다.
   const { data: analyzeData } = useQuery({
@@ -156,38 +163,65 @@ export default function InsightsPage() {
   // 💡 [추가됨] 드롭다운에 뿌려줄 캠페인 목록 데이터
   const availableCampaigns = analyzeData?.data?.availableCampaigns || [];
 
-  // 💡 [추가됨] 페이지 최초 진입 시, 캠페인 목록 로딩이 끝나면 날짜를 전체 캠페인 최초 개시일로 자동 셋팅!
-  useEffect(() => {
-    if (availableCampaigns.length > 0 && selectedCampaign === 'all') {
-      const today = new Date().toISOString().split('T')[0];
-      const earliestDate = availableCampaigns.reduce((min: string, c: any) => {
-        if (!c.start_date) return min;
-        const cDate = new Date(c.start_date).toISOString().split('T')[0];
-        return cDate < min ? cDate : min;
-      }, today);
-
-      // 이미 계산된 날짜와 다를 때만 업데이트 (무한 렌더링 방지)
-      if (dateRange.start !== earliestDate) {
-        setDateRange({ start: earliestDate, end: today });
-      }
+  // 데이터 기반 월 목록 생성 (YYYY-MM 형식)
+  const MONTHS = useMemo(() => {
+    const today = new Date();
+    const currentYM = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
+    let earliestYM = currentYM;
+    if (availableCampaigns.length > 0) {
+      earliestYM = availableCampaigns.reduce((min: string, c: any) => {
+        const d = c.start_date?.slice(0, 7) || currentYM;
+        return d < min ? d : min;
+      }, currentYM);
+    } else {
+      const d = new Date(today);
+      d.setMonth(d.getMonth() - 11);
+      earliestYM = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
     }
-  }, [availableCampaigns]); // availableCampaigns 데이터가 준비될 때 한 번 실행됩니다.
+    const months: string[] = [];
+    let [ey, em] = earliestYM.split('-').map(Number);
+    const [cy, cm] = currentYM.split('-').map(Number);
+    while (ey < cy || (ey === cy && em <= cm)) {
+      months.push(`${ey}-${String(em).padStart(2, '0')}`);
+      em++;
+      if (em > 12) { em = 1; ey++; }
+    }
+    return months;
+  }, [availableCampaigns]);
 
-  // 🤖 [수정됨] 토큰 낭비 방지! 자동 실행(useQuery) 대신 수동 실행(useMutation)으로 변경
+
+  // 🤖 DB에서 기존 인사이트 조회
+  const { data: dbInsightsData } = useQuery({
+    queryKey: ['insights-llm', selectedMonth],
+    queryFn: async () => {
+      const res = await api.get(`/ai/agent/monthly-report-insights?month=${selectedMonth}`);
+      return res.data?.success ? res.data.data : null;
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+
+  // 🤖 LLM 새 생성 (월별리포트와 동일 엔드포인트)
   const llmMutation = useMutation({
-    // 💡 [수정됨] forceRefresh 값을 받아서 백엔드로 넘겨줍니다. 기본값은 false!
     mutationFn: async (forceRefresh: boolean = false) => {
-      const response = await api.post('/ai/agent/generate-insights', {
+      const response = await api.post('/ai/agent/monthly-report-insights', {
         trendsData: trends,
         platformData: comparison,
-        forceRefresh, 
+        selectedMonth,
+        forceRefresh,
+        reportType: 'monthly',
       });
       return response.data;
     }
   });
 
-  const llmInsightText = llmMutation.data?.data?.insightText;
-  const llmInsightLoading = llmMutation.isPending;
+  const insights = llmMutation.data?.data || dbInsightsData;
+  const isLlmLoading = llmMutation.isPending;
+
+  // 월 변경 시 mutation 리셋
+  useEffect(() => {
+    llmMutation.reset();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedMonth]);
 
   // 🤖 [추가됨] 플랫폼 비교 전용 크로스 미디어 분석 API 호출
   const platformMutation = useMutation({
@@ -201,40 +235,24 @@ export default function InsightsPage() {
     }
   });
 
-  const platformInsightText = platformMutation.data?.data?.insightText;
-  const platformInsightLoading = platformMutation.isPending;
 
-  // 💡 [추가됨] 캠페인 드롭다운 변경 시 시작 날짜를 해당 캠페인의 최초 개시일로 자동 업데이트합니다!
+  // 💡 [추가됨] 캠페인 드롭다운 변경 시 해당 캠페인의 최초 월로 자동 업데이트합니다!
   const handleCampaignChange = (e: any) => {
     const val = e.target.value;
     setSelectedCampaign(val);
-    
-    const today = new Date().toISOString().split('T')[0];
-
+    const today = new Date().toISOString().slice(0, 7);
     if (val === 'all') {
-      // 전체 캠페인 중 가장 빠른 시작일 찾기
-      const earliestDate = availableCampaigns.reduce((min: string, c: any) => {
+      const earliestYM = availableCampaigns.reduce((min: string, c: any) => {
         if (!c.start_date) return min;
-        const cDate = new Date(c.start_date).toISOString().split('T')[0];
-        return cDate < min ? cDate : min;
+        const d = c.start_date.slice(0, 7);
+        return d < min ? d : min;
       }, today);
-      setDateRange({ start: earliestDate, end: today });
+      setSelectedMonth(earliestYM);
     } else {
-      // 선택한 캠페인의 시작일 찾기
       const targetCampaign = availableCampaigns.find((c: any) => c.id.toString() === val);
-      if (targetCampaign && targetCampaign.start_date) {
-        const cDate = new Date(targetCampaign.start_date).toISOString().split('T')[0];
-        setDateRange({ start: cDate, end: today });
-      } else {
-        // 데이터가 없으면 기본 30일
-        const fallbackStart = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-        setDateRange({ start: fallbackStart, end: today });
-      }
+      const ym = targetCampaign?.start_date?.slice(0, 7) || today;
+      setSelectedMonth(ym);
     }
-  };
-
-  const handleDateChange = (field: 'start' | 'end', value: string) => {
-    setDateRange(prev => ({ ...prev, [field]: value }));
   };
 
   const handleExportPDF = async () => {
@@ -322,7 +340,7 @@ export default function InsightsPage() {
 
   const COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6'];
 
-  if (trendsLoading || comparisonLoading || recommendationsLoading) {
+  if (trendsLoading || comparisonLoading) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
@@ -396,26 +414,47 @@ export default function InsightsPage() {
 
         <div className="hidden sm:block w-px h-6 bg-gray-200"></div> {/* 구분선 */}
 
-        {/* 기존 날짜 선택기 */}
+        {/* 년/월 선택기 */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 w-full sm:w-auto">
           <div className="flex items-center gap-2 w-full sm:w-auto">
             <Calendar className="w-5 h-5 text-gray-500 flex-shrink-0" />
             <span className="text-sm font-medium text-gray-700 flex-shrink-0">분석 기간:</span>
           </div>
-          <div className="flex items-center gap-2 w-full sm:w-auto">
-            <input
-              type="date"
-              value={dateRange.start}
-              onChange={(e) => handleDateChange('start', e.target.value)}
-              className="flex-1 sm:flex-none px-3 py-1.5 border border-gray-300 rounded-lg text-sm w-full sm:w-auto"
-            />
-            <span className="text-gray-500 flex-shrink-0">~</span>
-            <input
-              type="date"
-              value={dateRange.end}
-              onChange={(e) => handleDateChange('end', e.target.value)}
-              className="flex-1 sm:flex-none px-3 py-1.5 border border-gray-300 rounded-lg text-sm w-full sm:w-auto"
-            />
+          <div className="flex gap-2 items-center bg-gray-50/80 p-1.5 rounded-xl border border-gray-100">
+            <select
+              value={selectedMonth.split('-')[0]}
+              onChange={(e) => {
+                const newYear = e.target.value;
+                const monthsInYear = MONTHS.filter(m => m.startsWith(newYear)).map(m => m.split('-')[1]);
+                const curMonth = selectedMonth.split('-')[1];
+                if (monthsInYear.includes(curMonth)) {
+                  setSelectedMonth(`${newYear}-${curMonth}`);
+                } else {
+                  setSelectedMonth(`${newYear}-${monthsInYear[monthsInYear.length - 1]}`);
+                }
+              }}
+              className="px-3 py-1.5 rounded-lg text-sm font-medium bg-white border border-gray-200 text-gray-700 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 cursor-pointer hover:bg-gray-50 transition-colors"
+            >
+              {Array.from(new Set(MONTHS.map(m => m.split('-')[0]))).map(year => (
+                <option key={year} value={year}>{year}년</option>
+              ))}
+            </select>
+            <select
+              value={selectedMonth.split('-')[1]}
+              onChange={(e) => setSelectedMonth(`${selectedMonth.split('-')[0]}-${e.target.value}`)}
+              className="px-3 py-1.5 rounded-lg text-sm font-medium bg-white border border-gray-200 text-gray-700 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 cursor-pointer hover:bg-gray-50 transition-colors"
+            >
+              {MONTHS.filter(m => m.startsWith(selectedMonth.split('-')[0]))
+                .map(m => m.split('-')[1])
+                .map(month => (
+                  <option key={month} value={month}>{parseInt(month, 10)}월</option>
+                ))}
+            </select>
+            {selectedMonth === new Date().toISOString().slice(0, 7) && (
+              <span className="px-2 py-0.5 text-xs font-semibold bg-green-100 text-green-700 rounded-full border border-green-200">
+                진행중
+              </span>
+            )}
           </div>
         </div>
       </div>
@@ -564,52 +603,39 @@ export default function InsightsPage() {
               </LineChart>
             </ResponsiveContainer>
             
-            {/* 💡 [수정됨] 수동 실행 버튼이 추가된 AI 상세 해석 박스 */}
-            <div className="mt-4 p-5 bg-gradient-to-br from-indigo-50 to-blue-50 rounded-lg border border-indigo-100 flex items-start gap-3 shadow-sm">
-              <Lightbulb className="w-6 h-6 text-indigo-600 flex-shrink-0 mt-0.5" />
-              <div className="w-full">
-                <div className="flex justify-between items-center mb-2">
+            {/* AI 인사이트 박스 (월별리포트 스타일) */}
+            <div className="mt-4 bg-gradient-to-br from-indigo-50 to-blue-50 rounded-xl border border-indigo-100 shadow-sm overflow-hidden">
+              <div className="flex items-center justify-between px-5 py-3 border-b border-indigo-100">
+                <div>
                   <p className="font-bold text-indigo-900 text-base flex items-center gap-2">
-                    🤖 AI 마케팅 분석가의 상세 리포트
-                    {llmInsightLoading && <span className="text-xs text-indigo-500 font-normal animate-pulse">(데이터를 꼼꼼히 분석하고 있어요...)</span>}
+                    <Sparkles className="w-4 h-4 text-indigo-500" />
+                    AI 성과 분석
+                    {isLlmLoading && <span className="text-xs text-indigo-500 font-normal animate-pulse">분석 중...</span>}
                   </p>
-                  
-                  {/* 분석 결과가 없고, 로딩 중이 아닐 때만 실행 버튼 표시 */}
-                  {!llmInsightText && !llmInsightLoading && (
-                    <button 
-                      onClick={() => llmMutation.mutate(false)}
-                      className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-md transition-colors flex items-center gap-1 shadow-sm"
-                    >
-                      <Sparkles className="w-4 h-4" />
-                      AI 분석 실행하기
-                    </button>
-                  )}
-                  {/* 💡 [추가됨] 분석 결과가 이미 있을 때 표시되는 다시 분석하기(캐시 무시) 버튼 */}
-                  {llmInsightText && !llmInsightLoading && (
-                    <button 
-                      onClick={() => llmMutation.mutate(true)}
-                      className="px-3 py-1.5 bg-white border border-indigo-200 hover:bg-indigo-50 text-indigo-600 text-sm font-medium rounded-md transition-colors flex items-center gap-1 shadow-sm"
-                    >
-                      <RefreshCw className="w-4 h-4" />
-                      다시 분석하기
-                    </button>
+                  {selectedMonth === new Date().toISOString().slice(0, 7) && (
+                    <p className="text-xs text-indigo-400 mt-0.5">
+                      {new Date().getMonth() + 1}월 {new Date().getDate()}일까지의 분석 내용
+                    </p>
                   )}
                 </div>
-
-                {llmInsightLoading ? (
-                  <div className="space-y-2 animate-pulse mt-3 border-t border-indigo-100 pt-3">
-                    <div className="h-4 bg-indigo-200 rounded w-3/4"></div>
-                    <div className="h-4 bg-indigo-200 rounded w-full"></div>
-                    <div className="h-4 bg-indigo-200 rounded w-5/6"></div>
-                  </div>
-                ) : llmInsightText ? (
-                  <div className="text-sm text-indigo-800 leading-relaxed whitespace-pre-line mt-3 border-t border-indigo-100 pt-3">
-                    {llmInsightText}
+                <button
+                  onClick={() => llmMutation.mutate(!!insights)}
+                  disabled={isLlmLoading}
+                  className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-medium bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 transition-colors"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${isLlmLoading ? 'animate-spin' : ''}`} />
+                  {isLlmLoading ? 'AI 분석 중...' : insights ? 'AI 분석 갱신' : 'AI 진단 시작'}
+                </button>
+              </div>
+              <div className="px-5 py-4 text-sm text-indigo-800 leading-relaxed whitespace-pre-line">
+                {isLlmLoading ? (
+                  <div className="space-y-2 animate-pulse">
+                    <div className="h-4 bg-indigo-100/50 rounded w-3/4" />
+                    <div className="h-4 bg-indigo-100/50 rounded w-full" />
+                    <div className="h-4 bg-indigo-100/50 rounded w-5/6" />
                   </div>
                 ) : (
-                  <div className="text-sm text-indigo-600/80 leading-relaxed mt-1">
-                    우측 상단의 버튼을 눌러 현재 차트 지표(노출, 클릭, 전환, 비용)에 대한 맞춤형 AI 상세 분석 리포트를 받아보세요!
-                  </div>
+                  insights?.overall || "⚠️ 상단 'AI 진단 시작' 버튼을 클릭해 분석을 실행하세요."
                 )}
               </div>
             </div>
@@ -722,50 +748,39 @@ export default function InsightsPage() {
           
           {/* 💡 [수정됨] 매체 비교 분석 전용 AI 돋보기 */}
           <div className="bg-gradient-to-br from-blue-50 to-indigo-50 p-5 border-t border-blue-100">
-            <div className="flex items-start gap-3">
-              <Target className="w-6 h-6 text-blue-600 flex-shrink-0 mt-0.5" />
-              <div className="w-full">
-                <div className="flex justify-between items-center mb-2">
+            {/* AI 채널별 분석 박스 */}
+            <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl border border-blue-100 shadow-sm overflow-hidden">
+              <div className="flex items-center justify-between px-5 py-3 border-b border-blue-100">
+                <div>
                   <p className="font-bold text-blue-900 text-base flex items-center gap-2">
-                    🤖 크로스 미디어 AI 전략 리포트
-                    {platformInsightLoading && <span className="text-xs text-blue-500 font-normal animate-pulse">(매체 간 효율을 꼼꼼히 비교하고 있어요...)</span>}
+                    <Sparkles className="w-4 h-4 text-blue-500" />
+                    AI 채널별 분석
+                    {isLlmLoading && <span className="text-xs text-blue-500 font-normal animate-pulse">분석 중...</span>}
                   </p>
-                  
-                  {!platformInsightText && !platformInsightLoading && (
-                    <button 
-                      onClick={() => platformMutation.mutate(false)}
-                      className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-md transition-colors flex items-center gap-1 shadow-sm"
-                    >
-                      <Sparkles className="w-4 h-4" />
-                      매체 비교 분석 실행하기
-                    </button>
-                  )}
-                  {/* 💡 [추가됨] 분석 결과가 이미 있을 때 표시되는 다시 분석하기(캐시 무시) 버튼 */}
-                  {platformInsightText && !platformInsightLoading && (
-                    <button 
-                      onClick={() => platformMutation.mutate(true)}
-                      className="px-3 py-1.5 bg-white border border-blue-200 hover:bg-blue-50 text-blue-600 text-sm font-medium rounded-md transition-colors flex items-center gap-1 shadow-sm"
-                    >
-                      <RefreshCw className="w-4 h-4" />
-                      다시 분석하기
-                    </button>
+                  {selectedMonth === new Date().toISOString().slice(0, 7) && (
+                    <p className="text-xs text-blue-400 mt-0.5">
+                      {new Date().getMonth() + 1}월 {new Date().getDate()}일까지의 분석 내용
+                    </p>
                   )}
                 </div>
-
-                {platformInsightLoading ? (
-                  <div className="space-y-2 animate-pulse mt-3 border-t border-blue-200 pt-3">
-                    <div className="h-4 bg-blue-200 rounded w-3/4"></div>
-                    <div className="h-4 bg-blue-200 rounded w-full"></div>
-                    <div className="h-4 bg-blue-200 rounded w-5/6"></div>
-                  </div>
-                ) : platformInsightText ? (
-                  <div className="text-sm text-blue-900 leading-relaxed whitespace-pre-line mt-3 border-t border-blue-200 pt-3">
-                    {platformInsightText}
+                <button
+                  onClick={() => llmMutation.mutate(!!insights)}
+                  disabled={isLlmLoading}
+                  className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-medium bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${isLlmLoading ? 'animate-spin' : ''}`} />
+                  {isLlmLoading ? 'AI 분석 중...' : insights ? 'AI 분석 갱신' : 'AI 진단 시작'}
+                </button>
+              </div>
+              <div className="px-5 py-4 text-sm text-blue-900 leading-relaxed whitespace-pre-line">
+                {isLlmLoading ? (
+                  <div className="space-y-2 animate-pulse">
+                    <div className="h-4 bg-blue-100/50 rounded w-3/4" />
+                    <div className="h-4 bg-blue-100/50 rounded w-full" />
+                    <div className="h-4 bg-blue-100/50 rounded w-5/6" />
                   </div>
                 ) : (
-                  <div className="text-sm text-blue-600/80 leading-relaxed mt-1">
-                    우측 상단의 버튼을 눌러 각 매체별 예산 누수를 잡고 최적의 예산 재배분 전략을 받아보세요!
-                  </div>
+                  insights?.channelSummary || "⚠️ 상단 'AI 진단 시작' 버튼을 클릭해 채널별 분석을 실행하세요."
                 )}
               </div>
             </div>
