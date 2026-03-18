@@ -417,7 +417,7 @@ const generatePdfWithPuppeteer = async (month: string, userId: number, type: str
       console.warn('  ⚠️ [PDF] 데이터 렌더링 대기 시간 초과');
     }
 
-    // 네비게이션, 불필요 UI 숨기기
+    // PDF 요소 숨김 처리 및 레이아웃 교정용 CSS 주입
     await page.addStyleTag({
       content: `
         nav, .floating-tutorial-button, [class*="tutorial"], .pdf-header-container,
@@ -430,12 +430,21 @@ const generatePdfWithPuppeteer = async (month: string, userId: number, type: str
           page-break-inside: avoid !important;
           break-inside: avoid !important;
         }
+
+        /* 텍스트/아이콘 상하 정렬 불일치 교정 */
+        svg text { dominant-baseline: central !important; }
+        td, th { vertical-align: middle !important; }
+        .flex.items-center svg { vertical-align: middle !important; margin-bottom: 2px !important; }
+        .flex.items-center span, .flex.items-center p, .flex.items-center div { vertical-align: middle !important; }
       `
     });
 
     // 화면(screen) 모드 에뮬레이션 - 인쇄용 모바일 뷰로 깨지는 것 방지
     await page.emulateMediaType('screen');
-
+    
+    // 웹 폰트 로드가 끝날 때까지 대기하여 폰트 높이(line-height) 차이로 인한 정렬 어긋남 방지
+    await page.evaluateHandle('document.fonts.ready');
+    
     // 차트 애니메이션 완료 대기
     await new Promise(resolve => setTimeout(resolve, 5000));
 
