@@ -370,14 +370,14 @@ export const generatePdfFromHtml = async (req: AuthRequest, res: Response) => {
 // ─── [2026-03-18] Puppeteer 스크린샷 기반 PDF 생성 공통 헬퍼 ───────────────────────
 // 화면 레이아웃을 100% 그대로 캡처하여 PDF로 변환
 // html2canvas와 달리 동일한 Chrome 렌더링 엔진을 사용하므로 CSS 해석 차이 없음
-const generatePdfWithPuppeteer = async (month: string, userId: number, type: string = 'monthly'): Promise<Buffer> => {
+const generatePdfWithPuppeteer = async (month: string, userId: number, type: string = 'monthly', originUrl?: string): Promise<Buffer> => {
   const tempToken = jwt.sign(
     { id: userId, email: 'pdf-generator@internal' },
     process.env.JWT_SECRET || 'channel_ai_secret_key_2024',
     { expiresIn: '1h' }
   );
 
-  const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+  const frontendUrl = originUrl || process.env.FRONTEND_URL || 'http://localhost:5173';
   const reportUrl = type === 'insights'
     ? `${frontendUrl}/insights?month=${month}&pdfMode=true`
     : `${frontendUrl}/monthly-report?month=${month}&pdfMode=true`;
@@ -476,8 +476,9 @@ export const generatePdfFromPage = async (req: AuthRequest, res: Response) => {
     const month = (req.query.month as string) || new Date().toISOString().slice(0, 7);
     const type = (req.query.type as string) || 'monthly';
     const userId = req.user?.id || 1;
+    const origin = req.headers.origin as string;
 
-    const pdfBuffer = await generatePdfWithPuppeteer(month, userId, type);
+    const pdfBuffer = await generatePdfWithPuppeteer(month, userId, type, origin);
 
     const filename = type === 'insights'
       ? `ChannelAI_인사이트_${month}.pdf`
@@ -504,6 +505,7 @@ export const sendPdfByEmail = async (req: AuthRequest, res: Response) => {
 
     const userId = req.user?.id || 1;
     const reportMonth = month || new Date().toISOString().slice(0, 7);
+    const origin = req.headers.origin as string;
 
     // 즉시 응답 후 비동기 발송
     res.json({ success: true, message: `${email}로 ${reportMonth} 보고서를 발송합니다. 잠시 후 확인하세요.` });
@@ -511,7 +513,7 @@ export const sendPdfByEmail = async (req: AuthRequest, res: Response) => {
     (async () => {
       try {
         // 1. Puppeteer로 텍스트 기반 PDF 생성
-        const pdfBuffer = await generatePdfWithPuppeteer(reportMonth, userId);
+        const pdfBuffer = await generatePdfWithPuppeteer(reportMonth, userId, 'monthly', origin);
 
         // 2. 사용자 이름 조회
         const userResult = await pool.query(
