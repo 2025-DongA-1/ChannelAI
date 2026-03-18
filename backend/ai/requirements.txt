@@ -1,5 +1,12 @@
-pandas
-numpy
-xgboost
-scikit-learn
-scipy
+# --- 환경 변수 로드 ---
+python-dotenv==1.2.1
+
+# --- 데이터 전처리 및 수학 연산 ---
+numpy==2.4.0
+pandas==2.3.3
+scipy==1.16.3
+
+# --- AI 머신러닝 및 최적화 엔진 ---
+scikit-learn==1.8.0
+xgboost==3.2.0
+joblib==1.5.3
