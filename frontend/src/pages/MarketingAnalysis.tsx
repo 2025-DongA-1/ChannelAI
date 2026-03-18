@@ -456,16 +456,16 @@ function MarketingAnalysis() {
                   </div>
                 </div>
 
-                <div style={{ width: '100%', height: 320, position: 'relative' }}>
-                  {mounted && (
-                    <ResponsiveContainer width="100%" height="100%" minWidth={10} minHeight={10} debounce={50}>
+                <div style={{ width: '100%', minHeight: 320, height: 320, position: 'relative' }}>
+                  {mounted && result?.history?.length > 0 && (
+                    <ResponsiveContainer width="100%" height={320} debounce={50}>
                       <LineChart data={result.history} margin={{ top: 10, right: 30, left: 10, bottom: 0 }}>
                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#eee" />
                         <XAxis dataKey="day" tick={{ fontSize: 12, fill: '#888' }} axisLine={false} tickLine={false} dy={10} />
                         <YAxis tick={{ fontSize: 12, fill: '#888' }} axisLine={false} tickLine={false} />
                         <Tooltip contentStyle={{ borderRadius: '10px', border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.1)' }} />
-                        <Legend 
-                          iconType="circle" 
+                        <Legend
+                          iconType="circle"
                           wrapperStyle={{ paddingTop: '20px', cursor: 'pointer' }}
                           onMouseEnter={(e: any) => setHoveredLine(e.dataKey as string)}
                           onMouseLeave={() => setHoveredLine(null)}
@@ -500,9 +500,9 @@ function MarketingAnalysis() {
                   {/* 파이 차트 */}
                   <div style={{ textAlign: 'center', minWidth:0, overflow: 'hidden'}}>
                     <h3 style={{ fontSize: '1.2rem', marginBottom: '20px', color: '#333' }}>💰 플랫폼별 예산 추천 비율</h3>
-                    <div style={{ height: '300px', width: '100%', position: 'relative' }}>
-                      {mounted && (
-                        <ResponsiveContainer width="100%" height="100%" minWidth={10} minHeight={10} debounce={50}>
+                    <div style={{ width: '100%', height: 300, minHeight: 300, position: 'relative' }}>
+                      {mounted && pieData?.length > 0 && (
+                        <ResponsiveContainer width="100%" height={300} debounce={50}>
                           <PieChart>
                             <Pie
                               data={pieData}
@@ -528,19 +528,35 @@ function MarketingAnalysis() {
                   {/* 막대 차트 */}
                   <div style={{ borderLeft: '1px solid #f1f3f5', paddingLeft: '50px', minWidth:0, overflow: 'hidden' }}>
                     <h3 style={{ fontSize: '1.2rem', marginBottom: '20px', color: '#333' }}>📈 플랫폼별 예측 효율 (ROAS)</h3>
-                    <div style={{ height: '300px', width: '100%', position: 'relative' }}>
-                      {mounted && (
-                        <ResponsiveContainer width="100%" height="100%" minWidth={10} minHeight={10} debounce={50}>
-                          <BarChart data={barData} layout="vertical" margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
-                            <CartesianGrid strokeDasharray="3 3" vertical={true} horizontal={false} stroke="#f1f3f5" />
-                            <XAxis type="number" hide />
-                            <YAxis dataKey="name" type="category" width={70} tick={{ fontSize: 13, fontWeight: 'bold', fill: '#555' }} axisLine={false} tickLine={false} />
-                            <Tooltip formatter={(value: any) => [`${value}%`, '예측 ROAS']} cursor={{ fill: '#f8f9fa' }} contentStyle={{ borderRadius: '10px', border: 'none' }} />
-                            <Bar dataKey="roas" barSize={30} radius={[0, 10, 10, 0]}>
-                              <LabelList dataKey="roas" position="right" formatter={(v: any) => `${v}%`} style={{ fontSize: '13px', fontWeight: 'bold', fill: '#333' }} />
-                              {barData.map((entry, index) => (
-                              <Cell key={`cell-${index}`} fill={entry.color} />
-                            ))}
+                      <div style={{ width: '100%', height: 300, minHeight: 300, position: 'relative' }}>
+                        {mounted && barData?.length > 0 && (
+                          <ResponsiveContainer width="100%" height={300} debounce={50}>
+                            <BarChart data={barData} layout="vertical" margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+                              <CartesianGrid strokeDasharray="3 3" vertical={true} horizontal={false} stroke="#f1f3f5" />
+                              <XAxis type="number" hide />
+                              <YAxis
+                                dataKey="name"
+                                type="category"
+                                width={70}
+                                tick={{ fontSize: 13, fontWeight: 'bold', fill: '#555' }}
+                                axisLine={false}
+                                tickLine={false}
+                              />
+                              <Tooltip
+                                formatter={(value: any) => [`${value}%`, '예측 ROAS']}
+                                cursor={{ fill: '#f8f9fa' }}
+                                contentStyle={{ borderRadius: '10px', border: 'none' }}
+                              />
+                              <Bar dataKey="roas" barSize={30} radius={[0, 10, 10, 0]}>
+                                <LabelList
+                                  dataKey="roas"
+                                  position="right"
+                                  formatter={(v: any) => `${v}%`}
+                                  style={{ fontSize: '13px', fontWeight: 'bold', fill: '#333' }}
+                                />
+                                {barData.map((entry, index) => (
+                                  <Cell key={`cell-${index}`} fill={entry.color} />
+                                ))}
                             </Bar>
                           </BarChart>
                         </ResponsiveContainer>
