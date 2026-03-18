@@ -38,3 +38,26 @@
       sans-serif;
   }
 }
+
+/* PDF 캡처 시 텍스트 수직 정렬 보정 */
+body.pdf-rendering * {
+  line-height: 1 !important;
+  vertical-align: middle !important;
+  font-family: 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif !important;
+  letter-spacing: -0.02em !important;
+  overflow: visible !important;
+}
+body.pdf-rendering svg {
+  vertical-align: middle !important;
+  overflow: visible !important;
+}
+/* flex / inline-flex 컨테이너 세로 정렬 강제 */
+body.pdf-rendering .flex,
+body.pdf-rendering .inline-flex {
+  align-items: center !important;
+}
+body.pdf-rendering td,
+body.pdf-rendering th {
+  vertical-align: middle !important;
+  line-height: 1 !important;
+}

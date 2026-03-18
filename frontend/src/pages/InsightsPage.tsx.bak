@@ -3,20 +3,14 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
-import { useQuery, useMutation } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { insightsAPI, api } from '@/lib/api';
 import {
   TrendingUp,
   TrendingDown,
-  BarChart3,
-  Lightbulb,
   Calendar,
   Download,
-  AlertCircle,
-  CheckCircle,
   Target,
-  Sparkles,
-  RefreshCw,
   Send,
   CheckCircle2,
   FileText
@@ -52,21 +46,15 @@ const TOUR_STEPS = [
     position: 'bottom',
   },
   {
-    targetId: 'tour-ai-recommendations',
-    title: 'AI 최적화 추천',
-    description: '인공지능이 분석한 개선점과 예산 재배분 우선순위를 확인하여 캠페인 성과를 극대화할 수 있습니다.',
-    position: 'top',
-  },
-  {
     targetId: 'tour-trend-chart',
-    title: '상대적 성과 추세 및 AI 분석',
-    description: '각 지표별 흐름을 차트로 비교하고, AI 분석 실행 버튼을 눌러 상세 리포트를 확인해 보세요.',
+    title: '상대적 성과 추세',
+    description: '각 지표별 흐름을 차트로 비교하여 기간별 성과 변화를 확인해 보세요.',
     position: 'top',
   },
   {
     targetId: 'tour-platform-comparison',
     title: '플랫폼 분석',
-    description: '매체별 효율을 비교 분석하고 크로스 미디어 전략 리포트를 통해 예산 분배 최적화 가이드를 받습니다.',
+    description: '매체별 효율을 비교 분석하여 예산 분배 최적화 가이드를 확인합니다.',
     position: 'top',
   }
 ];
@@ -142,17 +130,8 @@ export default function InsightsPage() {
     }),
   });
 
-  // AI 추천 데이터 (캠페인 ID 파라미터 추가)
-  const { data: recommendationsData, isLoading: recommendationsLoading } = useQuery({
-    queryKey: ['insights-recommendations', selectedCampaign],
-    queryFn: () => insightsAPI.getRecommendations({
-      campaign_id: selectedCampaign === 'all' ? undefined : selectedCampaign,
-    }),
-  });
-
   const trends = trendsData?.data;
   const comparison = comparisonData?.data;
-  const recommendations = recommendationsData?.data;
   // 💡 [추가됨] 드롭다운에 뿌려줄 캠페인 목록 데이터
   const availableCampaigns = analyzeData?.data?.availableCampaigns || [];
 
@@ -172,37 +151,6 @@ export default function InsightsPage() {
       }
     }
   }, [availableCampaigns]); // availableCampaigns 데이터가 준비될 때 한 번 실행됩니다.
-
-  // 🤖 [수정됨] 토큰 낭비 방지! 자동 실행(useQuery) 대신 수동 실행(useMutation)으로 변경
-  const llmMutation = useMutation({
-    // 💡 [수정됨] forceRefresh 값을 받아서 백엔드로 넘겨줍니다. 기본값은 false!
-    mutationFn: async (forceRefresh: boolean = false) => {
-      const response = await api.post('/ai/agent/generate-insights', {
-        trendsData: trends,
-        platformData: comparison,
-        forceRefresh, 
-      });
-      return response.data;
-    }
-  });
-
-  const llmInsightText = llmMutation.data?.data?.insightText;
-  const llmInsightLoading = llmMutation.isPending;
-
-  // 🤖 [추가됨] 플랫폼 비교 전용 크로스 미디어 분석 API 호출
-  const platformMutation = useMutation({
-    // 💡 [수정됨] forceRefresh 값을 받아서 백엔드로 넘겨줍니다.
-    mutationFn: async (forceRefresh: boolean = false) => {
-      const response = await api.post('/ai/agent/generate-platform-insights', {
-        platformData: comparison,
-        forceRefresh, 
-      });
-      return response.data;
-    }
-  });
-
-  const platformInsightText = platformMutation.data?.data?.insightText;
-  const platformInsightLoading = platformMutation.isPending;
 
   // 💡 [추가됨] 캠페인 드롭다운 변경 시 시작 날짜를 해당 캠페인의 최초 개시일로 자동 업데이트합니다!
   const handleCampaignChange = (e: any) => {
@@ -247,6 +195,44 @@ export default function InsightsPage() {
         backgroundColor: '#f9fafb',
         logging: false,
         windowWidth: 1280,
+        scrollX: 0,
+        scrollY: -window.scrollY,
+        onclone: (doc) => {
+          const style = doc.createElement('style');
+          style.innerHTML = `
+            /* 전체 텍스트 수직 위치 보정 */
+            * {
+              font-family: 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif !important;
+              letter-spacing: -0.02em !important; /* 자간 미세 조정으로 밀림 방지 */
+              -webkit-font-smoothing: antialiased;
+            }
+            /* Recharts 등 SVG 텍스트가 아래로 처지는 현상 방지 */
+            svg text {
+              dominant-baseline: central !important;
+              transform: translateY(1px); /* 브라우저 렌더링 오차만큼 보정 */
+            }
+            /* 테이블 셀 내부 텍스트 처짐 방지 */
+            td, th {
+              vertical-align: middle !important;
+              line-height: 1.2 !important;
+            }
+          `;
+          doc.head.appendChild(style);
+
+          // 네이티브 폼 요소는 html2canvas에서 글자 간격이 틀어지므로 텍스트로 교체
+          doc.querySelectorAll('select').forEach((sel) => {
+            const span = doc.createElement('span');
+            span.textContent = (sel as HTMLSelectElement).options[(sel as HTMLSelectElement).selectedIndex]?.text ?? '';
+            span.style.cssText = 'font-size:14px;color:#1f2937;display:inline-block;vertical-align:middle;';
+            sel.parentNode?.replaceChild(span, sel);
+          });
+          doc.querySelectorAll('input[type="date"]').forEach((input) => {
+            const span = doc.createElement('span');
+            span.textContent = (input as HTMLInputElement).value;
+            span.style.cssText = 'font-size:14px;color:#1f2937;display:inline-block;vertical-align:middle;';
+            input.parentNode?.replaceChild(span, input);
+          });
+        },
       });
 
       const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
@@ -268,8 +254,12 @@ export default function InsightsPage() {
         slice.width = imgW;
         slice.height = Math.round(srcSliceH);
         const ctx = slice.getContext('2d')!;
+        
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, slice.width, slice.height);
+        
         ctx.drawImage(canvas, 0, srcY, imgW, srcSliceH, 0, 0, imgW, Math.round(srcSliceH));
-        pdf.addImage(slice.toDataURL('image/jpeg', 0.92), 'JPEG', MARGIN, MARGIN, CONTENT_W, sliceH);
+        pdf.addImage(slice.toDataURL('image/jpeg', 1.0), 'JPEG', MARGIN, MARGIN, CONTENT_W, sliceH);
         yOffset += sliceH;
       }
 
@@ -295,34 +285,9 @@ export default function InsightsPage() {
     return 'text-gray-600';
   };
 
-  const getPriorityColor = (priority: string | number) => {
-    const p = typeof priority === 'number' ? priority : priority;
-    switch (p) {
-      case 'high': case 1: return 'bg-red-100 text-red-800 border-red-200';
-      case 'medium': case 2: return 'bg-yellow-100 text-yellow-800 border-yellow-200';
-      case 'low': case 3: return 'bg-blue-100 text-blue-800 border-blue-200';
-      default: return 'bg-gray-100 text-gray-800 border-gray-200';
-    }
-  };
-
-  const getRecommendationIcon = (type: string) => {
-    switch (type) {
-      case 'budget_increase':
-        return <TrendingUp className="w-5 h-5 text-green-600" />;
-      case 'budget_decrease':
-        return <TrendingDown className="w-5 h-5 text-red-600" />;
-      case 'creative_optimization':
-        return <Target className="w-5 h-5 text-blue-600" />;
-      case 'platform_diversification':
-        return <BarChart3 className="w-5 h-5 text-purple-600" />;
-      default:
-        return <Lightbulb className="w-5 h-5 text-yellow-600" />;
-    }
-  };
-
   const COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6'];
 
-  if (trendsLoading || comparisonLoading || recommendationsLoading) {
+  if (trendsLoading || comparisonLoading) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
@@ -564,55 +529,6 @@ export default function InsightsPage() {
               </LineChart>
             </ResponsiveContainer>
             
-            {/* 💡 [수정됨] 수동 실행 버튼이 추가된 AI 상세 해석 박스 */}
-            <div className="mt-4 p-5 bg-gradient-to-br from-indigo-50 to-blue-50 rounded-lg border border-indigo-100 flex items-start gap-3 shadow-sm">
-              <Lightbulb className="w-6 h-6 text-indigo-600 flex-shrink-0 mt-0.5" />
-              <div className="w-full">
-                <div className="flex justify-between items-center mb-2">
-                  <p className="font-bold text-indigo-900 text-base flex items-center gap-2">
-                    🤖 AI 마케팅 분석가의 상세 리포트
-                    {llmInsightLoading && <span className="text-xs text-indigo-500 font-normal animate-pulse">(데이터를 꼼꼼히 분석하고 있어요...)</span>}
-                  </p>
-                  
-                  {/* 분석 결과가 없고, 로딩 중이 아닐 때만 실행 버튼 표시 */}
-                  {!llmInsightText && !llmInsightLoading && (
-                    <button 
-                      onClick={() => llmMutation.mutate(false)}
-                      className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-md transition-colors flex items-center gap-1 shadow-sm"
-                    >
-                      <Sparkles className="w-4 h-4" />
-                      AI 분석 실행하기
-                    </button>
-                  )}
-                  {/* 💡 [추가됨] 분석 결과가 이미 있을 때 표시되는 다시 분석하기(캐시 무시) 버튼 */}
-                  {llmInsightText && !llmInsightLoading && (
-                    <button 
-                      onClick={() => llmMutation.mutate(true)}
-                      className="px-3 py-1.5 bg-white border border-indigo-200 hover:bg-indigo-50 text-indigo-600 text-sm font-medium rounded-md transition-colors flex items-center gap-1 shadow-sm"
-                    >
-                      <RefreshCw className="w-4 h-4" />
-                      다시 분석하기
-                    </button>
-                  )}
-                </div>
-
-                {llmInsightLoading ? (
-                  <div className="space-y-2 animate-pulse mt-3 border-t border-indigo-100 pt-3">
-                    <div className="h-4 bg-indigo-200 rounded w-3/4"></div>
-                    <div className="h-4 bg-indigo-200 rounded w-full"></div>
-                    <div className="h-4 bg-indigo-200 rounded w-5/6"></div>
-                  </div>
-                ) : llmInsightText ? (
-                  <div className="text-sm text-indigo-800 leading-relaxed whitespace-pre-line mt-3 border-t border-indigo-100 pt-3">
-                    {llmInsightText}
-                  </div>
-                ) : (
-                  <div className="text-sm text-indigo-600/80 leading-relaxed mt-1">
-                    우측 상단의 버튼을 눌러 현재 차트 지표(노출, 클릭, 전환, 비용)에 대한 맞춤형 AI 상세 분석 리포트를 받아보세요!
-                  </div>
-                )}
-              </div>
-            </div>
           </div>
         );
       })()}
@@ -624,7 +540,7 @@ export default function InsightsPage() {
             {/* Platform Performance Chart */}
             <div className="bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-gray-100">
               <h2 className="text-lg font-semibold text-gray-900 mb-4">플랫폼별 광고비 분포</h2>
-              <div className="h-[250px] sm:h-[300px]">
+              <div className="h-[250px] sm:h-[300px] min-w-0">
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
                     <Pie
@@ -649,7 +565,7 @@ export default function InsightsPage() {
             {/* Platform ROAS Comparison */}
             <div className="bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-gray-100">
               <h2 className="text-lg font-semibold text-gray-900 mb-4">플랫폼별 ROAS 비교</h2>
-              <div className="h-[250px] sm:h-[300px]">
+              <div className="h-[250px] sm:h-[300px] min-w-0">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={comparison.platforms}>
                     <CartesianGrid strokeDasharray="3 3" />
@@ -720,101 +636,11 @@ export default function InsightsPage() {
             </table>
           </div>
           
-          {/* 💡 [수정됨] 매체 비교 분석 전용 AI 돋보기 */}
-          <div className="bg-gradient-to-br from-blue-50 to-indigo-50 p-5 border-t border-blue-100">
-            <div className="flex items-start gap-3">
-              <Target className="w-6 h-6 text-blue-600 flex-shrink-0 mt-0.5" />
-              <div className="w-full">
-                <div className="flex justify-between items-center mb-2">
-                  <p className="font-bold text-blue-900 text-base flex items-center gap-2">
-                    🤖 크로스 미디어 AI 전략 리포트
-                    {platformInsightLoading && <span className="text-xs text-blue-500 font-normal animate-pulse">(매체 간 효율을 꼼꼼히 비교하고 있어요...)</span>}
-                  </p>
-                  
-                  {!platformInsightText && !platformInsightLoading && (
-                    <button 
-                      onClick={() => platformMutation.mutate(false)}
-                      className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-md transition-colors flex items-center gap-1 shadow-sm"
-                    >
-                      <Sparkles className="w-4 h-4" />
-                      매체 비교 분석 실행하기
-                    </button>
-                  )}
-                  {/* 💡 [추가됨] 분석 결과가 이미 있을 때 표시되는 다시 분석하기(캐시 무시) 버튼 */}
-                  {platformInsightText && !platformInsightLoading && (
-                    <button 
-                      onClick={() => platformMutation.mutate(true)}
-                      className="px-3 py-1.5 bg-white border border-blue-200 hover:bg-blue-50 text-blue-600 text-sm font-medium rounded-md transition-colors flex items-center gap-1 shadow-sm"
-                    >
-                      <RefreshCw className="w-4 h-4" />
-                      다시 분석하기
-                    </button>
-                  )}
-                </div>
-
-                {platformInsightLoading ? (
-                  <div className="space-y-2 animate-pulse mt-3 border-t border-blue-200 pt-3">
-                    <div className="h-4 bg-blue-200 rounded w-3/4"></div>
-                    <div className="h-4 bg-blue-200 rounded w-full"></div>
-                    <div className="h-4 bg-blue-200 rounded w-5/6"></div>
-                  </div>
-                ) : platformInsightText ? (
-                  <div className="text-sm text-blue-900 leading-relaxed whitespace-pre-line mt-3 border-t border-blue-200 pt-3">
-                    {platformInsightText}
-                  </div>
-                ) : (
-                  <div className="text-sm text-blue-600/80 leading-relaxed mt-1">
-                    우측 상단의 버튼을 눌러 각 매체별 예산 누수를 잡고 최적의 예산 재배분 전략을 받아보세요!
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
         </div>
         </div>
       )}
 
 
-      {/* Summary Statistics */}
-      {recommendations && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 sm:gap-6">
-          <div className="bg-gradient-to-br from-blue-50 to-blue-100 p-4 sm:p-6 rounded-xl border border-blue-200">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs sm:text-sm text-blue-600 font-medium">분석 캠페인 수</p>
-                <p className="text-2xl sm:text-3xl font-bold text-blue-900 mt-1 sm:mt-2">
-                  {recommendations.summary.total_campaigns}
-                </p>
-              </div>
-              <BarChart3 className="w-8 h-8 sm:w-12 sm:h-12 text-blue-400" />
-            </div>
-          </div>
-
-          <div className="bg-gradient-to-br from-green-50 to-green-100 p-4 sm:p-6 rounded-xl border border-green-200">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs sm:text-sm text-green-600 font-medium">고성과 캠페인</p>
-                <p className="text-2xl sm:text-3xl font-bold text-green-900 mt-1 sm:mt-2">
-                  {recommendations.summary.high_performers}
-                </p>
-              </div>
-              <TrendingUp className="w-8 h-8 sm:w-12 sm:h-12 text-green-400" />
-            </div>
-          </div>
-
-          <div className="bg-gradient-to-br from-yellow-50 to-yellow-100 p-4 sm:p-6 rounded-xl border border-yellow-200 sm:col-span-2 md:col-span-1">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs sm:text-sm text-yellow-600 font-medium">개선 필요 캠페인</p>
-                <p className="text-2xl sm:text-3xl font-bold text-yellow-900 mt-1 sm:mt-2">
-                  {recommendations.summary.needs_optimization}
-                </p>
-              </div>
-              <AlertCircle className="w-8 h-8 sm:w-12 sm:h-12 text-yellow-400" />
-            </div>
-          </div>
-        </div>
-      )}
     </div>
 
     {/* --- 튜토리얼 오버레이 --- */}

@@ -429,6 +429,10 @@ export default function MonthlyReportPage() {
   // Recharts SVG 애니메이션 완료 대기
   await new Promise(resolve => setTimeout(resolve, 3500)); // [2026-03-13] 차트 렌더링 대기 1500→3500ms
 
+  // 실제 DOM에 PDF 렌더링 보정 클래스 적용 (computed style에 반영되도록)
+  document.body.classList.add('pdf-rendering');
+  await new Promise(resolve => setTimeout(resolve, 100));
+
   try {
     const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
     const A4_W = 210;
@@ -524,6 +528,7 @@ export default function MonthlyReportPage() {
     console.error('PDF 생성 실패:', err);
     alert('PDF 생성 중 오류가 발생했습니다.');
   } finally {
+    document.body.classList.remove('pdf-rendering');
     setIsExporting(false);
   }
 };
@@ -666,7 +671,7 @@ export default function MonthlyReportPage() {
     <div className="min-h-[calc(100vh-64px)] bg-gray-50 flex flex-col">
       {/* ── 헤더 ── */}
       <div className="bg-white border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8 pb-6">
           <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
             <div>
               <div className="flex items-center gap-2 mb-2">
