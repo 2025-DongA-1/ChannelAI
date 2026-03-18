@@ -41,6 +41,78 @@ const makeHeaderImg = (tabLabel: string, month: string): string => {
   return c.toDataURL('image/png');
 };
 
+// ─── PDF 공통 생성 로직 (3곳에서 공유) ──────────────────────────────────────────
+const generatePDF = async (
+  tabRefs: React.RefObject<HTMLDivElement | null>[],
+  tabLabels: string[],
+  month: string
+): Promise<jsPDF> => {
+  const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  const A4_W = 210, A4_H = 297, MARGIN = 10, CONTENT_W = A4_W - MARGIN * 2;
+  const HEADER_H = 16;
+  let isFirstPage = true;
+
+  for (let i = 0; i < tabRefs.length; i++) {
+    const el = tabRefs[i].current;
+    if (!el) continue;
+
+    const canvas = await html2canvas(el, {
+      scale: 2, useCORS: true, backgroundColor: '#ffffff', logging: false, windowWidth: 1280,
+      onclone: (doc) => {
+        const style = doc.createElement('style');
+        style.innerHTML = `
+          svg text {
+            dominant-baseline: central !important;
+            alignment-baseline: central !important;
+          }
+          td, th { vertical-align: middle !important; }
+          * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+        `;
+        doc.head.appendChild(style);
+      }
+    });
+
+    const imgW = canvas.width, imgH = canvas.height;
+
+    // ── 정수 픽셀 기준으로 계산하여 부동소수점 오차를 원천 차단 ──
+    // PDF 1페이지에 들어갈 소스 픽셀 높이를 먼저 확정
+    const pageContentH_mm = A4_H - HEADER_H - MARGIN;
+    const pxPerMm = imgW / CONTENT_W; // 소스 캔버스 기준 1mm당 픽셀
+    const pageSlicePx = Math.floor(pageContentH_mm * pxPerMm); // 한 페이지당 소스 픽셀 높이 (정수)
+    let srcYPx = 0; // 소스 캔버스에서의 현재 오프셋 (정수 픽셀)
+
+    while (srcYPx < imgH) {
+      if (!isFirstPage) pdf.addPage();
+      isFirstPage = false;
+
+      pdf.addImage(makeHeaderImg(tabLabels[i], month), 'PNG', 0, 0, A4_W, HEADER_H);
+
+      // 남은 높이가 한 페이지보다 작으면 남은 만큼만
+      const curSlicePx = Math.min(pageSlicePx, imgH - srcYPx);
+
+      // 슬라이스 캔버스: 소스와 동일한 정수 픽셀 크기로 생성
+      const slice = document.createElement('canvas');
+      slice.width = imgW;
+      slice.height = curSlicePx;
+      const ctx = slice.getContext('2d')!;
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, imgW, curSlicePx);
+      // drawImage 인자를 모두 정수로 통일하여 스케일 왜곡 제거
+      ctx.drawImage(canvas, 0, srcYPx, imgW, curSlicePx, 0, 0, imgW, curSlicePx);
+
+      // mm 변환은 최종 PDF 삽입 시에만 수행
+      const sliceH_mm = (curSlicePx / pxPerMm);
+      pdf.addImage(slice.toDataURL('image/png'), 'PNG', MARGIN, HEADER_H + 2, CONTENT_W, sliceH_mm);
+      srcYPx += curSlicePx;
+
+      slice.width = 0; slice.height = 0;
+    }
+    canvas.width = 0; canvas.height = 0;
+  }
+
+  return pdf;
+};
+
 // ─── 유틸 ────────────────────────────────────────────────────────────────────
 const PLATFORM_COLORS: Record<string, string> = { meta: "#3b82f6", google: "#ef4444", naver: "#22c55e", karrot: "#f97316" };
 const PLATFORM_LABELS: Record<string, string> = { meta: "Meta", google: "Google", naver: "Naver", karrot: "Karrot" };
@@ -88,7 +160,7 @@ const diff = (cur: number, prev: number) => prev === 0 ? 0 : Math.round((cur - p
 const Badge = ({ value }: { value: number }) => {
   const up = value >= 0;
   return (
-    <span className={`inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-md ${
+    <span className={`inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-md leading-none ${
       up ? "text-green-600 bg-green-50" : "text-red-600 bg-red-50"
     }`}>
       {up ? "▲" : "▼"} {Math.abs(value)}%
@@ -107,7 +179,7 @@ const KpiCard = ({ label, value, sub, delta, icon }: any) => (
     </div>
     <div className="text-2xl font-bold text-gray-900 tracking-tight">{value}</div>
     <div className="mt-2 flex items-center gap-2">
-      <span className="text-xs text-gray-400">{sub}</span>
+      <span className="text-xs text-gray-400 leading-none">{sub}</span>
       {delta !== undefined && <Badge value={delta} />}
     </div>
   </div>
@@ -319,65 +391,15 @@ export default function MonthlyReportPage() {
   // [2026-03-11 12:45] 백엔드 Puppeteer 스크래핑용 자동 PDF 변환 로직
   const autoExportPDF = async (month: string) => {
     setIsExporting(true);
-    await new Promise(resolve => setTimeout(resolve, 3500)); // [2026-03-13] 차트 애니메이션 대기 2000→3500ms
+    await new Promise(resolve => setTimeout(resolve, 500));
     try {
-      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-      const A4_W = 210, A4_H = 297, MARGIN = 10, CONTENT_W = A4_W - MARGIN * 2;
       const TAB_LABELS = ["종합 성과 현황", "채널별 분석 데이터", "기간별 성과 추이", "캠페인별 상세 성과"];
-      let isFirstPage = true;
-
-      for (let i = 0; i < TAB_REFS.length; i++) {
-        const ref = TAB_REFS[i];
-        if (!ref.current) continue;
-
-        const canvas = await html2canvas(ref.current, {
-          scale: 2, useCORS: true, backgroundColor: '#ffffff', logging: false, windowWidth: 1280,
-          onclone: (doc) => {
-            const style = doc.createElement('style');
-            style.innerHTML = `
-              svg text { dominant-baseline: central !important; }
-              td, th { vertical-align: middle !important; }
-            `;
-            doc.head.appendChild(style);
-          }
-        });
-
-        const imgW = canvas.width, imgH = canvas.height, HEADER_H = 16;
-        const renderedH = (imgH * CONTENT_W) / imgW;
-        let yOffset = 0;
-
-        while (yOffset < renderedH) {
-          if (!isFirstPage) pdf.addPage();
-          isFirstPage = false;
-
-          pdf.addImage(makeHeaderImg(TAB_LABELS[i], month), 'PNG', 0, 0, A4_W, HEADER_H);
-
-          const pageContentH = A4_H - HEADER_H - MARGIN;
-          const sliceH = Math.min(pageContentH, renderedH - yOffset);
-          const srcY = (yOffset / renderedH) * imgH;
-          const srcSliceH = (sliceH / renderedH) * imgH;
-
-          const slice = document.createElement('canvas');
-          slice.width = imgW;
-          slice.height = Math.round(srcSliceH);
-          const ctx = slice.getContext('2d')!;
-
-          ctx.fillStyle = '#ffffff';
-          ctx.fillRect(0, 0, slice.width, slice.height);
-
-          ctx.drawImage(canvas, 0, srcY, imgW, srcSliceH, 0, 0, imgW, Math.round(srcSliceH));
-
-          pdf.addImage(slice.toDataURL('image/png'), 'PNG', MARGIN, HEADER_H + 2, CONTENT_W, sliceH);
-          yOffset += sliceH;
-        }
-      }
-      // [2026-03-13] PDF 파일 다운로드 저장
+      const pdf = await generatePDF(TAB_REFS, TAB_LABELS, month);
       pdf.save(`ChannelAI_통합리포트_${month}.pdf`);
     } catch (e) {
-      console.error(e);
+      console.error('PDF 자동 생성 실패:', e);
     } finally {
       setIsExporting(false);
-      // [2026-03-13] redirect 파라미터가 있으면 PDF 저장 완료 후 해당 페이지로 복귀
       const params = new URLSearchParams(window.location.search);
       const redirect = params.get('redirect');
       if (redirect) navigate(`/${redirect}`);
@@ -401,104 +423,29 @@ export default function MonthlyReportPage() {
    * 즉시 다운로드 가능한 완벽한 PDF 파일로 변환하여 받아옵니다.
    */
   const handleDownloadPDF = async () => {
-  setIsExporting(true); // 모든 탭 DOM 강제 렌더
+    setIsExporting(true);
 
-  // [2026-03-13] PRO 플랜 사용자이고 AI 분석 결과가 없으면 PDF 전에 자동 갱신 실행
-  if (user?.plan === 'PRO' && !insights) {
-    try {
-      await llmMutation.mutateAsync(false); // forceRefresh: false (캐시 우선)
-    } catch (e) {
-      console.warn('PRO 플랜 AI 분석 자동 실행 실패, PDF는 계속 진행:', e);
-    }
-  }
-
-  // Recharts SVG 애니메이션 완료 대기
-  await new Promise(resolve => setTimeout(resolve, 3500)); // [2026-03-13] 차트 렌더링 대기 1500→3500ms
-
-  try {
-    const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-    const A4_W = 210;
-    const A4_H = 297;
-    const MARGIN = 10;
-    const CONTENT_W = A4_W - MARGIN * 2;
-    const TAB_LABELS = ["종합 성과 현황", "채널별 분석 데이터", "기간별 성과 추이", "캠페인별 상세 성과"];
-    let isFirstPage = true;
-
-    for (let i = 0; i < TAB_REFS.length; i++) {
-      const ref = TAB_REFS[i];
-      const el = ref.current;
-      if (!el) continue;
-
-      const canvas = await html2canvas(el, {
-        scale: 2,
-        useCORS: true,
-        backgroundColor: '#ffffff',
-        logging: false,
-        windowWidth: 1280,
-        onclone: (doc) => {
-          const style = doc.createElement('style');
-          style.innerHTML = `
-            svg text { dominant-baseline: central !important; }
-            td, th { vertical-align: middle !important; }
-          `;
-          doc.head.appendChild(style);
-        }
-      });
-
-      const imgW = canvas.width;
-      const imgH = canvas.height;
-      const HEADER_H = 16;   // 헤더 띠 높이(mm)
-      const renderedH = (imgH * CONTENT_W) / imgW;
-
-      let yOffset = 0;
-
-      while (yOffset < renderedH) {
-        // ── 페이지 추가 ──
-        if (!isFirstPage) pdf.addPage();
-        isFirstPage = false;
-
-        // ── 상단 헤더 (canvas로 한글 렌더링) ──
-        pdf.addImage(makeHeaderImg(TAB_LABELS[i], selectedMonth), 'PNG', 0, 0, A4_W, HEADER_H);
-
-        // ── 콘텐츠 이미지 슬라이스 ──
-        const pageContentH = A4_H - HEADER_H - MARGIN;     // 헤더 제외 실제 콘텐츠 높이
-        const sliceH    = Math.min(pageContentH, renderedH - yOffset);
-        const srcY      = (yOffset / renderedH) * imgH;
-        const srcSliceH = (sliceH / renderedH) * imgH;
-
-        const slice = document.createElement('canvas');
-        slice.width  = imgW;
-        slice.height = Math.round(srcSliceH);
-        const ctx = slice.getContext('2d')!;
-
-        ctx.fillStyle = '#ffffff';
-        ctx.fillRect(0, 0, slice.width, slice.height);
-
-        ctx.drawImage(canvas, 0, srcY, imgW, srcSliceH, 0, 0, imgW, Math.round(srcSliceH));
-
-        pdf.addImage(
-          slice.toDataURL('image/jpeg', 1.0),
-          'JPEG',
-          MARGIN,
-          HEADER_H + 2,   // 헤더 바로 아래부터 시작
-          CONTENT_W,
-          sliceH
-        );
-
-        yOffset += sliceH;
+    if (user?.plan === 'PRO' && !insights) {
+      try {
+        await llmMutation.mutateAsync(false);
+      } catch (e) {
+        console.warn('PRO 플랜 AI 분석 자동 실행 실패, PDF는 계속 진행:', e);
       }
     }
 
+    await new Promise(resolve => setTimeout(resolve, 3500));
 
-    pdf.save(`ChannelAI_통합리포트_${selectedMonth}.pdf`);
-
-  } catch (err) {
-    console.error('PDF 생성 실패:', err);
-    alert('PDF 생성 중 오류가 발생했습니다.');
-  } finally {
-    setIsExporting(false);
-  }
-};
+    try {
+      const TAB_LABELS = ["종합 성과 현황", "채널별 분석 데이터", "기간별 성과 추이", "캠페인별 상세 성과"];
+      const pdf = await generatePDF(TAB_REFS, TAB_LABELS, selectedMonth);
+      pdf.save(`ChannelAI_통합리포트_${selectedMonth}.pdf`);
+    } catch (err) {
+      console.error('PDF 생성 실패:', err);
+      alert('PDF 생성 중 오류가 발생했습니다.');
+    } finally {
+      setIsExporting(false);
+    }
+  };
 
   /** PDF 생성 후 이메일로 발송 */
   const handleSendByEmail = async () => {
@@ -512,44 +459,8 @@ export default function MonthlyReportPage() {
     await new Promise(resolve => setTimeout(resolve, 3500));
 
     try {
-      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-      const A4_W = 210, A4_H = 297, MARGIN = 10, CONTENT_W = A4_W - MARGIN * 2;
       const TAB_LABELS = ["종합 성과 현황", "채널별 분석 데이터", "기간별 성과 추이", "캠페인별 상세 성과"];
-      let isFirstPage = true;
-
-      for (let i = 0; i < TAB_REFS.length; i++) {
-        const el = TAB_REFS[i].current;
-        if (!el) continue;
-        const canvas = await html2canvas(el, {
-          scale: 2, useCORS: true, backgroundColor: '#ffffff', logging: false, windowWidth: 1280,
-          onclone: (doc) => {
-            const style = doc.createElement('style');
-            style.innerHTML = `svg text { dominant-baseline:central !important; } td,th { vertical-align:middle !important; }`;
-            doc.head.appendChild(style);
-          }
-        });
-        const imgW = canvas.width, imgH = canvas.height, HEADER_H = 16;
-        const renderedH = (imgH * CONTENT_W) / imgW;
-        let yOffset = 0;
-        while (yOffset < renderedH) {
-          if (!isFirstPage) pdf.addPage();
-          isFirstPage = false;
-          pdf.addImage(makeHeaderImg(TAB_LABELS[i], selectedMonth), 'PNG', 0, 0, A4_W, HEADER_H);
-          const pageContentH = A4_H - HEADER_H - MARGIN;
-          const sliceH = Math.min(pageContentH, renderedH - yOffset);
-          const srcY = (yOffset / renderedH) * imgH;
-          const srcSliceH = (sliceH / renderedH) * imgH;
-          const slice = document.createElement('canvas');
-          slice.width = imgW;
-          slice.height = Math.round(srcSliceH);
-          const ctx = slice.getContext('2d')!;
-          ctx.fillStyle = '#ffffff';
-          ctx.fillRect(0, 0, slice.width, slice.height);
-          ctx.drawImage(canvas, 0, srcY, imgW, srcSliceH, 0, 0, imgW, Math.round(srcSliceH));
-          pdf.addImage(slice.toDataURL('image/jpeg', 1.0), 'JPEG', MARGIN, HEADER_H + 2, CONTENT_W, sliceH);
-          yOffset += sliceH;
-        }
-      }
+      const pdf = await generatePDF(TAB_REFS, TAB_LABELS, selectedMonth);
 
       const blob = pdf.output('blob');
       const formData = new FormData();
@@ -557,7 +468,9 @@ export default function MonthlyReportPage() {
       formData.append('email', emailTarget.trim());
       formData.append('month', selectedMonth);
 
-      await api.post('/report/send-pdf', formData);
+      await api.post('/report/send-pdf', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
 
       setEmailSending('success');
       setTimeout(() => { setEmailSending('idle'); setShowEmailPanel(false); }, 3000);
@@ -1105,7 +1018,7 @@ export default function MonthlyReportPage() {
           </div>
 
           {/* ===== 탭 3: 추이 분석 ===== */}
-          <div  ref={trendRef} className={`${(activeTab === "trend" || isExporting) ? "block" : "hidden"} ${!isExporting ? 'animate-fade-in-up' : ''} space-y-6`}>
+          <div  ref={trendRef} className={`${(activeTab === "trend" || isExporting) ? "block" : "hidden"} ${!isExporting ? 'animate-fade-in-up' : ''} space-y-6 ${isExporting ? 'mb-24 page-break-after' : ''}`}>
               
               {/* 🤖 [2026-03-13] 각 탭 내부에 AI 분석 블록 표시 (trendSummary) */}
               {isPro ? (
@@ -1287,7 +1200,7 @@ export default function MonthlyReportPage() {
                                   {c.status === 'active' ? '● ACTIVE' : '○ PAUSED'}
                                 </span>
                               </div>
-                              <p className="text-base font-bold text-gray-900 truncate max-w-[280px]" title={c.campaign_name}>
+                              <p className="text-base font-bold text-gray-900 truncate max-w-[360px]" title={c.campaign_name}>
                                 {c.campaign_name}
                               </p>
                             </div>
@@ -1373,7 +1286,7 @@ export default function MonthlyReportPage() {
                   <ResponsiveContainer width="100%" height={280}>
                     <BarChart
                       data={campaigns.slice(0, 8).map((c: any) => ({
-                        name: c.campaign_name.length > 16 ? c.campaign_name.slice(0, 16) + '…' : c.campaign_name,
+                        name: c.campaign_name.length > 20 ? c.campaign_name.slice(0, 20) + '…' : c.campaign_name,
                         광고비: c.cost,
                         ROAS: c.roas,
                         color: PLATFORM_COLORS[c.platform] || '#6b7280',
@@ -1437,7 +1350,7 @@ export default function MonthlyReportPage() {
                           return (
                             <tr key={c.campaign_id} className="hover:bg-gray-50/60 transition-colors">
                               {/* 캠페인명 */}
-                              <td className="px-4 py-4 max-w-[280px]">
+                              <td className="px-4 py-4 max-w-[360px]">
                                 <p className="font-semibold text-gray-800 truncate" title={c.campaign_name}>{c.campaign_name}</p>
                               </td>
                               {/* 채널 뱃지 */}

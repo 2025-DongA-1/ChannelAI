@@ -9,11 +9,9 @@ import {
   TrendingUp,
   TrendingDown,
   BarChart3,
-  Lightbulb,
   Calendar,
   Download,
   AlertCircle,
-  CheckCircle,
   Target,
   Sparkles,
   RefreshCw,
@@ -150,7 +148,7 @@ export default function InsightsPage() {
   });
 
   // AI 추천 데이터 (캠페인 ID 파라미터 추가)
-  const { data: recommendationsData, isLoading: recommendationsLoading } = useQuery({
+  const { data: recommendationsData } = useQuery({
     queryKey: ['insights-recommendations', selectedCampaign],
     queryFn: () => insightsAPI.getRecommendations({
       campaign_id: selectedCampaign === 'all' ? undefined : selectedCampaign,
@@ -223,18 +221,6 @@ export default function InsightsPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedMonth]);
 
-  // 🤖 [추가됨] 플랫폼 비교 전용 크로스 미디어 분석 API 호출
-  const platformMutation = useMutation({
-    // 💡 [수정됨] forceRefresh 값을 받아서 백엔드로 넘겨줍니다.
-    mutationFn: async (forceRefresh: boolean = false) => {
-      const response = await api.post('/ai/agent/generate-platform-insights', {
-        platformData: comparison,
-        forceRefresh, 
-      });
-      return response.data;
-    }
-  });
-
 
   // 💡 [추가됨] 캠페인 드롭다운 변경 시 해당 캠페인의 최초 월로 자동 업데이트합니다!
   const handleCampaignChange = (e: any) => {
@@ -262,9 +248,17 @@ export default function InsightsPage() {
       const canvas = await html2canvas(contentRef.current, {
         scale: 2,
         useCORS: true,
-        backgroundColor: '#f9fafb',
+        backgroundColor: '#ffffff',
         logging: false,
         windowWidth: 1280,
+        onclone: (doc) => {
+          const style = doc.createElement('style');
+          style.innerHTML = `
+            svg text { dominant-baseline: central !important; }
+            td, th { vertical-align: middle !important; }
+          `;
+          doc.head.appendChild(style);
+        }
       });
 
       const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
@@ -286,10 +280,20 @@ export default function InsightsPage() {
         slice.width = imgW;
         slice.height = Math.round(srcSliceH);
         const ctx = slice.getContext('2d')!;
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, slice.width, slice.height);
         ctx.drawImage(canvas, 0, srcY, imgW, srcSliceH, 0, 0, imgW, Math.round(srcSliceH));
-        pdf.addImage(slice.toDataURL('image/jpeg', 0.92), 'JPEG', MARGIN, MARGIN, CONTENT_W, sliceH);
+        pdf.addImage(slice.toDataURL('image/png'), 'PNG', MARGIN, MARGIN, CONTENT_W, sliceH);
         yOffset += sliceH;
+
+        // 슬라이스 캔버스 메모리 해제
+        slice.width = 0;
+        slice.height = 0;
       }
+
+      // 원본 캔버스 메모리 해제
+      canvas.width = 0;
+      canvas.height = 0;
 
       const today = new Date().toISOString().split('T')[0];
       pdf.save(`ChannelAI_인사이트_${today}.pdf`);
@@ -313,30 +317,6 @@ export default function InsightsPage() {
     return 'text-gray-600';
   };
 
-  const getPriorityColor = (priority: string | number) => {
-    const p = typeof priority === 'number' ? priority : priority;
-    switch (p) {
-      case 'high': case 1: return 'bg-red-100 text-red-800 border-red-200';
-      case 'medium': case 2: return 'bg-yellow-100 text-yellow-800 border-yellow-200';
-      case 'low': case 3: return 'bg-blue-100 text-blue-800 border-blue-200';
-      default: return 'bg-gray-100 text-gray-800 border-gray-200';
-    }
-  };
-
-  const getRecommendationIcon = (type: string) => {
-    switch (type) {
-      case 'budget_increase':
-        return <TrendingUp className="w-5 h-5 text-green-600" />;
-      case 'budget_decrease':
-        return <TrendingDown className="w-5 h-5 text-red-600" />;
-      case 'creative_optimization':
-        return <Target className="w-5 h-5 text-blue-600" />;
-      case 'platform_diversification':
-        return <BarChart3 className="w-5 h-5 text-purple-600" />;
-      default:
-        return <Lightbulb className="w-5 h-5 text-yellow-600" />;
-    }
-  };
 
   const COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6'];
 
