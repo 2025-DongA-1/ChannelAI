@@ -161,7 +161,7 @@ export default function DashboardPage() {
     { targetId: 'dashboard-tabs', title: '탭 전환', content: '전체 성과와 개별 캠페인 성과를 각각 상세히 확인할 수 있습니다.' },
     { targetId: 'dashboard-metrics', title: '핵심 지표 요약', content: '총 노출수, 클릭수, 광고비, 전환수 등 주요 성과 수치를 한눈에 파악하세요.' },
     { targetId: 'dashboard-performance', title: '광고 효율 지표', content: 'CTR, CPC, ROAS 등 현재 마케팅 성과가 좋은지 나쁜지 벤치마크 진단을 통해 확인하세요.' },
-    { targetId: 'dashboard-ai-trend', title: 'AI 트렌드 분석', content: '소규모 자본에 맞춰, 수익률(ROAS)이 가장 높은 매체에 최적인 예산 분배를 제안합니다. 분석 실행하기 버튼을 클릭해보세요!' }
+    { targetId: 'dashboard-ai-trend', title: 'AI 트렌드 분석', content: '소규모 자본에 맞춰, 수익률(ROAS)이 가장 높은 매체에 최적인 예산 분배를 제안합니다. 광고 시작 전 어느 매체에 광고를 해야 성과가 나올지 트렌드를 전문적으로 분석해드립니다!' }
   ];
 
   const TOUR_STEPS = tourType === 'nav' ? NAV_TOUR_STEPS : DASH_TOUR_STEPS;
