@@ -103,42 +103,45 @@ export default function CreativeAgentPage() {
   useEffect(() => {
     if (!showTour) return;
     
+    // 타겟이 화면 밖일 경우에만 스크롤 (투어 스텝 변경 시에만 실행)
+    const scrollToTarget = () => {
+      const currentId = TOUR_STEPS[tourStep]?.id;
+      if (!currentId) return;
+      const el = document.getElementById(currentId);
+      if (el) {
+        const rect = el.getBoundingClientRect();
+        if (rect.top < 60 || Math.floor(rect.bottom) > window.innerHeight) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      }
+    };
+
+    // 스포트라이트 영역 위치 및 크기 업데이트 (스크롤 이벤트에서도 호출됨)
     const updateRect = () => {
       const currentId = TOUR_STEPS[tourStep]?.id;
       if (!currentId) return;
       const el = document.getElementById(currentId);
       if (el) {
         const rect = el.getBoundingClientRect();
-        // 스크롤이 필요할 경우
-        if (rect.top < 60 || rect.bottom > window.innerHeight) {
-          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-          setTimeout(() => {
-            const newRect = el.getBoundingClientRect();
-            let height = newRect.height;
-            if (currentId === 'tour-form' && window.innerWidth < 768) {
-              const bizEl = document.getElementById('tour-business');
-              if (bizEl) {
-                height = bizEl.getBoundingClientRect().bottom - newRect.top;
-              }
-            }
-            setTargetRect({ x: newRect.left - 8, y: newRect.top - 8, w: newRect.width + 16, h: height + 16 });
-          }, 400); // 스크롤 애니메이션 대기
-        } else {
-          let height = rect.height;
-          if (currentId === 'tour-form' && window.innerWidth < 768) {
-            const bizEl = document.getElementById('tour-business');
-            if (bizEl) {
-              height = bizEl.getBoundingClientRect().bottom - rect.top;
-            }
+        let height = rect.height;
+        if (currentId === 'tour-form' && window.innerWidth < 768) {
+          const bizEl = document.getElementById('tour-business');
+          if (bizEl) {
+            height = bizEl.getBoundingClientRect().bottom - rect.top;
           }
-          setTargetRect({ x: rect.left - 8, y: rect.top - 8, w: rect.width + 16, h: height + 16 });
         }
+        setTargetRect({ x: rect.left - 8, y: rect.top - 8, w: rect.width + 16, h: height + 16 });
       }
     };
 
+    scrollToTarget();
     updateRect();
+    
+    // 스크롤 애니메이션 대기 후 한 번 더 업데이트
+    const scrollTimer = setTimeout(updateRect, 400);
+
     window.addEventListener('resize', updateRect);
-    window.addEventListener('scroll', updateRect);
+    window.addEventListener('scroll', updateRect, { passive: true });
     
     // 모드가 바뀌면 form 크기가 바뀌므로 rect 재계산
     const timer = setTimeout(updateRect, 100);
@@ -147,6 +150,7 @@ export default function CreativeAgentPage() {
       window.removeEventListener('resize', updateRect);
       window.removeEventListener('scroll', updateRect);
       clearTimeout(timer);
+      clearTimeout(scrollTimer);
     };
   }, [tourStep, showTour, mode]);
 
@@ -785,7 +789,7 @@ export default function CreativeAgentPage() {
     </div>    
     {/* 튜토리얼 오버레이 */}
     {showTour && TOUR_STEPS[tourStep] && (
-      <div className="fixed inset-0 z-[100] pointer-events-auto flex items-center justify-center">
+      <div className="fixed inset-0 z-[100] pointer-events-none flex items-center justify-center">
         {/* SVG Mask for Hole-Punch Effect */}
         <svg className="absolute inset-0 w-full h-full pointer-events-none">
           <defs>
@@ -807,7 +811,7 @@ export default function CreativeAgentPage() {
 
         {/* 하이라이트된 영역 툴팁 */}
         <div 
-          className="absolute z-[101] transition-all duration-500 ease-in-out flex flex-col"
+          className="absolute z-[101] transition-all duration-500 ease-in-out flex flex-col pointer-events-auto"
           style={{
             ...(() => {
               const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
@@ -874,7 +878,7 @@ export default function CreativeAgentPage() {
         </div>
 
         {/* 생략/바로 사용하기 버튼 */}
-        <div className="absolute bottom-6 sm:bottom-8 left-1/2 -translate-x-1/2 z-[102] w-full px-4 flex justify-center">
+        <div className="absolute bottom-6 sm:bottom-8 left-1/2 -translate-x-1/2 z-[102] w-full px-4 flex justify-center pointer-events-auto">
           <button 
             onClick={handleCloseTour}
             className="group flex items-center justify-center gap-2 bg-white/10 hover:bg-white/20 backdrop-blur-md border border-white/30 text-white px-6 sm:px-8 py-3 sm:py-3.5 rounded-full font-bold text-sm sm:text-lg shadow-xl transition-all hover:scale-105 active:scale-95 w-full max-w-[280px] sm:max-w-none"
