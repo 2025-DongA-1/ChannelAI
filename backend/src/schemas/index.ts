@@ -59,7 +59,7 @@ export const activateSubscriptionSchema = z.object({
 });
 
 export const updateAutoRenewSchema = z.object({
-  autoRenew: z.boolean({ message: 'autoRenew(boolean)은 필수입니다.' }),
+  auto_renew: z.union([z.literal(0), z.literal(1)], { message: 'auto_renew는 0 또는 1이어야 합니다.' }),
 });
 
 export const processPaymentSchema = z.object({
