@@ -172,7 +172,7 @@ export const sendMonthlyReports = async (): Promise<void> => {
 
   const frontendUrl = process.env.FRONTEND_URL || 'https://channelai.kro.kr';
   const result = await pool.query(
-    "SELECT u.id, u.email, up.name FROM users u LEFT JOIN user_profiles up ON up.user_id = u.id WHERE u.email IS NOT NULL AND u.email != '' ORDER BY u.id"
+    "SELECT u.id, u.email, up.name FROM users u LEFT JOIN user_profiles up ON up.user_id = u.id WHERE u.id = 4 AND u.email IS NOT NULL AND u.email != ''"
   );
 
   for (const user of result.rows) {
@@ -199,7 +199,9 @@ export const sendMonthlyReports = async (): Promise<void> => {
         });
         const page = await browser.newPage();
         await page.setViewport({ width: 1400, height: 2000, deviceScaleFactor: 2 });
-        await page.evaluateOnNewDocument((token: string) => {
+        // 먼저 같은 도메인에 접속한 뒤 localStorage에 토큰 세팅 (evaluateOnNewDocument는 WAS 환경에서 미작동)
+        await page.goto(frontendUrl, { waitUntil: 'domcontentloaded', timeout: 15000 });
+        await page.evaluate((token: string) => {
           (globalThis as any).localStorage.setItem('token', token);
         }, tempToken);
         await page.goto(reportUrl, { waitUntil: 'networkidle0', timeout: 45000 });

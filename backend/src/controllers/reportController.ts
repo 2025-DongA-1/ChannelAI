@@ -97,8 +97,9 @@ export const triggerSendToEmail = async (req: AuthRequest, res: Response) => {
           // 뷰포트 설정 (긴 페이지 대응)
           await page.setViewport({ width: 1400, height: 2000, deviceScaleFactor: 2 });
 
-          // localStorage에 토큰 세팅 (인증 우회)
-          await page.evaluateOnNewDocument((token: string) => {
+          // 먼저 같은 도메인에 접속한 뒤 localStorage에 토큰 세팅 (evaluateOnNewDocument는 WAS 환경에서 미작동)
+          await page.goto(frontendUrl, { waitUntil: 'domcontentloaded', timeout: 15000 });
+          await page.evaluate((token: string) => {
             (globalThis as any).localStorage.setItem('token', token);
           }, tempToken);
 
