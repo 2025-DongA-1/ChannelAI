@@ -247,6 +247,8 @@ jobs:
               DEBIAN_FRONTEND=noninteractive sudo -E apt-get install -y libnss3 libatk1.0-0 libatk-bridge2.0-0 libcups2 libdrm2 libxkbcommon0 libxcomposite1 libxdamage1 libxfixes3 libxrandr2 libgbm1 libpango-1.0-0 libcairo2 libasound2 fonts-liberation fonts-noto-cjk
             fi
 
+            npm config set proxy http://10.10.10.6:3128
+            npm config set https-proxy http://10.10.10.6:3128
             npm install --include=dev --no-audit --no-fund
 
             # ========== 5-1. 프록시 주입 스크립트 생성 ==========

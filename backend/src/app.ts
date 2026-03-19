@@ -26,6 +26,13 @@ import path from 'path';
 // 환경 변수 로드
 dotenv.config();
 
+// 서버 환경에서 외부 API(Resend 등) 호출 시 프록시를 통하도록 설정
+// Node.js native fetch는 HTTP_PROXY 환경변수를 자동으로 따르지 않으므로 명시적으로 설정
+const proxyUrl = process.env.HTTPS_PROXY || process.env.HTTP_PROXY;
+if (proxyUrl) {
+  const { setGlobalDispatcher, ProxyAgent } = require('undici');
+  setGlobalDispatcher(new ProxyAgent(proxyUrl));
+}
 
 
 const app = express();
