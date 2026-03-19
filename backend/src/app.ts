@@ -491,12 +491,12 @@ const startServer = async () => {
       console.log('📅 주간 리포트 스케줄 등록: 매주 월요일 오전 9시');
       */
 
-      // [테스트] 매일 오전 10시 월간 리포트 발송
-      cron.schedule('0 10 * * *', async () => {
+      // 매일 오후 5시 20분 월간 리포트 발송
+      cron.schedule('20 17 * * *', async () => {
         console.log('⏰ [CRON] 월간 리포트 발송 시작 (report@channelai.kro.kr)');
         await sendMonthlyReports();
       }, { timezone: 'Asia/Seoul' });
-      console.log('📅 [테스트] 월간 리포트 스케줄 등록: 매일 오전 10시 (Asia/Seoul)');
+      console.log('📅 월간 리포트 스케줄 등록: 매일 오후 5시 20분 (Asia/Seoul)');
     }
 
     } // end isCronInstance
