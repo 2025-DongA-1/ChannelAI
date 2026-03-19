@@ -4,6 +4,8 @@
  */
 import pool from '../config/database';
 import { sendEmail } from './emailService';
+import puppeteer from 'puppeteer';
+import jwt from 'jsonwebtoken';
 
 // ── 타입 ──────────────────────────────────────────────────────────────────
 interface ReportData {
@@ -57,8 +59,7 @@ const gatherReportData = async (userId: number, startDate: string, endDate: stri
     [userId, startDate, endDate, userId, startDate, endDate]
   );
 
-  const row = result.rows[0];
-  if (!row || !row.totalCost) return null;
+  const row = result.rows[0] || {};
 
   const totalCost        = parseFloat(row.totalCost)        || 0;
   const totalImpressions = parseFloat(row.totalImpressions) || 0;
@@ -158,26 +159,107 @@ export const sendDailyReports = async (): Promise<void> => {
   console.log('📧 [일간 리포트] 완료');
 };
 
-// ── 전체 사용자 월간 리포트 (매월 1일, 전달 전체 기간) ────────────────────
+// ── 전체 사용자 월간 리포트 - Puppeteer PDF 캡처 첨부 발송 ──────────────────
 export const sendMonthlyReports = async (): Promise<void> => {
   console.log('📧 [월간 리포트] 발송 시작...');
 
-  // 전달의 1일 ~ 말일 계산
+  // 전달(지난달) 계산
   const now = new Date();
-  const firstOfThisMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-  const lastOfPrevMonth  = new Date(firstOfThisMonth.getTime() - 1);
-  const firstOfPrevMonth = new Date(lastOfPrevMonth.getFullYear(), lastOfPrevMonth.getMonth(), 1);
+  const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const lastMonthStr = `${lastMonth.getFullYear()}-${String(lastMonth.getMonth() + 1).padStart(2, '0')}`;
+  const label = `${lastMonth.getFullYear()}년 ${lastMonth.getMonth() + 1}월`;
+  console.log(`  📅 대상 기간: ${lastMonthStr} (${label})`);
 
-  const startDate = toDateStr(firstOfPrevMonth);
-  const endDate   = toDateStr(lastOfPrevMonth);
+  const frontendUrl = process.env.FRONTEND_URL || 'https://channelai.kro.kr';
+  const result = await pool.query(
+    "SELECT u.id, u.email, up.name FROM users u LEFT JOIN user_profiles up ON up.user_id = u.id WHERE u.email IS NOT NULL AND u.email != '' ORDER BY u.id"
+  );
 
-  const label = `${lastOfPrevMonth.getFullYear()}년 ${lastOfPrevMonth.getMonth() + 1}월`;
-  console.log(`  📅 대상 기간: ${startDate} ~ ${endDate} (${label})`);
-
-  const result = await pool.query("SELECT id, email FROM users WHERE email IS NOT NULL AND email != '' ORDER BY id");
   for (const user of result.rows) {
-    try { await sendReportToUser(user.id, user.email, startDate, endDate, `${label} 월간`); }
-    catch (e) { console.error(`  ❌ ${user.email} 발송 실패:`, e); }
+    try {
+      const userName = user.name || '사용자';
+
+      // 임시 JWT 토큰 생성 (1시간)
+      const tempToken = jwt.sign(
+        { id: user.id, email: user.email },
+        process.env.JWT_SECRET || 'channel_ai_secret_key_2024',
+        { expiresIn: '1h' }
+      );
+
+      // Puppeteer로 월별 성과 보고서 페이지 캡처 → PDF 생성
+      const reportUrl = `${frontendUrl}/monthly-report?month=${lastMonthStr}`;
+      console.log(`  🌐 [PDF] 리포트 페이지 접속: ${reportUrl}`);
+
+      let pdfBuffer: Buffer | null = null;
+      let browser;
+      try {
+        browser = await puppeteer.launch({
+          headless: true,
+          args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
+        });
+        const page = await browser.newPage();
+        await page.setViewport({ width: 1400, height: 2000, deviceScaleFactor: 2 });
+        await page.evaluateOnNewDocument((token: string) => {
+          (globalThis as any).localStorage.setItem('token', token);
+        }, tempToken);
+        await page.goto(reportUrl, { waitUntil: 'networkidle0', timeout: 45000 });
+        try {
+          await page.waitForSelector('.recharts-responsive-container, .bg-white.border.border-gray-100', { timeout: 15000 });
+          console.log('  ✅ [PDF] 데이터 렌더링 확인됨');
+        } catch {
+          console.warn('  ⚠️ [PDF] 데이터 렌더링 대기 시간 초과');
+        }
+        await new Promise(resolve => setTimeout(resolve, 3000));
+        const pdf = await page.pdf({
+          format: 'A4',
+          printBackground: true,
+          margin: { top: '10mm', bottom: '10mm', left: '10mm', right: '10mm' },
+        });
+        pdfBuffer = Buffer.from(pdf);
+        console.log(`  📎 [PDF] 생성 완료 (${pdfBuffer.length} bytes)`);
+      } catch (pdfErr) {
+        console.error('  ⚠️ [PDF] 캡처 실패:', pdfErr);
+      } finally {
+        if (browser) await browser.close();
+      }
+
+      const emailHtml = `<!DOCTYPE html>
+<html lang="ko">
+<head><meta charset="UTF-8"></head>
+<body style="margin:0;padding:0;background:#f3f4f6;font-family:'Apple SD Gothic Neo',Malgun Gothic,sans-serif;">
+  <div style="max-width:600px;margin:40px auto;background:white;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08);">
+    <div style="background:linear-gradient(135deg,#1e40af,#7c3aed);padding:36px;text-align:center;">
+      <h1 style="color:white;margin:0;font-size:24px;font-weight:800;">📊 ChannelAI</h1>
+      <p style="color:rgba(255,255,255,0.85);margin:10px 0 0;font-size:15px;">${lastMonthStr} 월별 광고 성과 보고서</p>
+    </div>
+    <div style="padding:36px 40px;">
+      <p style="color:#374151;font-size:16px;margin:0 0 16px;">안녕하세요, <strong>${userName}</strong>님 👋</p>
+      <p style="color:#6b7280;font-size:14px;line-height:1.8;margin:0 0 24px;">
+        <strong>${lastMonthStr}</strong> 성과 보고서가 준비되었습니다.<br>
+        실제 서비스 화면과 동일한 지표를 첨부된 PDF 파일에서 확인하실 수 있습니다.
+      </p>
+      <div style="background:#f8faff;border:1px solid #dbeafe;border-radius:12px;padding:20px;margin-bottom:24px;">
+        <p style="margin:0;font-size:13px;color:#1e40af;font-weight:600;">📎 첨부 파일 확인</p>
+        <p style="margin:6px 0 0;font-size:13px;color:#374151;">ChannelAI_월별보고서_${lastMonthStr}.pdf</p>
+        <p style="margin:4px 0 0;font-size:12px;color:#9ca3af;">차트 및 상세 지표가 포함된 공식 리포트입니다.</p>
+      </div>
+    </div>
+    <div style="background:#f9fafb;padding:20px 40px;text-align:center;border-top:1px solid #e5e7eb;">
+      <p style="margin:0;font-size:11px;color:#9ca3af;">이 이메일은 ChannelAI에서 자동 발송되었습니다.</p>
+    </div>
+  </div>
+</body>
+</html>`;
+
+      const subject = `📊 [ChannelAI] ${lastMonthStr} 월별 광고 성과 보고서`;
+      const attachments = pdfBuffer
+        ? [{ filename: `ChannelAI_월별보고서_${lastMonthStr}.pdf`, content: pdfBuffer }]
+        : undefined;
+      await sendEmail(user.email, subject, emailHtml, attachments);
+      console.log(`  ✅ 발송 완료: ${user.email}`);
+    } catch (e) {
+      console.error(`  ❌ ${user.email} 발송 실패:`, e);
+    }
   }
   console.log('📧 [월간 리포트] 완료');
 };
