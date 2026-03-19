@@ -32,7 +32,14 @@ export default function IntegrationPage() {
   const [bubbleRect, setBubbleRect] = useState<{ top: number, left: number, isMobile: boolean } | null>(null);
 
   const updateBubblePos = () => {
-    const mobileEl = document.getElementById('nav-menu-mobile-dashboard');
+    // Hide bubble if mobile menu is open
+    const isMobileMenuOpen = document.body.getAttribute('data-mobile-menu-open') === 'true';
+    if (isMobileMenuOpen && window.innerWidth < 768) {
+      setBubbleOpacity(0);
+      return;
+    }
+
+    const mobileEl = document.getElementById('mobile-hamburger-btn');
     const pcEl = document.getElementById('nav-menu-dashboard');
     
     let el = null;
@@ -48,10 +55,10 @@ export default function IntegrationPage() {
     if (el) {
       const rect = el.getBoundingClientRect();
       if (isMobile) {
-        // 모바일일 경우: 하단 네비게이션이므로 위로 띄움
-        setBubbleRect({ top: rect.top - 15, left: window.innerWidth / 2, isMobile });
+        // 모바일일 경우: 상단 햄버거 메뉴 우측 끝에 맞춤
+        setBubbleRect({ top: rect.bottom + 15, left: window.innerWidth - rect.right + 5, isMobile });
       } else {
-        // PC일 경우: 왼쪽 네비게이션이므로 오른쪽에 띄움 (요청하신 대로 메뉴 아랫쪽이나 옆쪽으로). 여기서는 메뉴 바로 우측 아래로 배치.
+        // PC일 경우: 왼쪽 네비게이션이므로 오른쪽에 띄움
         setBubbleRect({ top: rect.bottom + 10, left: rect.left + 20, isMobile });
       }
     }
@@ -99,9 +106,13 @@ export default function IntegrationPage() {
 
   useEffect(() => {
     if (showBubble) {
+      const observer = new MutationObserver(() => updateBubblePos());
+      observer.observe(document.body, { attributes: true, attributeFilter: ['data-mobile-menu-open'] });
+
       window.addEventListener('resize', updateBubblePos);
       window.addEventListener('scroll', updateBubblePos);
       return () => {
+        observer.disconnect();
         window.removeEventListener('resize', updateBubblePos);
         window.removeEventListener('scroll', updateBubblePos);
       };
@@ -475,8 +486,8 @@ export default function IntegrationPage() {
         className={`fixed z-[100] transition-opacity duration-500 ease-in-out pointer-events-none ${bubbleOpacity ? 'opacity-100' : 'opacity-0'}`}
         style={{
           top: bubbleRect.isMobile ? bubbleRect.top : bubbleRect.top,
-          left: bubbleRect.isMobile ? bubbleRect.left : bubbleRect.left,
-          transform: bubbleRect.isMobile ? 'translate(-50%, -100%)' : 'translate(0, 0)',
+          ...(bubbleRect.isMobile ? { right: bubbleRect.left } : { left: bubbleRect.left }),
+          transform: 'translate(0, 0)',
         }}
       >
         <div className="relative animate-bounce" style={{ animationDuration: '0.8s' }}>
@@ -485,11 +496,11 @@ export default function IntegrationPage() {
           </div>
           {/* 꼬리 (삼각형) */}
           <div 
-            className="absolute w-3 h-3 bg-indigo-600 border-b border-r border-indigo-500 transform rotate-45"
+            className="absolute w-3 h-3 bg-indigo-600 border-t border-l border-indigo-500 transform rotate-45"
             style={
               bubbleRect.isMobile 
-                ? { bottom: '-6px', left: '50%', marginLeft: '-6px' }  // 아래쪽 꼬리
-                : { top: '-6px', left: '20px' }                        // 위쪽 꼬리
+                ? { top: '-6px', right: '15px' }  // 위쪽 꼬리 (햄버거 버튼 가리킴)
+                : { top: '-6px', left: '20px' }   // PC - 상단 배치
             }
           />
         </div>
