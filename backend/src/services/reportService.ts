@@ -158,6 +158,30 @@ export const sendDailyReports = async (): Promise<void> => {
   console.log('📧 [일간 리포트] 완료');
 };
 
+// ── 전체 사용자 월간 리포트 (매월 1일, 전달 전체 기간) ────────────────────
+export const sendMonthlyReports = async (): Promise<void> => {
+  console.log('📧 [월간 리포트] 발송 시작...');
+
+  // 전달의 1일 ~ 말일 계산
+  const now = new Date();
+  const firstOfThisMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+  const lastOfPrevMonth  = new Date(firstOfThisMonth.getTime() - 1);
+  const firstOfPrevMonth = new Date(lastOfPrevMonth.getFullYear(), lastOfPrevMonth.getMonth(), 1);
+
+  const startDate = toDateStr(firstOfPrevMonth);
+  const endDate   = toDateStr(lastOfPrevMonth);
+
+  const label = `${lastOfPrevMonth.getFullYear()}년 ${lastOfPrevMonth.getMonth() + 1}월`;
+  console.log(`  📅 대상 기간: ${startDate} ~ ${endDate} (${label})`);
+
+  const result = await pool.query("SELECT id, email FROM users WHERE email IS NOT NULL AND email != '' ORDER BY id");
+  for (const user of result.rows) {
+    try { await sendReportToUser(user.id, user.email, startDate, endDate, `${label} 월간`); }
+    catch (e) { console.error(`  ❌ ${user.email} 발송 실패:`, e); }
+  }
+  console.log('📧 [월간 리포트] 완료');
+};
+
 // ── 전체 사용자 주간 리포트 ────────────────────────────────────────────────
 export const sendWeeklyReports = async (): Promise<void> => {
   console.log('📧 [주간 리포트] 발송 시작...');

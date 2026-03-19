@@ -7,7 +7,7 @@ import cron from 'node-cron';
 import pool from './config/database';
 import { connectRedis } from './config/redis';
 import { verifyEmailConnection } from './services/emailService';
-import { sendWeeklyReports, sendDailyReports } from './services/reportService';
+import { sendWeeklyReports, sendDailyReports, sendMonthlyReports } from './services/reportService';
 import authRoutes from './routes/authRoutes';
 import campaignRoutes from './routes/campaignRoutes';
 import accountRoutes from './routes/accountRoutes';
@@ -424,6 +424,15 @@ const startServer = async () => {
     const emailEnabled = await verifyEmailConnection();
 
     // ── cron 스케줄 등록 ───────────────────────────────────────────────
+    // PM2 cluster 모드에서 인스턴스 0번에서만 cron 실행 (중복 방지)
+    const isCronInstance =
+      process.env.NODE_APP_INSTANCE === undefined ||
+      process.env.NODE_APP_INSTANCE === '0';
+
+    if (!isCronInstance) {
+      console.log(`⏭️  [CRON] 인스턴스 #${process.env.NODE_APP_INSTANCE} → cron 스케줄 등록 건너뜀 (중복 방지)`);
+    } else {
+
     // 구독 자동 갱신: 매일 자정 (결제정보 있는 만료 계정 자동 결제 후 연장)
     cron.schedule('0 0 * * *', async () => {
       console.log('⏰ [CRON] 구독 만료 처리 시작');
@@ -475,13 +484,15 @@ const startServer = async () => {
       console.log('📅 주간 리포트 스케줄 등록: 매주 월요일 오전 9시');
       */
 
-      // 일간 리포트: 매일 오전 9시 (Resend 이메일 활성화 시 항상 실행)
-      cron.schedule('0 9 * * *', async () => {
-        console.log('⏰ [CRON] 일간 리포트 발송 시작');
-        await sendDailyReports();
+      // [테스트] 매일 오전 10시 월간 리포트 발송
+      cron.schedule('0 10 * * *', async () => {
+        console.log('⏰ [CRON] 월간 리포트 발송 시작 (report@channelai.kro.kr)');
+        await sendMonthlyReports();
       }, { timezone: 'Asia/Seoul' });
-      console.log('📅 일간 리포트 스케줄 등록: 매일 오전 9시 (Resend)');
+      console.log('📅 [테스트] 월간 리포트 스케줄 등록: 매일 오전 10시 (Asia/Seoul)');
     }
+
+    } // end isCronInstance
     
     // 서버 시작 (0.0.0.0으로 모든 네트워크 인터페이스에서 접속 허용)
     const server = app.listen(PORT, '0.0.0.0', () => {
