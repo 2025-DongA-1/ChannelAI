@@ -115,14 +115,25 @@ function MarketingAnalysis() {
       const days = currentDuration;
       const dailyData: HistoryItem[] = [];
 
+      // 1. 오늘 날짜 기반으로 고정된 시드(seed) 만들기 (예: 20260319)
+      const today = new Date();
+      const baseSeed = today.getFullYear() * 10000 + (today.getMonth() + 1) * 100 + today.getDate();
+
+      // 🚨 [추가] 2. Math.random()을 대체할 커스텀 시드 랜덤 함수
+      let currentSeed = baseSeed;
+      const seededRandom = () => {
+        const x = Math.sin(currentSeed++) * 10000;
+        return x - Math.floor(x);
+      };
+
       for (let i = days; i > 0; i--){
         const trend = 1.0 - (i * 0.01);
         dailyData.push({
           day: `${i}일차`,
-          Naver: Math.floor((350 + Math.random() * 50) * trend),
-          Meta: Math.floor((220 + Math.random() * 50) * trend),
-          Google: Math.floor((280 + Math.random() * 50) * trend),
-          Karrot: Math.floor((300 + Math.random() * 50) * trend),
+          Naver: Math.floor((350 + seededRandom() * 50) * trend),
+          Meta: Math.floor((220 + seededRandom() * 50) * trend),
+          Google: Math.floor((280 + seededRandom() * 50) * trend),
+          Karrot: Math.floor((300 + seededRandom() * 50) * trend),
         });
       }
 
@@ -167,7 +178,7 @@ function MarketingAnalysis() {
         }
 
         // 3. [현실성 부여] 기계적인 고정값을 탈피하기 위해 약간의 랜덤 노이즈(-3 ~ +3) 추가
-        dynamicTrendScore += Math.floor(Math.random() * 7) - 3;
+        dynamicTrendScore += Math.floor(seededRandom() * 7) - 3;
 
         return {
           "채널명_Naver": pName === 'naver' ? 1 : 0,
@@ -185,6 +196,10 @@ function MarketingAnalysis() {
       // 백엔드 요청
       const cleanBudget = Number(budget.toString().replace(/,/g, ''));
       
+      // 💡 [개선점] 분석 데이터(dbData) 기준 가장 마지막(최근) 날짜를 추출해서 시드로 사용합니다!
+      const allDates = dbList.map((item: any) => item.date).filter(Boolean);
+      const latestDate = allDates.length > 0 ? allDates.sort().reverse()[0] : new Date().toISOString().split('T')[0];
+      const seedDateStr = latestDate.replace(/-/g, ''); // "yyyyMMdd" 형식으로 변환
 
       // [2026-03-06] 로컬과 운영 서버 모두 Node.js(3000포트) 환경의 단일 통신 경로로 일원화
       const response = await api.post(`/ai/recommend`, {
@@ -192,7 +207,8 @@ function MarketingAnalysis() {
         total_budget: cleanBudget,
         features: features,
         history_data : dailyData,
-        duration : currentDuration
+        duration : currentDuration,
+        seed_date: seedDateStr
       });
 
       setResult(response.data);

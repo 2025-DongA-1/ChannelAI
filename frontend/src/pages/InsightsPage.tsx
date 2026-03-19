@@ -2,6 +2,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation } from '@tanstack/react-query';
+import { useAuthStore } from '@/store/authStore';
 import { insightsAPI, api } from '@/lib/api';
 import {
   TrendingUp,
@@ -85,6 +86,9 @@ export default function InsightsPage() {
     }
     return new Date().toISOString().slice(0, 7);
   });
+  
+  const { user } = useAuthStore();
+  const isFreePlan = !user?.plan || user.plan.toUpperCase() === 'FREE';
   
   // 튜토리얼 상태
   const [showTour, setShowTour] = useState(false);
@@ -231,6 +235,37 @@ export default function InsightsPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedMonth]);
 
+  // 💡 [추가됨] FREE 유저 AI 분석 주 1회 (일요일 자정 초기화) 제한 로직
+  const handleAIClick = () => {
+    if (isFreePlan) {
+      if (!user) return alert('로그인이 필요합니다.');
+      
+      const storageKey = `ai_analysis_last_clicked_${user.id}`;
+      const lastClickedStr = localStorage.getItem(storageKey);
+      
+      if (lastClickedStr) {
+        const lastClickedDate = new Date(parseInt(lastClickedStr, 10));
+        
+        // 지난 일요일 자정 계산
+        const now = new Date();
+        const lastSunday = new Date(now);
+        lastSunday.setDate(now.getDate() - now.getDay()); // 0이 일요일 
+        lastSunday.setHours(0, 0, 0, 0); // 자정
+        
+        // 클릭한 시간이 지난 일요일 자정보다 이후면 (이번주에 이미 클릭함)
+        if (lastClickedDate.getTime() > lastSunday.getTime()) {
+          return alert(`[AI 성과 분석 제한 안내]\n\nFREE 플랜은 데이터 과부하 방지를 위해 주 1회만 분석을 실행할 수 있습니다. 😢\n(이번 주 횟수 소진 완료, 매주 일요일 자정 초기화)\n\n제한 없이 마음껏 분석하시려면 PRO 플랜으로 업그레이드해 주세요!`);
+        }
+      }
+      
+      // 통과했다면 현재 시간 기록
+      localStorage.setItem(storageKey, Date.now().toString());
+    }
+
+    // 예측 요청 날리기
+    llmMutation.mutate(!!insightText);
+  };
+
 
   // 💡 [추가됨] 캠페인 드롭다운 변경 시 해당 캠페인의 최초 월로 자동 업데이트합니다!
   const handleCampaignChange = (e: any) => {
@@ -305,7 +340,7 @@ export default function InsightsPage() {
           <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">인사이트 & 리포트</h1>
           <p className="text-sm sm:text-base text-gray-600 mt-1">데이터 기반 성과 분석 및 최적화 제안</p>
         </div>
-        <div className="flex items-center gap-2 w-full sm:w-auto">
+        <div className="flex items-center gap-2 w-full sm:w-auto print:hidden">
           <button
             onClick={() => {
               setShowTour(true);
@@ -560,14 +595,13 @@ export default function InsightsPage() {
                     AI 성과 분석
                     {isLlmLoading && <span className="text-xs text-indigo-500 font-normal animate-pulse">분석 중...</span>}
                   </p>
-                  {selectedMonth === new Date().toISOString().slice(0, 7) && (
-                    <p className="text-xs text-indigo-400 mt-0.5">
-                      {new Date().getMonth() + 1}월 {new Date().getDate()}일까지의 분석 내용
-                    </p>
-                  )}
+                  {/* 현재 달인 경우에만 안내 텍스트 노출 */}
+                  <p className="text-xs text-indigo-400 mt-0.5">
+                    선택한 분석 기간({selectedMonth})에 대한 생성형 AI 인사이트
+                  </p>
                 </div>
                 <button
-                  onClick={() => llmMutation.mutate(!!insightText)}
+                  onClick={handleAIClick}
                   disabled={isLlmLoading}
                   className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-medium bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 transition-colors"
                 >
@@ -693,7 +727,6 @@ export default function InsightsPage() {
               </tbody>
             </table>
           </div>
-          
           {/* 💡 [수정됨] 매체 비교 분석 전용 AI 돋보기 */}
           <div className="bg-gradient-to-br from-blue-50 to-indigo-50 p-5 border-t border-blue-100">
             {/* AI 채널별 분석 박스 */}
@@ -705,14 +738,12 @@ export default function InsightsPage() {
                     AI 채널별 분석
                     {isLlmLoading && <span className="text-xs text-blue-500 font-normal animate-pulse">분석 중...</span>}
                   </p>
-                  {selectedMonth === new Date().toISOString().slice(0, 7) && (
-                    <p className="text-xs text-blue-400 mt-0.5">
-                      {new Date().getMonth() + 1}월 {new Date().getDate()}일까지의 분석 내용
-                    </p>
-                  )}
+                  <p className="text-xs text-blue-400 mt-0.5">
+                    선택한 분석 기간({selectedMonth})에 대한 생성형 AI 인사이트
+                  </p>
                 </div>
                 <button
-                  onClick={() => llmMutation.mutate(!!insightText)}
+                  onClick={handleAIClick}
                   disabled={isLlmLoading}
                   className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-medium bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 transition-colors"
                 >

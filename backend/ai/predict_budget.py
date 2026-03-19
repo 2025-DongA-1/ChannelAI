@@ -71,33 +71,21 @@ class NumpyEncoder(json.JSONEncoder):
         return super(NumpyEncoder, self).default(obj)
 
 
-def generate_past_history(predicted_roas, duration=7):
+def generate_past_history(predicted_roas, duration=7, seed_date=None):
     """
     예측된 채널별 ROAS를 기준으로 과거 추이처럼 보이는 history 데이터를 생성
-
-    Parameters
-    ----------
-    predicted_roas : list or array
-        각 채널의 최종 예측 ROAS
-        순서: [Naver, Meta, Google, Karrot]
-    duration : int
-        며칠치 이력을 생성할지 결정
-
-    Returns
-    -------
-    list[dict]
-        프론트 차트/리포트에서 사용할 과거 일자별 ROAS 데이터
-
-    설명
-    ----
-    이 함수는 실제 과거 DB 데이터를 가져오는 것이 아니라,
-    현재 예측값을 기준으로 "과거 며칠간 이런 흐름이 있었던 것처럼" 보이는
-    시뮬레이션용 히스토리 데이터를 만든다.
-
-    마지막에는 "D-Day" 행을 추가해서
-    최종 예측값 자체를 함께 보여준다.
     """
     history = []
+
+    if seed_date is not None:
+        try:
+            np.random.seed(int(seed_date))
+        except:
+            import datetime
+            np.random.seed(int(datetime.datetime.now().strftime("%Y%m%d")))
+    else:
+        import datetime
+        np.random.seed(int(datetime.datetime.now().strftime("%Y%m%d")))
 
     # 채널마다 약간 다른 변동성을 부여하기 위한 랜덤 계수
     volatility = [np.random.uniform(0.85, 1.15) for _ in range(4)]
@@ -413,11 +401,13 @@ def main():
         features_list = data
         total_budget = 3000000
         duration = 7
+        seed_date = None
     else:
         # dict 형태면 총예산, 기간, features를 꺼냄
         features_list = data.get('features', [])
         total_budget = data.get('total_budget', 3000000)
         duration = data.get('duration', 7)
+        seed_date = data.get('seed_date', None)
 
     # 🚨 [매우 중요]
     # 학습 시 사용한 feature 이름 11개와 완전히 일치해야 함
@@ -639,8 +629,8 @@ def main():
             max_ratio_default=MAX_RATIO_DEFAULT
         )
 
-        # 차트용 히스토리 데이터 생성
-        history_data = generate_past_history(predicted_roas_list, duration=duration)
+        # 차트용 히스토리 데이터 생성 (씨드 처리 추가)
+        history_data = generate_past_history(predicted_roas_list, duration=duration, seed_date=seed_date)
         
         # 최종 JSON 응답 객체 구성
         output = {
