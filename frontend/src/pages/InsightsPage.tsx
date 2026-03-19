@@ -89,7 +89,6 @@ export default function InsightsPage() {
   
   const { user } = useAuthStore();
   const isFreePlan = !user?.plan || user.plan.toUpperCase() === 'FREE';
-  const isCurrentMonth = selectedMonth === new Date().toISOString().slice(0, 7);
   
   // 튜토리얼 상태
   const [showTour, setShowTour] = useState(false);
@@ -341,7 +340,7 @@ export default function InsightsPage() {
           <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">인사이트 & 리포트</h1>
           <p className="text-sm sm:text-base text-gray-600 mt-1">데이터 기반 성과 분석 및 최적화 제안</p>
         </div>
-        <div className="flex items-center gap-2 w-full sm:w-auto">
+        <div className="flex items-center gap-2 w-full sm:w-auto print:hidden">
           <button
             onClick={() => {
               setShowTour(true);
@@ -588,7 +587,6 @@ export default function InsightsPage() {
             </ResponsiveContainer>
             
             {/* AI 인사이트 박스 (월별리포트 스타일) */}
-            {isCurrentMonth && (
             <div className="mt-4 bg-gradient-to-br from-indigo-50 to-blue-50 rounded-xl border border-indigo-100 shadow-sm overflow-hidden">
               <div className="flex items-center justify-between px-5 py-3 border-b border-indigo-100">
                 <div>
@@ -597,11 +595,10 @@ export default function InsightsPage() {
                     AI 성과 분석
                     {isLlmLoading && <span className="text-xs text-indigo-500 font-normal animate-pulse">분석 중...</span>}
                   </p>
-                  {isCurrentMonth && (
-                    <p className="text-xs text-indigo-400 mt-0.5">
-                      {new Date().getMonth() + 1}월 {new Date().getDate()}일까지의 분석 내용 (이번 달 한정)
-                    </p>
-                  )}
+                  {/* 현재 달인 경우에만 안내 텍스트 노출 */}
+                  <p className="text-xs text-indigo-400 mt-0.5">
+                    선택한 분석 기간({selectedMonth})에 대한 생성형 AI 인사이트
+                  </p>
                 </div>
                 <button
                   onClick={handleAIClick}
@@ -624,7 +621,6 @@ export default function InsightsPage() {
                 )}
               </div>
             </div>
-            )}
           </div>
         );
       })()}
@@ -732,7 +728,6 @@ export default function InsightsPage() {
             </table>
           </div>
           {/* 💡 [수정됨] 매체 비교 분석 전용 AI 돋보기 */}
-          {isCurrentMonth && (
           <div className="bg-gradient-to-br from-blue-50 to-indigo-50 p-5 border-t border-blue-100">
             {/* AI 채널별 분석 박스 */}
             <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl border border-blue-100 shadow-sm overflow-hidden">
@@ -743,11 +738,9 @@ export default function InsightsPage() {
                     AI 채널별 분석
                     {isLlmLoading && <span className="text-xs text-blue-500 font-normal animate-pulse">분석 중...</span>}
                   </p>
-                  {isCurrentMonth && (
-                    <p className="text-xs text-blue-400 mt-0.5">
-                      {new Date().getMonth() + 1}월 {new Date().getDate()}일까지의 분석 내용 (이번 달 한정)
-                    </p>
-                  )}
+                  <p className="text-xs text-blue-400 mt-0.5">
+                    선택한 분석 기간({selectedMonth})에 대한 생성형 AI 인사이트
+                  </p>
                 </div>
                 <button
                   onClick={handleAIClick}
@@ -771,7 +764,6 @@ export default function InsightsPage() {
               </div>
             </div>
           </div>
-          )}
         </div>
         </div>
       )}

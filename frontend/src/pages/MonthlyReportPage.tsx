@@ -8,110 +8,9 @@ import {
   RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis,
   Cell, PieChart, Pie
 } from "recharts";
-// [2026-03-12 17:52] AI 인사이트를 위한 아이콘 추가 (Sparkles, RefreshCcw)
 import { LayoutDashboard, DownloadCloud, Sparkles, RefreshCcw, Mail, X } from 'lucide-react';
 import { api } from '../lib/api';
-// [2026-03-13] 사용자 이메일 자동 사용을 위해 authStore import
 import { useAuthStore } from '../store/authStore';
-import html2canvas from 'html2canvas';
-import { jsPDF } from 'jspdf'; // [2026-03-09 09:22] jspdf 타입 호환성을 위해 named import 형식으로 수정
-
-// ─── PDF 헤더를 브라우저 Canvas로 그리기 (한글 시스템 폰트 지원) ──────────────
-const makeHeaderImg = (tabLabel: string, month: string): string => {
-  const W = 2100, H = 161; // 210mm × 16mm 비율
-  const c = document.createElement('canvas');
-  c.width = W; c.height = H;
-  const ctx = c.getContext('2d')!;
-  ctx.fillStyle = '#ffffff';
-  ctx.fillRect(0, 0, W, H);
-  ctx.fillStyle = '#1e3a8a';
-  ctx.textBaseline = 'middle';
-  ctx.font = 'bold 39px sans-serif';
-  ctx.textAlign = 'left';
-  ctx.fillText('ChannelAI', 100, H / 2);
-  ctx.font = 'bold 48px sans-serif';
-  ctx.textAlign = 'center';
-  ctx.fillText(tabLabel, W / 2, H / 2);
-  ctx.font = '39px sans-serif';
-  ctx.textAlign = 'right';
-  ctx.fillText(month, W - 100, H / 2);
-  ctx.strokeStyle = '#93c5fd';
-  ctx.lineWidth = 2;
-  ctx.beginPath(); ctx.moveTo(0, H - 1); ctx.lineTo(W, H - 1); ctx.stroke();
-  return c.toDataURL('image/png');
-};
-
-// ─── PDF 공통 생성 로직 (3곳에서 공유) ──────────────────────────────────────────
-const generatePDF = async (
-  tabRefs: React.RefObject<HTMLDivElement | null>[],
-  tabLabels: string[],
-  month: string
-): Promise<jsPDF> => {
-  const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-  const A4_W = 210, A4_H = 297, MARGIN = 10, CONTENT_W = A4_W - MARGIN * 2;
-  const HEADER_H = 16;
-  let isFirstPage = true;
-
-  for (let i = 0; i < tabRefs.length; i++) {
-    const el = tabRefs[i].current;
-    if (!el) continue;
-
-    const canvas = await html2canvas(el, {
-      scale: 2, useCORS: true, backgroundColor: '#ffffff', logging: false, windowWidth: 1280,
-      onclone: (doc) => {
-        const style = doc.createElement('style');
-        style.innerHTML = `
-          svg text {
-            dominant-baseline: central !important;
-            alignment-baseline: central !important;
-          }
-          td, th { vertical-align: middle !important; }
-          * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-        `;
-        doc.head.appendChild(style);
-      }
-    });
-
-    const imgW = canvas.width, imgH = canvas.height;
-
-    // ── 정수 픽셀 기준으로 계산하여 부동소수점 오차를 원천 차단 ──
-    // PDF 1페이지에 들어갈 소스 픽셀 높이를 먼저 확정
-    const pageContentH_mm = A4_H - HEADER_H - MARGIN;
-    const pxPerMm = imgW / CONTENT_W; // 소스 캔버스 기준 1mm당 픽셀
-    const pageSlicePx = Math.floor(pageContentH_mm * pxPerMm); // 한 페이지당 소스 픽셀 높이 (정수)
-    let srcYPx = 0; // 소스 캔버스에서의 현재 오프셋 (정수 픽셀)
-
-    while (srcYPx < imgH) {
-      if (!isFirstPage) pdf.addPage();
-      isFirstPage = false;
-
-      pdf.addImage(makeHeaderImg(tabLabels[i], month), 'PNG', 0, 0, A4_W, HEADER_H);
-
-      // 남은 높이가 한 페이지보다 작으면 남은 만큼만
-      const curSlicePx = Math.min(pageSlicePx, imgH - srcYPx);
-
-      // 슬라이스 캔버스: 소스와 동일한 정수 픽셀 크기로 생성
-      const slice = document.createElement('canvas');
-      slice.width = imgW;
-      slice.height = curSlicePx;
-      const ctx = slice.getContext('2d')!;
-      ctx.fillStyle = '#ffffff';
-      ctx.fillRect(0, 0, imgW, curSlicePx);
-      // drawImage 인자를 모두 정수로 통일하여 스케일 왜곡 제거
-      ctx.drawImage(canvas, 0, srcYPx, imgW, curSlicePx, 0, 0, imgW, curSlicePx);
-
-      // mm 변환은 최종 PDF 삽입 시에만 수행
-      const sliceH_mm = (curSlicePx / pxPerMm);
-      pdf.addImage(slice.toDataURL('image/png'), 'PNG', MARGIN, HEADER_H + 2, CONTENT_W, sliceH_mm);
-      srcYPx += curSlicePx;
-
-      slice.width = 0; slice.height = 0;
-    }
-    canvas.width = 0; canvas.height = 0;
-  }
-
-  return pdf;
-};
 
 // ─── 유틸 ────────────────────────────────────────────────────────────────────
 const PLATFORM_COLORS: Record<string, string> = { meta: "#3b82f6", google: "#ef4444", naver: "#22c55e", karrot: "#f97316" };
@@ -274,7 +173,6 @@ export default function MonthlyReportPage() {
   const trendRef          = useRef<HTMLDivElement>(null);
   const campaignRef       = useRef<HTMLDivElement>(null);
   const campaignTableRef  = useRef<HTMLDivElement>(null);
-  const TAB_REFS = [overviewRef, trendRef, platformRef, campaignRef, campaignTableRef];
   const reportRef = useRef<HTMLDivElement>(null);
 
   const [campaignSort, setCampaignSort] = useState<{ key: string; asc: boolean }>({ key: 'cost', asc: false });
@@ -408,8 +306,7 @@ export default function MonthlyReportPage() {
   }, [selectedMonth, MONTHS]);
 
   /**
-   * 화면의 통계표와 전체 탭 내용을 포함한 오프라인 확인용 HTML 문서를 서버에 전송하여
-   * 즉시 다운로드 가능한 완벽한 PDF 파일(텍스트 선택 가능)로 변환하여 받아옵니다.
+   * 서버 API(Puppeteer)를 호출하여 완벽한 PDF 파일을 다운로드합니다.
    */
   const handleDownloadPDF = async () => {
     setIsExporting(true);
@@ -422,12 +319,18 @@ export default function MonthlyReportPage() {
       }
     }
 
-    await new Promise(resolve => setTimeout(resolve, 3500));
-
     try {
-      const TAB_LABELS = ["종합 성과 현황", "기간별 성과 추이", "채널별 분석 데이터", "캠페인별 성과", "캠페인별 상세 성과"];
-      const pdf = await generatePDF(TAB_REFS, TAB_LABELS, selectedMonth);
-      pdf.save(`ChannelAI_통합리포트_${selectedMonth}.pdf`);
+      const response = await api.get(`/report/generate-pdf?month=${selectedMonth}&type=monthly`, {
+        responseType: 'blob',
+      });
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `ChannelAI_통합리포트_${selectedMonth}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.parentNode?.removeChild(link);
+      window.URL.revokeObjectURL(url);
     } catch (err) {
       console.error('PDF 생성 실패:', err);
       alert('PDF 생성 중 오류가 발생했습니다.');
@@ -440,25 +343,14 @@ export default function MonthlyReportPage() {
   const handleSendByEmail = async () => {
     if (!emailTarget.trim()) return;
     setEmailSending('loading');
-    setIsExporting(true);
-
-    if (user?.plan === 'PRO' && !insights) {
-      try { await llmMutation.mutateAsync(false); } catch { /* 무시 */ }
-    }
-    await new Promise(resolve => setTimeout(resolve, 3500));
+    
+    // 이메일 발송 동안 버튼 중복 클릭 방지 (isExporting 대신 별도 로딩 인디케이터 사용)
 
     try {
-      const TAB_LABELS = ["종합 성과 현황", "기간별 성과 추이", "채널별 분석 데이터", "캠페인별 성과", "캠페인별 상세 성과"];
-      const pdf = await generatePDF(TAB_REFS, TAB_LABELS, selectedMonth);
-
-      const blob = pdf.output('blob');
-      const formData = new FormData();
-      formData.append('pdf', blob, `ChannelAI_통합리포트_${selectedMonth}.pdf`);
-      formData.append('email', emailTarget.trim());
-      formData.append('month', selectedMonth);
-
-      await api.post('/report/send-pdf', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
+      // 서버에서 직접 PDF를 캡처하여 이메일로 발송하도록 파라미터만 전송합니다.
+      await api.post('/report/send-pdf', {
+        email: emailTarget.trim(),
+        month: selectedMonth
       });
 
       setEmailSending('success');
@@ -467,8 +359,6 @@ export default function MonthlyReportPage() {
       console.error('이메일 발송 실패:', err);
       setEmailSending('error');
       setTimeout(() => setEmailSending('idle'), 3000);
-    } finally {
-      setIsExporting(false);
     }
   };
 

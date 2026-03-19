@@ -55,14 +55,11 @@ export const updateTotalBudgetSchema = z.object({
 // ── Subscription / Payment ────────────────────────────────────────────────────
 
 export const activateSubscriptionSchema = z.object({
-  plan: z.enum(['basic', 'premium', 'enterprise'], {
-    message: 'plan은 basic, premium, enterprise 중 하나여야 합니다.',
-  }),
-  paymentMethod: z.string().min(1, '결제 수단을 입력해주세요.'),
+  months: z.number().int().positive('구독 개월 수는 1 이상이어야 합니다.').optional(),
 });
 
 export const updateAutoRenewSchema = z.object({
-  autoRenew: z.boolean({ message: 'autoRenew(boolean)은 필수입니다.' }),
+  auto_renew: z.union([z.literal(0), z.literal(1)], { message: 'auto_renew는 0 또는 1이어야 합니다.' }),
 });
 
 export const processPaymentSchema = z.object({

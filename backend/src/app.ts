@@ -302,30 +302,61 @@ const startServer = async () => {
     await pool.query('SELECT NOW()');
     console.log('✅ MySQL 데이터베이스 연결 성공');
 
-    // user_profiles 구독/결제 컬럼 자동 추가 (없을 경우)
-    const profileColumns = [
-      { name: 'plan_started_at',  ddl: "DATETIME DEFAULT NULL COMMENT '구독 시작일'" },
-      { name: 'plan_expires_at',  ddl: "DATETIME DEFAULT NULL COMMENT '구독 만료일'" },
-      { name: 'pay_method',       ddl: "VARCHAR(50) DEFAULT NULL COMMENT '결제 수단(card/kakao_pay 등)'" },
-      { name: 'pay_card_company', ddl: "VARCHAR(50) DEFAULT NULL COMMENT '카드사명'" },
-      { name: 'pay_card_last4',   ddl: "VARCHAR(4) DEFAULT NULL COMMENT '카드 뒤 4자리'" },
-      { name: 'pay_monthly_amt',  ddl: "INT DEFAULT NULL COMMENT '월 결제 금액(원)'" },
-      { name: 'pay_auto_renew',   ddl: "TINYINT(1) NOT NULL DEFAULT 1 COMMENT '자동 갱신 여부'" },
+    // 1️⃣ 기존 user_profiles에 잘못 추가된 결제 관련 컬럼들을 정리 (오류 방지를 위해 try-catch 처리)
+    const colsToDrop = [
+      'plan_started_at', 'plan_expires_at', 'pay_method', 
+      'pay_card_company', 'pay_card_last4', 'pay_monthly_amt', 'pay_auto_renew'
     ];
-    for (const col of profileColumns) {
+    for (const col of colsToDrop) {
       try {
-        const colCheck = await pool.query(
-          `SELECT COUNT(*) AS cnt FROM INFORMATION_SCHEMA.COLUMNS
-           WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'user_profiles' AND COLUMN_NAME = ?`,
-          [col.name]
-        );
-        if ((colCheck.rows[0] as any)?.cnt === 0) {
-          await pool.query(`ALTER TABLE user_profiles ADD COLUMN ${col.name} ${col.ddl}`);
-          console.log(`✅ user_profiles.${col.name} 컬럼 추가 완료`);
-        }
+        await pool.query(`ALTER TABLE user_profiles DROP COLUMN ${col}`);
+        console.log(`✅ user_profiles.${col} 컬럼 정리 완료`);
       } catch (e) {
-        console.warn(`⚠️ ${col.name} 컬럼 확인/추가 실패 (무시):`, e);
+        // 이미 없으면 무시
       }
+    }
+
+    // 2️⃣ 결제 수단 전용 payment_methods 테이블 자동 생성 (원상복구)
+    try {
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS payment_methods (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          user_id INT NOT NULL,
+          method VARCHAR(50) DEFAULT 'card',
+          monthly_amount DECIMAL(10,2) DEFAULT 9900.00,
+          auto_renew TINYINT(1) DEFAULT 1,
+          card_company VARCHAR(50),
+          card_last4 CHAR(4),
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+          UNIQUE KEY uk_payment_methods_user (user_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+      `);
+      console.log('✅ payment_methods 테이블 확인/생성 완료');
+    } catch (e) {
+      console.warn('⚠️ payment_methods 테이블 생성 실패:', e);
+    }
+
+    // 3️⃣ v_subscription 뷰 업데이트 (user_profiles와 payment_methods 조인)
+    try {
+      await pool.query(`
+        CREATE OR REPLACE VIEW v_subscription AS
+        SELECT 
+          u.user_id,
+          u.plan,
+          (SELECT plan_started_at FROM payments p WHERE p.user_id = u.user_id AND p.status='success' ORDER BY paid_at DESC LIMIT 1) as plan_started_at,
+          (SELECT plan_expires_at FROM payments p WHERE p.user_id = u.user_id AND p.status='success' ORDER BY paid_at DESC LIMIT 1) as plan_expires_at,
+          pm.method as pay_method,
+          pm.auto_renew as pay_auto_renew,
+          pm.card_company as pay_card_company,
+          pm.card_last4 as pay_card_last4,
+          pm.monthly_amount as pay_monthly_amt
+        FROM user_profiles u
+        LEFT JOIN payment_methods pm ON u.user_id = pm.user_id
+      `);
+      console.log('✅ v_subscription 뷰 최신화 완료');
+    } catch (e) {
+      console.warn('⚠️ v_subscription 뷰 생성 실패:', e);
     }
 
     // payments 테이블 자동 생성 (없을 경우)
