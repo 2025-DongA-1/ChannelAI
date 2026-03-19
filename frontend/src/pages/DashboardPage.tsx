@@ -562,9 +562,9 @@ export default function DashboardPage() {
       )}
       
       {showTour && createPortal(
-        <div className="fixed inset-0 z-[90]">
+        <div className="fixed inset-0 z-[90] pointer-events-none">
           {/* Dark backdrop with spotlight hole */}
-          <svg className="absolute inset-0 w-full h-full" xmlns="http://www.w3.org/2000/svg">
+          <svg className="absolute inset-0 w-full h-full pointer-events-none" xmlns="http://www.w3.org/2000/svg">
             <defs>
               <mask id="nav-tour-mask">
                 <rect width="100%" height="100%" fill="white" />
@@ -586,7 +586,7 @@ export default function DashboardPage() {
           {/* Step tooltip */}
           {targetRect && currentTourStep < TOUR_STEPS.length && (
             <div
-              className="absolute bg-white rounded-xl p-5 shadow-2xl w-72 md:w-80 border-2 border-blue-500 transition-all duration-300 z-[95] flex flex-col"
+              className="absolute bg-white rounded-xl p-5 shadow-2xl w-72 md:w-80 border-2 border-blue-500 transition-all duration-300 z-[95] flex flex-col pointer-events-auto"
               style={{
                 ...(() => {
                   const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
@@ -620,7 +620,8 @@ export default function DashboardPage() {
               <div className="flex justify-between items-center">
                 <button
                   onClick={() => handleCloseTour()}
-                  className="text-xs text-gray-400 hover:text-gray-600 transition"
+                  className="text-xs text-gray-400 hover:text-gray-600 transition-colors cursor-pointer select-none"
+                  style={{ WebkitTapHighlightColor: 'transparent' }}
                 >
                   건너뛰기
                 </button>
@@ -628,7 +629,8 @@ export default function DashboardPage() {
                   {currentTourStep > 0 && (
                     <button
                       onClick={() => setCurrentTourStep((p) => p - 1)}
-                      className="px-3 py-1.5 text-xs bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition"
+                      className="px-3 py-1.5 text-xs bg-gray-100 text-gray-700 rounded hover:bg-gray-200 active:bg-gray-300 transition-colors cursor-pointer select-none"
+                      style={{ WebkitTapHighlightColor: 'transparent' }}
                     >
                       이전
                     </button>
@@ -636,14 +638,16 @@ export default function DashboardPage() {
                   {currentTourStep < TOUR_STEPS.length - 1 ? (
                     <button
                       onClick={() => setCurrentTourStep((p) => p + 1)}
-                      className="px-4 py-1.5 text-xs bg-blue-600 text-white rounded shadow-sm hover:bg-blue-700 transition"
+                      className="px-4 py-1.5 text-xs bg-blue-600 text-white rounded shadow-sm hover:bg-blue-700 active:bg-blue-800 transition-colors cursor-pointer select-none"
+                      style={{ WebkitTapHighlightColor: 'transparent' }}
                     >
                       다음
                     </button>
                   ) : (
                     <button
                       onClick={() => setCurrentTourStep(TOUR_STEPS.length)}
-                      className="px-4 py-1.5 text-xs bg-green-500 text-white rounded shadow-sm hover:bg-green-600 transition font-bold"
+                      className="px-4 py-1.5 text-xs bg-green-500 text-white rounded shadow-sm hover:bg-green-600 active:bg-green-700 transition-colors font-bold cursor-pointer select-none"
+                      style={{ WebkitTapHighlightColor: 'transparent' }}
                     >
                       완료
                     </button>
@@ -656,7 +660,7 @@ export default function DashboardPage() {
           {/* Completion modal */}
           {currentTourStep >= TOUR_STEPS.length && (
             <div 
-              className="absolute bg-white rounded-xl p-6 shadow-2xl w-80 md:w-96 text-center z-[100]" 
+              className="absolute bg-white rounded-xl p-6 shadow-2xl w-80 md:w-96 text-center z-[100] pointer-events-auto" 
               style={{ top: '50%', left: '50%', transform: 'translate(-50%, -50%)' }}
             >
               <h3 className="text-xl font-bold text-gray-900 mb-2">튜토리얼을 완료했습니다!</h3>

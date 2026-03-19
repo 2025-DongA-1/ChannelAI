@@ -40,7 +40,7 @@ export default function MainPage() {
     <div className="flex flex-col min-h-screen bg-white">
       
       {/* 1. Hero Section (첫인상 & 후킹) */}
-      <section className="relative pt-20 pb-24 lg:pt-32 lg:pb-32 overflow-hidden">
+      <section className="relative pt-20 pb-24 lg:pt-32 lg:pb-32">
         <div className="absolute inset-0 bg-gradient-to-br from-blue-50 via-white to-indigo-50 -z-10" />
         {/* 장식용 배경 원 */}
         <div className="absolute top-0 right-0 -translate-y-12 translate-x-1/3 w-96 h-96 bg-blue-100/50 rounded-full blur-3xl -z-10" />
@@ -65,19 +65,19 @@ export default function MainPage() {
             <strong className="font-semibold text-gray-900">Plan BE</strong>가 정확히 짚어드립니다.
           </p>
           
-          <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
+          <div className="flex flex-col sm:flex-row gap-4 justify-center items-center relative z-10">
             {isAuthenticated ? (
-              <Link to="/dashboard" className="inline-flex items-center justify-center px-8 py-4 text-base font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition shadow-lg hover:shadow-xl hover:-translate-y-0.5 w-full sm:w-auto">
+              <Link to="/dashboard" className="inline-flex items-center justify-center px-8 py-4 text-base font-bold text-white bg-blue-600 hover:bg-blue-700 active:bg-blue-800 rounded-xl transition-colors duration-200 shadow-lg w-full sm:w-auto cursor-pointer select-none" style={{ WebkitTapHighlightColor: 'transparent' }}>
                 내 대시보드로 이동
                 <ArrowRight className="ml-2 w-5 h-5" />
               </Link>
             ) : (
               <>
-                <Link to="/register" className="inline-flex items-center justify-center px-8 py-4 text-base font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition shadow-lg hover:shadow-xl hover:-translate-y-0.5 w-full sm:w-auto">
+                <Link to="/register" className="inline-flex items-center justify-center px-8 py-4 text-base font-bold text-white bg-blue-600 hover:bg-blue-700 active:bg-blue-800 rounded-xl transition-colors duration-200 shadow-lg w-full sm:w-auto cursor-pointer select-none" style={{ WebkitTapHighlightColor: 'transparent' }}>
                   내 광고비 누수 확인하기
                   <ArrowRight className="ml-2 w-5 h-5" />
                 </Link>
-                <Link to="/login" className="inline-flex items-center justify-center px-8 py-4 text-base font-bold text-gray-700 bg-white border-2 border-gray-200 hover:border-blue-200 hover:bg-blue-50 rounded-xl transition w-full sm:w-auto">
+                <Link to="/login" className="inline-flex items-center justify-center px-8 py-4 text-base font-bold text-gray-700 bg-white border-2 border-gray-200 active:bg-gray-50 hover:border-blue-200 hover:bg-blue-50 rounded-xl transition-colors duration-200 w-full sm:w-auto cursor-pointer select-none" style={{ WebkitTapHighlightColor: 'transparent' }}>
                   로그인
                 </Link>
               </>

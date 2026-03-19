@@ -1050,7 +1050,7 @@ export default function IntegrationPage() {
 
     {/* 튜토리얼 오버레이 */}
     {showTour && TOUR_STEPS[tourStep] && (
-      <div className="fixed inset-0 z-[100] pointer-events-auto flex items-center justify-center">
+      <div className="fixed inset-0 z-[100] pointer-events-none flex items-center justify-center">
         {/* SVG Mask for Hole-Punch Effect */}
         <svg className="absolute inset-0 w-full h-full pointer-events-none">
           <defs>
@@ -1072,7 +1072,7 @@ export default function IntegrationPage() {
 
         {/* 하이라이트된 영역 툴팁 */}
         <div 
-          className="absolute z-[101] transition-all duration-500 ease-in-out flex flex-col"
+          className="absolute z-[101] transition-all duration-500 ease-in-out flex flex-col pointer-events-auto"
           style={{
             ...(() => {
               const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
@@ -1137,10 +1137,11 @@ export default function IntegrationPage() {
         </div>
 
         {/* 생략/바로 사용하기 버튼 */}
-        <div className="absolute bottom-6 sm:bottom-8 left-1/2 -translate-x-1/2 z-[102] w-full px-4 flex justify-center">
+        <div className="absolute bottom-6 sm:bottom-8 left-1/2 -translate-x-1/2 z-[102] w-full px-4 flex justify-center pointer-events-auto">
           <button 
             onClick={handleCloseTour}
-            className="group flex items-center justify-center gap-2 bg-white/10 hover:bg-white/20 backdrop-blur-md border border-white/30 text-white px-6 sm:px-8 py-3 sm:py-3.5 rounded-full font-bold text-sm sm:text-lg shadow-xl transition-all hover:scale-105 active:scale-95 w-full max-w-[280px] sm:max-w-none"
+            className="group flex items-center justify-center gap-2 bg-white/10 hover:bg-white/20 backdrop-blur-md border border-white/30 text-white px-6 sm:px-8 py-3 sm:py-3.5 rounded-full font-bold text-sm sm:text-lg shadow-xl transition-colors active:scale-95 w-full max-w-[280px] sm:max-w-none cursor-pointer select-none"
+            style={{ WebkitTapHighlightColor: 'transparent' }}
           >
             바로 사용하기 (건너뛰기)
             <Send className="w-4 h-4 sm:w-5 sm:h-5 group-hover:translate-x-1 transition-transform" />

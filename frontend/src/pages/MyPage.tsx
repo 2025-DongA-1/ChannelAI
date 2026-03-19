@@ -323,14 +323,16 @@ const MyPage = () => {
             {isFreePlan ? (
               <button
                 onClick={() => navigate('/payment')}
-                className="shrink-0 whitespace-nowrap px-6 py-2.5 ml-6 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg shadow-md hover:shadow-lg border-none outline-none transition-all duration-200 transform hover:-translate-y-0.5"
+                className="shrink-0 whitespace-nowrap px-6 py-2.5 ml-0 sm:ml-6 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-bold rounded-lg shadow-md border-none outline-none transition-colors duration-200 relative z-10 w-full sm:w-auto mt-4 sm:mt-0 cursor-pointer select-none"
+                style={{ WebkitTapHighlightColor: 'transparent' }}
               >
                 PRO 업그레이드
               </button>
             ) : (
               <button
                 onClick={() => navigate('/subscription')}
-                className="shrink-0 whitespace-nowrap px-6 py-2.5 ml-6 bg-white hover:bg-gray-50 text-blue-700 font-bold rounded-lg shadow-md hover:shadow-lg border border-blue-300 outline-none transition-all duration-200 transform hover:-translate-y-0.5"
+                className="shrink-0 whitespace-nowrap px-6 py-2.5 ml-0 sm:ml-6 bg-white hover:bg-gray-50 active:bg-gray-100 text-blue-700 font-bold rounded-lg shadow-md border border-blue-300 outline-none transition-colors duration-200 relative z-10 w-full sm:w-auto mt-4 sm:mt-0 cursor-pointer select-none"
+                style={{ WebkitTapHighlightColor: 'transparent' }}
               >
                 구독 관리
               </button>
