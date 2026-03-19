@@ -76,7 +76,8 @@ const PaymentPage = () => {
       <button
         onClick={handleSubscribe}
         disabled={subscribing}
-        className="w-full py-4 bg-blue-600 hover:bg-blue-700 text-white font-bold text-lg rounded-xl shadow transition disabled:opacity-50"
+        className="relative z-10 w-full py-4 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-bold text-lg rounded-xl shadow transition-colors duration-200 disabled:opacity-50 cursor-pointer select-none"
+        style={{ WebkitTapHighlightColor: 'transparent' }}
       >
         {subscribing ? '처리 중...' : '1달 구독 시작'}
       </button>

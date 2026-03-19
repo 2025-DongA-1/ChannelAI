@@ -47,24 +47,24 @@ export default function DashboardPage() {
     let el = null;
     let isMobile = false;
 
-    // Use current bubbleTarget to find appropriate element
-    const mobileId = `nav-menu-mobile-${bubbleTarget}`;
-    const pcId = `nav-menu-${bubbleTarget}`;
-    
-    const mobileEl = document.getElementById(mobileId);
-    const pcEl = document.getElementById(pcId);
+    // 모바일 메뉴가 열려있으면 말풍선을 표시하지 않음
+    if (document.body.getAttribute('data-mobile-menu-open') === 'true') {
+      setShowBubble(false);
+      return;
+    }
 
-    if (window.innerWidth < 768 && mobileEl) {
-      el = mobileEl;
+    if (window.innerWidth < 768) {
       isMobile = true;
-    } else if (pcEl) {
-      el = pcEl;
+      el = document.getElementById('mobile-hamburger-btn');
+    } else {
+      el = document.getElementById(`nav-menu-${bubbleTarget}`);
     }
 
     if (el) {
       const rect = el.getBoundingClientRect();
       if (isMobile) {
-        setBubbleRect({ top: rect.top - 15, left: window.innerWidth / 2, isMobile });
+        // 메뉴바(햄버거 버튼)의 약간 아래쪽을 가리키도록 설정
+        setBubbleRect({ top: rect.bottom + 15, left: window.innerWidth - rect.right + 10, isMobile });
       } else {
         setBubbleRect({ top: rect.bottom + 10, left: rect.left + 20, isMobile });
       }
@@ -117,11 +117,15 @@ export default function DashboardPage() {
   useEffect(() => {
     if (showBubble) {
       // 위치 업데이트는 bubbleTarget이 변경될 때마다 반영되도록 함께 감지
+      const observer = new MutationObserver(() => updateBubblePos());
+      observer.observe(document.body, { attributes: true, attributeFilter: ['data-mobile-menu-open'] });
+
       window.addEventListener('resize', updateBubblePos);
       window.addEventListener('scroll', updateBubblePos);
       // Change of target updates bubble pos immediately
       updateBubblePos();
       return () => {
+        observer.disconnect();
         window.removeEventListener('resize', updateBubblePos);
         window.removeEventListener('scroll', updateBubblePos);
       };
@@ -171,17 +175,39 @@ export default function DashboardPage() {
     const step = TOUR_STEPS[currentTourStep];
     if (!step) { setTargetRect(null); return; }
     
-    // For navigation items, we might need to fallback to mobile IDs
-    let el = document.getElementById(step.targetId);
-    if (!el && step.targetId.startsWith('nav-menu-')) {
-      const mobileId = step.targetId.replace('nav-menu-', 'nav-menu-mobile-');
-      el = document.getElementById(mobileId);
-    }
+    // Helper to find the right element based on screen size
+    const findElement = () => {
+      if (window.innerWidth < 768 && step.targetId.startsWith('nav-menu-')) {
+        const mobileId = step.targetId.replace('nav-menu-', 'nav-menu-mobile-');
+        const mobileEl = document.getElementById(mobileId);
+        if (mobileEl) return mobileEl;
+      }
+      return document.getElementById(step.targetId);
+    };
+
+    let el = findElement();
     
     if (el) {
-      setTargetRect(el.getBoundingClientRect());
+      const rect = el.getBoundingClientRect();
+      // If element is hidden (e.g. desktop menu on mobile) or mobile menu is animating/not yet rendered
+      if (rect.width === 0 && rect.height === 0) {
+        setTimeout(() => {
+          const newEl = findElement();
+          if (newEl) {
+            const newRect = newEl.getBoundingClientRect();
+            setTargetRect(newRect);
+          }
+        }, 150);
+      } else {
+        setTargetRect(rect);
+      }
     } else {
-      setTargetRect(null);
+      // If not completely rendered yet, try again shortly
+      setTimeout(() => {
+        const newEl = findElement();
+        if (newEl) setTargetRect(newEl.getBoundingClientRect());
+        else setTargetRect(null);
+      }, 150);
     }
   };
 
@@ -228,6 +254,9 @@ export default function DashboardPage() {
 
   const handleStartTour = () => {
     setTourType('nav');
+    if (window.innerWidth < 768) {
+      window.dispatchEvent(new Event('open-mobile-menu'));
+    }
     playSplash(() => {
       setCurrentTourStep(0);
       setShowTour(true);
@@ -237,9 +266,19 @@ export default function DashboardPage() {
   const handleStartDashTour = () => {
     setActiveTab('overall');
     setTourType('dashboard');
+    if (window.innerWidth < 768) {
+      window.dispatchEvent(new Event('close-mobile-menu'));
+    }
     setCurrentTourStep(0);
     setShowTour(true);
     window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleCloseTour = () => {
+    setShowTour(false);
+    if (window.innerWidth < 768 && tourType === 'nav') {
+      window.dispatchEvent(new Event('close-mobile-menu'));
+    }
   };
 
   useEffect(() => {
@@ -469,8 +508,8 @@ export default function DashboardPage() {
           className={`fixed z-[100] transition-opacity duration-500 ease-in-out pointer-events-auto ${bubbleOpacity ? 'opacity-100' : 'opacity-0'}`}
           style={{
             top: bubbleRect.top,
-            left: bubbleRect.left,
-            transform: bubbleRect.isMobile ? 'translate(-50%, -100%)' : 'translate(0, 0)',
+            ...(bubbleRect.isMobile ? { right: bubbleRect.left } : { left: bubbleRect.left }),
+            transform: 'translate(0, 0)',
           }}
         >
           <div className="relative animate-bounce" style={{ animationDuration: '0.8s' }}>
@@ -499,11 +538,11 @@ export default function DashboardPage() {
             </div>
             {/* 꼬리 (삼각형) */}
             <div 
-              className="absolute w-3 h-3 bg-indigo-600 border-b border-r border-indigo-500 transform rotate-45"
+              className="absolute w-3 h-3 bg-indigo-600 border-t border-l border-indigo-500 transform rotate-45"
               style={
                 bubbleRect.isMobile 
-                  ? { bottom: '-6px', left: '50%', marginLeft: '-6px' }  // 아래쪽 꼬리
-                  : { top: '-6px', left: '20px' }                        // 위쪽 꼬리
+                  ? { top: '-6px', right: '15px' }  // 위쪽 꼬리 (햄버거 메뉴를 가리키게 우측으로 치우침)
+                  : { top: '-6px', left: '20px' }   // 위쪽 꼬리 (데스크탑)
               }
             />
           </div>
@@ -523,9 +562,9 @@ export default function DashboardPage() {
       )}
       
       {showTour && createPortal(
-        <div className="fixed inset-0 z-[90]">
+        <div className="fixed inset-0 z-[90] pointer-events-none">
           {/* Dark backdrop with spotlight hole */}
-          <svg className="absolute inset-0 w-full h-full" xmlns="http://www.w3.org/2000/svg">
+          <svg className="absolute inset-0 w-full h-full pointer-events-none" xmlns="http://www.w3.org/2000/svg">
             <defs>
               <mask id="nav-tour-mask">
                 <rect width="100%" height="100%" fill="white" />
@@ -547,13 +586,31 @@ export default function DashboardPage() {
           {/* Step tooltip */}
           {targetRect && currentTourStep < TOUR_STEPS.length && (
             <div
-              className="absolute bg-white rounded-xl p-5 shadow-2xl w-72 md:w-80 border-2 border-blue-500 transition-all duration-300 z-[95]"
+              className="absolute bg-white rounded-xl p-5 shadow-2xl w-72 md:w-80 border-2 border-blue-500 transition-all duration-300 z-[95] flex flex-col pointer-events-auto"
               style={{
-                top: targetRect.bottom + 20,
-                left: Math.max(10, Math.min(window.innerWidth - 330, targetRect.left - 100))
+                ...(() => {
+                  const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
+                  let topPos = targetRect.bottom + 20;
+                  
+                  // 모바일에서 대시보드 가이드 마지막 스텝일 경우 스포트라이트 상단에 배치
+                  if (isMobile && tourType === 'dashboard' && currentTourStep === TOUR_STEPS.length - 1) {
+                    topPos = Math.max(16, targetRect.top - 220); // 툴팁 높이 예상치(220px)만큼 빼기
+                  }
+                  
+                  const leftPos = Math.max(10, Math.min(window.innerWidth - 330, targetRect.left - 100));
+                  return { top: topPos, left: leftPos };
+                })()
               }}
             >
-              <div className="flex justify-between items-center mb-2">
+              {/* 꼬리표 (말풍선 디자인) */}
+              <div 
+                className={`absolute w-4 h-4 bg-white border-l-2 border-t-2 border-blue-500 transform rotate-45 z-[-1] ${
+                  (typeof window !== 'undefined' && window.innerWidth < 768 && tourType === 'dashboard' && currentTourStep === TOUR_STEPS.length - 1)
+                  ? '-bottom-2 left-1/2 -translate-x-1/2 border-l-0 border-t-0 border-r-2 border-b-2' // 아래로 향하는 꼬리
+                  : '-top-2 left-1/2 -translate-x-1/2' // 위로 향하는 꼬리 
+                }`} 
+              />
+              <div className="flex justify-between items-center mb-2 z-10 relative bg-white">
                 <h3 className="font-bold text-gray-900 border-b-2 border-blue-200 pb-1">{TOUR_STEPS[currentTourStep].title}</h3>
                 <span className="text-xs bg-blue-100 text-blue-600 px-2 py-0.5 rounded-full font-bold">
                   {currentTourStep + 1} / {TOUR_STEPS.length}
@@ -562,8 +619,9 @@ export default function DashboardPage() {
               <p className="text-sm text-gray-600 mb-5 leading-relaxed">{TOUR_STEPS[currentTourStep].content}</p>
               <div className="flex justify-between items-center">
                 <button
-                  onClick={() => setShowTour(false)}
-                  className="text-xs text-gray-400 hover:text-gray-600 transition"
+                  onClick={() => handleCloseTour()}
+                  className="text-xs text-gray-400 hover:text-gray-600 transition-colors cursor-pointer select-none"
+                  style={{ WebkitTapHighlightColor: 'transparent' }}
                 >
                   건너뛰기
                 </button>
@@ -571,7 +629,8 @@ export default function DashboardPage() {
                   {currentTourStep > 0 && (
                     <button
                       onClick={() => setCurrentTourStep((p) => p - 1)}
-                      className="px-3 py-1.5 text-xs bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition"
+                      className="px-3 py-1.5 text-xs bg-gray-100 text-gray-700 rounded hover:bg-gray-200 active:bg-gray-300 transition-colors cursor-pointer select-none"
+                      style={{ WebkitTapHighlightColor: 'transparent' }}
                     >
                       이전
                     </button>
@@ -579,14 +638,16 @@ export default function DashboardPage() {
                   {currentTourStep < TOUR_STEPS.length - 1 ? (
                     <button
                       onClick={() => setCurrentTourStep((p) => p + 1)}
-                      className="px-4 py-1.5 text-xs bg-blue-600 text-white rounded shadow-sm hover:bg-blue-700 transition"
+                      className="px-4 py-1.5 text-xs bg-blue-600 text-white rounded shadow-sm hover:bg-blue-700 active:bg-blue-800 transition-colors cursor-pointer select-none"
+                      style={{ WebkitTapHighlightColor: 'transparent' }}
                     >
                       다음
                     </button>
                   ) : (
                     <button
                       onClick={() => setCurrentTourStep(TOUR_STEPS.length)}
-                      className="px-4 py-1.5 text-xs bg-green-500 text-white rounded shadow-sm hover:bg-green-600 transition font-bold"
+                      className="px-4 py-1.5 text-xs bg-green-500 text-white rounded shadow-sm hover:bg-green-600 active:bg-green-700 transition-colors font-bold cursor-pointer select-none"
+                      style={{ WebkitTapHighlightColor: 'transparent' }}
                     >
                       완료
                     </button>
@@ -599,7 +660,7 @@ export default function DashboardPage() {
           {/* Completion modal */}
           {currentTourStep >= TOUR_STEPS.length && (
             <div 
-              className="absolute bg-white rounded-xl p-6 shadow-2xl w-80 md:w-96 text-center z-[100]" 
+              className="absolute bg-white rounded-xl p-6 shadow-2xl w-80 md:w-96 text-center z-[100] pointer-events-auto" 
               style={{ top: '50%', left: '50%', transform: 'translate(-50%, -50%)' }}
             >
               <h3 className="text-xl font-bold text-gray-900 mb-2">튜토리얼을 완료했습니다!</h3>
@@ -608,13 +669,13 @@ export default function DashboardPage() {
                 {tourType === 'nav' ? (
                   <>
                     <button 
-                      onClick={() => { setShowTour(false); setTimeout(() => handleStartDashTour(), 300); }} 
+                      onClick={() => { handleCloseTour(); setTimeout(() => handleStartDashTour(), 300); }} 
                       className="flex-1 py-2 px-4 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 font-medium transition text-sm"
                     >
                       대시보드 보기 (가이드 이어하기)
                     </button>
                     <button 
-                      onClick={() => { setShowTour(false); window.location.href = '/integration'; }}
+                      onClick={() => { handleCloseTour(); window.location.href = '/integration'; }}
                       className="flex-1 py-2 px-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium shadow-md transition text-sm"
                     >
                       매체 연동하러 가기
@@ -623,13 +684,13 @@ export default function DashboardPage() {
                 ) : (
                   <>
                     <button 
-                      onClick={() => setShowTour(false)} 
+                      onClick={() => handleCloseTour()} 
                       className="flex-1 py-2 px-4 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 font-medium transition text-sm"
                     >
                       대시보드 닫기
                     </button>
                     <button 
-                      onClick={() => { setShowTour(false); handleRunTrendAnalysis(); }}
+                      onClick={() => { handleCloseTour(); handleRunTrendAnalysis(); }}
                       className="flex-1 py-2 px-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium shadow-md transition text-sm"
                     >
                       AI 분석 시작하기

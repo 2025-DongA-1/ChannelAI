@@ -41,6 +41,26 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
+  useEffect(() => {
+    const handleOpen = () => setMobileMenuOpen(true);
+    const handleClose = () => setMobileMenuOpen(false);
+    window.addEventListener('open-mobile-menu', handleOpen);
+    window.addEventListener('close-mobile-menu', handleClose);
+    return () => {
+      window.removeEventListener('open-mobile-menu', handleOpen);
+      window.removeEventListener('close-mobile-menu', handleClose);
+    };
+  }, []);
+
+  useEffect(() => {
+    // Sync mobile menu state to body for other components to check
+    if (mobileMenuOpen) {
+      document.body.setAttribute('data-mobile-menu-open', 'true');
+    } else {
+      document.body.removeAttribute('data-mobile-menu-open');
+    }
+  }, [mobileMenuOpen]);
+
   // 페이지 이동 시 모바일 메뉴 닫기
   useEffect(() => {
     setMobileMenuOpen(false);
@@ -122,6 +142,7 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
             {/* 모바일 햄버거 버튼 */}
             <div className="flex items-center md:hidden">
               <button
+                id="mobile-hamburger-btn"
                 onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
                 className="p-2 rounded-lg text-gray-600 hover:bg-gray-100 transition"
                 aria-label="메뉴 열기"
