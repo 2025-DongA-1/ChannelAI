@@ -91,7 +91,7 @@ export const sendEmail = async (
 ): Promise<void> => {
   // ── Resend API ─────────────────────────────────────────────────────────
   if (mode === 'resend' && resendClient) {
-    const fromAddress = process.env.EMAIL_FROM || 'onboarding@resend.dev';
+    const fromAddress = process.env.EMAIL_FROM || 'report@channelai.kro.kr';
     const resendPayload: any = {
       from: `ChannelAI 리포트 <${fromAddress}>`,
       to: [to],
@@ -102,7 +102,7 @@ export const sendEmail = async (
     if (attachments && attachments.length > 0) {
       resendPayload.attachments = attachments.map(a => ({
         filename: a.filename,
-        content: a.content.toString('base64'),
+        content: a.content,
       }));
     }
     const { error } = await resendClient.emails.send(resendPayload);
