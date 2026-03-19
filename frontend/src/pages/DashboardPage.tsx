@@ -512,7 +512,7 @@ export default function DashboardPage() {
             transform: 'translate(0, 0)',
           }}
         >
-          <div className="relative animate-bounce" style={{ animationDuration: '0.8s' }}>
+          <div className="relative">
             <div className="bg-indigo-600 text-white text-xs sm:text-sm font-medium px-4 py-3 rounded-2xl shadow-xl max-w-xs whitespace-pre-wrap leading-relaxed border border-indigo-500 flex flex-col gap-2">
               <span>{bubbleMessage}</span>
               <div className="flex gap-2 mt-2 justify-end">
