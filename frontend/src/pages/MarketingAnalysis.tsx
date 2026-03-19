@@ -185,6 +185,10 @@ function MarketingAnalysis() {
       // 백엔드 요청
       const cleanBudget = Number(budget.toString().replace(/,/g, ''));
       
+      // 💡 [개선점] 분석 데이터(dbData) 기준 가장 마지막(최근) 날짜를 추출해서 시드로 사용합니다!
+      const allDates = dbList.map((item: any) => item.date).filter(Boolean);
+      const latestDate = allDates.length > 0 ? allDates.sort().reverse()[0] : new Date().toISOString().split('T')[0];
+      const seedDateStr = latestDate.replace(/-/g, ''); // "yyyyMMdd" 형식으로 변환
 
       // [2026-03-06] 로컬과 운영 서버 모두 Node.js(3000포트) 환경의 단일 통신 경로로 일원화
       const response = await api.post(`/ai/recommend`, {
@@ -192,7 +196,8 @@ function MarketingAnalysis() {
         total_budget: cleanBudget,
         features: features,
         history_data : dailyData,
-        duration : currentDuration
+        duration : currentDuration,
+        seed_date: seedDateStr
       });
 
       setResult(response.data);
