@@ -426,6 +426,7 @@ export const cancelSubscription = async (req: Request, res: Response) => {
       `UPDATE payment_methods SET auto_renew = 0 WHERE user_id = ?`,
       [userId]
     );
+
     // 결제 이력 기록 (해지)
     await pool.query(
       `INSERT INTO payments (user_id, amount, plan, status)
@@ -463,6 +464,7 @@ export const activateSubscription = async (req: Request, res: Response) => {
        ON DUPLICATE KEY UPDATE plan = 'PRO'`,
       [userId]
     );
+    
     // payment_methods upsert
     await pool.query(
       `INSERT INTO payment_methods (user_id, method, monthly_amount, auto_renew)
@@ -470,6 +472,7 @@ export const activateSubscription = async (req: Request, res: Response) => {
        ON DUPLICATE KEY UPDATE monthly_amount = 9900, auto_renew = 1`,
       [userId]
     );
+
     // 결제 이력 기록
     await pool.query(
       `INSERT INTO payments (user_id, plan, amount, status, plan_started_at, plan_expires_at, paid_at)
@@ -499,6 +502,7 @@ export const updateAutoRenew = async (req: Request, res: Response) => {
     if (auto_renew !== 0 && auto_renew !== 1) {
       return res.status(400).json({ error: 'INVALID_INPUT', message: 'auto_renew는 0 또는 1이어야 합니다.' });
     }
+    
     await pool.query(
       `UPDATE payment_methods SET auto_renew = ? WHERE user_id = ?`,
       [auto_renew, userId]
@@ -520,9 +524,10 @@ export const updateAutoRenew = async (req: Request, res: Response) => {
 export const testExpireSubscription = async (req: Request, res: Response) => {
   try {
     const userId = (req as any).user.id;
-    // pay_auto_renew 값 확인
+    
+    // v_subscription 뷰를 통해 자동 갱신 여부 등 구독 정보 조회
     const check = await pool.query(
-      `SELECT auto_renew FROM payment_methods WHERE user_id = ?`,
+      `SELECT pay_auto_renew as auto_renew FROM v_subscription WHERE user_id = ?`,
       [userId]
     );
     const autoRenew = (check.rows[0] as any)?.auto_renew ?? 1;
