@@ -237,6 +237,16 @@ jobs:
             # 💡 [개선점] 다운타임을 방지하기 위해 pm2 delete와 node_modules rm 삭제
             echo ">> 의존성 업데이트 및 패키지 설치"
             cd /opt/marketing-platform/backend
+            
+            # 💡 [개선점] PDF 캡처(Puppeteer)를 위한 리눅스 그래픽 라이브러리 자동 설치 (WAS는 인터넷이 막혀있어 프록시 경유 필요)
+            if ! dpkg -l | grep -q libatk1.0-0; then
+              echo ">> PDF 엔진용 OS 라이브러리가 없어 설치를 진행합니다. (프록시 경유)"
+              export http_proxy=http://10.10.10.6:3128
+              export https_proxy=http://10.10.10.6:3128
+              DEBIAN_FRONTEND=noninteractive sudo -E apt-get update
+              DEBIAN_FRONTEND=noninteractive sudo -E apt-get install -y libnss3 libatk1.0-0 libatk-bridge2.0-0 libcups2 libdrm2 libxkbcommon0 libxcomposite1 libxdamage1 libxfixes3 libxrandr2 libgbm1 libpango-1.0-0 libcairo2 libasound2 fonts-liberation fonts-noto-cjk
+            fi
+
             npm install --include=dev --no-audit --no-fund
 
             # ========== 5-1. 프록시 주입 스크립트 생성 ==========
