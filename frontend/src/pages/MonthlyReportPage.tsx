@@ -612,7 +612,7 @@ export default function MonthlyReportPage() {
           <div ref={overviewRef} className={`${(activeTab === "overview" || isExporting) ? "block" : "hidden"} ${!isExporting ? 'animate-fade-in-up' : ''} space-y-6 ${isExporting ? 'mb-24 page-break-after' : ''}`}>
 
               {/* 🤖 [2026-03-13] 각 탭 내부에 AI 분석 블록 표시 (overall) */}
-              {isPro ? (
+              {(isPro || insights?.overall) ? (
                 <div className="bg-indigo-50/40 border-2 border-dashed border-indigo-500/50 rounded-xl p-5 relative print:hidden">
                   <div className="absolute top-0 left-0 w-1 h-full bg-indigo-400 rounded-l-xl opacity-70" />
                   <div className="flex items-center gap-2 mb-3">
@@ -750,7 +750,7 @@ export default function MonthlyReportPage() {
           <div  ref={trendRef} className={`${(activeTab === "trend" || isExporting) ? "block" : "hidden"} ${!isExporting ? 'animate-fade-in-up' : ''} space-y-6 ${isExporting ? 'mb-24 page-break-after' : ''}`}>
               
               {/* 🤖 [2026-03-13] 각 탭 내부에 AI 분석 블록 표시 (trendSummary) */}
-              {isPro ? (
+              {(isPro || insights?.trendSummary) ? (
                 <div className="bg-indigo-50/40 border-2 border-dashed border-indigo-500/50 rounded-xl p-5 relative print:hidden">
                   <div className="absolute top-0 left-0 w-1 h-full bg-indigo-400 rounded-l-xl opacity-70" />
                   <div className="flex items-center gap-2 mb-3">
@@ -924,7 +924,7 @@ export default function MonthlyReportPage() {
                     </div>
 
                     {/* 채널별 개별 AI 진단 */}
-                    {isPro ? (
+                    {(isPro || insights?.channels?.[k]) ? (
                       <div className="mt-4 bg-indigo-50/40 border border-dashed border-indigo-400/60 rounded-xl p-4 relative print:hidden">
                         <div className="absolute top-0 left-0 w-1 h-full bg-indigo-400 rounded-l-xl opacity-60" />
                         <div className="flex items-center gap-1.5 mb-2">
