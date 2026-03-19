@@ -381,10 +381,6 @@ export default function MonthlyReportPage() {
             : (mData[prevMonthStr] ? prevMonthStr : (sorted[sorted.length - 1] || ''));
           if (finalMonth) setSelectedMonth(finalMonth);
 
-          // export=true 이면 렌더링 후 자동 캡처 (기존 로직)
-          if (params.get('export') === 'true' && finalMonth) {
-            setTimeout(() => autoExportPDF(finalMonth), 3500); 
-          }
           // 백엔드 Puppeteer가 방문할 때 (pdfMode=true) 모든 탭을 화면에 렌더링하도록 강제
           if (params.get('pdfMode') === 'true') {
             setIsExporting(true);
@@ -398,24 +394,6 @@ export default function MonthlyReportPage() {
     };
     fetchData();
   }, []);
-
-  // [2026-03-11 12:45] 백엔드 Puppeteer 스크래핑용 자동 PDF 변환 로직
-  const autoExportPDF = async (month: string) => {
-    setIsExporting(true);
-    await new Promise(resolve => setTimeout(resolve, 500));
-    try {
-      const TAB_LABELS = ["종합 성과 현황", "기간별 성과 추이", "채널별 분석 데이터", "캠페인별 성과", "캠페인별 상세 성과"];
-      const pdf = await generatePDF(TAB_REFS, TAB_LABELS, month);
-      pdf.save(`ChannelAI_통합리포트_${month}.pdf`);
-    } catch (e) {
-      console.error('PDF 자동 생성 실패:', e);
-    } finally {
-      setIsExporting(false);
-      const params = new URLSearchParams(window.location.search);
-      const redirect = params.get('redirect');
-      if (redirect) navigate(`/${redirect}`);
-    }
-  };
 
   /**
    * 사용자가 현재 보고 있는 월(selectedMonth)을 변경하면,
@@ -788,7 +766,7 @@ export default function MonthlyReportPage() {
                 {/* 레이더 */}
                 <div className="bg-white border border-gray-100 rounded-2xl p-6 shadow-sm">
                   <SectionTitle sub="전월 대비 6개 지표 종합 비교">전월 대비 성과 트렌드</SectionTitle>
-                  <ResponsiveContainer width="100%" height={280}>
+                  <ResponsiveContainer minWidth={0} width="100%" height={280}>
                     <RadarChart data={radarData}>
                       <PolarGrid stroke="#e5e7eb" />
                       <PolarAngleAxis dataKey="metric" tick={{ fill:"#6b7280", fontSize:12, fontWeight: 500 }} />
@@ -811,7 +789,7 @@ export default function MonthlyReportPage() {
                 <div className="bg-white border border-gray-100 rounded-2xl p-6 shadow-sm">
                   <SectionTitle sub="채널별 광고 예산 집행 비중">채널 예산 비중</SectionTitle>
                   <div className="flex flex-col sm:flex-row items-center gap-4 mt-4">
-                    <ResponsiveContainer width="100%" height={240} className="flex-1">
+                    <ResponsiveContainer minWidth={0} width="100%" height={240} className="flex-1">
                       <PieChart>
                         <Pie data={platformPie} dataKey="value" cx="50%" cy="50%" innerRadius={60} outerRadius={90} paddingAngle={4}>
                           {platformPie.map((e: any, i: number) => <Cell key={i} fill={e.color} />)}
@@ -912,7 +890,7 @@ export default function MonthlyReportPage() {
               {/* 광고비 & 매출 추이 */}
               <div className="bg-white border border-gray-100 rounded-2xl p-6 shadow-sm">
                 <SectionTitle sub="최근 6개월 광고비 지출 대비 매출 획득 변화 트렌드">광고비 · 매출 트렌드 (최근 6개월)</SectionTitle>
-                <ResponsiveContainer width="100%" height={320}>
+                <ResponsiveContainer minWidth={0} width="100%" height={320}>
                   <AreaChart data={trendData} margin={{ top: 20, right: 20, left: 20, bottom: 0 }}>
                     <defs>
                       <linearGradient id="gCost" x1="0" y1="0" x2="0" y2="1">
@@ -945,7 +923,7 @@ export default function MonthlyReportPage() {
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <div className="bg-white border border-gray-100 rounded-2xl p-6 shadow-sm">
                   <SectionTitle sub="월별 총 전환 획득 건수 변화">전환 수 트렌드</SectionTitle>
-                  <ResponsiveContainer width="100%" height={260}>
+                  <ResponsiveContainer minWidth={0} width="100%" height={260}>
                     <BarChart data={trendData} barSize={36} margin={{ top: 20 }}>
                       <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
                       <XAxis dataKey="month" tick={{ fill:"#6b7280", fontSize:12, fontWeight: 500 }} axisLine={false} tickLine={false} />
@@ -958,7 +936,7 @@ export default function MonthlyReportPage() {
 
                 <div className="bg-white border border-gray-100 rounded-2xl p-6 shadow-sm">
                   <SectionTitle sub="광고 지출 대비 매출 효율 변화 퍼센트">ROAS 변화 트렌드 (%)</SectionTitle>
-                  <ResponsiveContainer width="100%" height={260}>
+                  <ResponsiveContainer minWidth={0} width="100%" height={260}>
                     <LineChart data={trendData} margin={{ top: 20 }}>
                       <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
                       <XAxis dataKey="month" tick={{ fill:"#6b7280", fontSize:12, fontWeight: 500 }} axisLine={false} tickLine={false} />
@@ -1090,7 +1068,7 @@ export default function MonthlyReportPage() {
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <div className="bg-white border border-gray-100 rounded-2xl p-6 shadow-sm">
                   <SectionTitle sub="플랫폼별 예산 집행 현황">광고비 분포</SectionTitle>
-                  <ResponsiveContainer width="100%" height={260}>
+                  <ResponsiveContainer minWidth={0} width="100%" height={260}>
                     <BarChart data={platformBar} barSize={40} margin={{ top: 20 }}>
                       <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
                       <XAxis dataKey="name" tick={{ fill:"#6b7280", fontSize:12, fontWeight: 500 }} axisLine={false} tickLine={false} />
@@ -1105,7 +1083,7 @@ export default function MonthlyReportPage() {
 
                 <div className="bg-white border border-gray-100 rounded-2xl p-6 shadow-sm">
                   <SectionTitle sub="플랫폼별 실제 전환 획득 현황">전환 수 분포</SectionTitle>
-                  <ResponsiveContainer width="100%" height={260}>
+                  <ResponsiveContainer minWidth={0} width="100%" height={260}>
                     <BarChart data={platformBar} barSize={40} margin={{ top: 20 }}>
                       <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
                       <XAxis dataKey="name" tick={{ fill:"#6b7280", fontSize:12, fontWeight: 500 }} axisLine={false} tickLine={false} />
@@ -1294,7 +1272,7 @@ export default function MonthlyReportPage() {
                 {/* 캠페인별 광고비 바 차트 (상위 8개) */}
                 <div className="bg-white border border-gray-100 rounded-2xl p-6 shadow-sm">
                   <SectionTitle sub="캠페인별 광고 예산 집행 현황 (광고비 상위 8개)">캠페인 광고비 분포</SectionTitle>
-                  <ResponsiveContainer width="100%" height={280}>
+                  <ResponsiveContainer minWidth={0} width="100%" height={280}>
                     <BarChart
                       data={campaigns.slice(0, 8).map((c: any) => ({
                         name: c.campaign_name.length > 20 ? c.campaign_name.slice(0, 20) + '…' : c.campaign_name,
