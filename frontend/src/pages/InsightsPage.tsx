@@ -89,7 +89,6 @@ export default function InsightsPage() {
   
   const { user } = useAuthStore();
   const isFreePlan = !user?.plan || user.plan.toUpperCase() === 'FREE';
-  const isCurrentMonth = selectedMonth === new Date().toISOString().slice(0, 7);
   
   // 튜토리얼 상태
   const [showTour, setShowTour] = useState(false);
