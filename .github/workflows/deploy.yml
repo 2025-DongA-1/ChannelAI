@@ -338,8 +338,8 @@ jobs:
             if [ -f "requirements.txt" ]; then
               pip install -r requirements.txt || true
             fi
-            if [ -f "train_model_v2.py" ]; then
-              nohup python train_model_v2.py > /opt/marketing-platform/logs/ai_train.log 2>&1 &
+            if [ -f "ensemble_model.py" ]; then
+              nohup python ensemble_model.py > /opt/marketing-platform/logs/ai_train.log 2>&1 &
               echo ">> AI 모델 학습을 백그라운드 작업으로 분리하여 시작했습니다. (로그: ai_train.log)"
             fi
 
