@@ -173,7 +173,6 @@ export default function MonthlyReportPage() {
   const trendRef          = useRef<HTMLDivElement>(null);
   const campaignRef       = useRef<HTMLDivElement>(null);
   const campaignTableRef  = useRef<HTMLDivElement>(null);
-  const TAB_REFS = [overviewRef, trendRef, platformRef, campaignRef, campaignTableRef];
   const reportRef = useRef<HTMLDivElement>(null);
 
   const [campaignSort, setCampaignSort] = useState<{ key: string; asc: boolean }>({ key: 'cost', asc: false });
