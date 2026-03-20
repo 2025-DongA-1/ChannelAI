@@ -3,7 +3,7 @@
  * 리포트 이메일 수동 발송 API (관리자/테스트용)
  */
 import { Response } from 'express';
-import { sendWeeklyReports, sendDailyReports, sendTestToEmail, generateAndSaveReportFiles, generatePdfWithPuppeteer } from '../services/reportService';
+import { sendWeeklyReports, sendDailyReports, sendTestToEmail, generateAndSaveReportFiles, generatePdfWithPuppeteer, sendMonthlyReports } from '../services/reportService';
 import { sendEmail } from '../services/emailService';
 import { AuthRequest } from '../middlewares/auth';
 import pool from '../config/database';
@@ -27,6 +27,16 @@ export const triggerDailyReport = async (req: AuthRequest, res: Response) => {
     res.json({ success: true, message: '일간 리포트 발송을 시작했습니다. 잠시 후 이메일을 확인하세요.' });
   } catch (error) {
     res.status(500).json({ success: false, message: '리포트 발송 실패' });
+  }
+};
+
+/** 월간 리포트 이메일 전송 - DB 파일 경로 기반 (POST /api/v1/report/send) */
+export const triggerSendMonthlyReports = async (req: AuthRequest, res: Response) => {
+  try {
+    res.json({ success: true, message: '월간 리포트 이메일 전송을 시작합니다. 잠시 후 각 유저에게 발송됩니다.' });
+    sendMonthlyReports().catch(err => console.error('월간 리포트 전송 오류:', err));
+  } catch (error) {
+    res.status(500).json({ success: false, message: '리포트 전송 실패' });
   }
 };
 

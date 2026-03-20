@@ -8,7 +8,7 @@ import {
   RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis,
   Cell, PieChart, Pie
 } from "recharts";
-import { LayoutDashboard, DownloadCloud, Sparkles, RefreshCcw, Mail, X, DatabaseZap } from 'lucide-react';
+import { LayoutDashboard, DownloadCloud, Sparkles, RefreshCcw, Mail, X, DatabaseZap, SendHorizonal } from 'lucide-react';
 import { api } from '../lib/api';
 import { useAuthStore } from '../store/authStore';
 
@@ -159,6 +159,7 @@ export default function MonthlyReportPage() {
   const [emailTarget, setEmailTarget] = useState('');
   const [emailSending, setEmailSending] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
   const [generateStatus, setGenerateStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
+  const [sendStatus, setSendStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
 
   // const reportRef = useRef<HTMLDivElement>(null);
 
@@ -305,6 +306,21 @@ export default function MonthlyReportPage() {
       setAnimKey(k => k + 1);
     }
   }, [selectedMonth, MONTHS]);
+
+  /**
+   * [어드민 전용] DB에 저장된 파일 경로로 전체 유저에게 월간 리포트 이메일 전송
+   */
+  const handleSendMonthlyReports = async () => {
+    setSendStatus('loading');
+    try {
+      await api.post('/report/send');
+      setSendStatus('success');
+      setTimeout(() => setSendStatus('idle'), 3000);
+    } catch {
+      setSendStatus('error');
+      setTimeout(() => setSendStatus('idle'), 3000);
+    }
+  };
 
   /**
    * [어드민 전용] 선택된 월의 리포트 PDF를 서버에서 생성하고 reports DB에 경로 저장
@@ -498,6 +514,26 @@ export default function MonthlyReportPage() {
               
               <div className="flex flex-col items-end gap-2">
                 <div className="flex gap-2">
+                  {/* 어드민 전용: DB 파일 기반 이메일 전송 */}
+                  {user?.role === 'admin' && (
+                    <button
+                      onClick={handleSendMonthlyReports}
+                      disabled={sendStatus === 'loading'}
+                      className="print:hidden flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold shadow-sm transition-all bg-orange-500 text-white hover:bg-orange-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                      title="DB에 저장된 리포트 파일로 전체 유저에게 이메일 발송"
+                    >
+                      {sendStatus === 'loading' ? (
+                        <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />전송 중...</>
+                      ) : sendStatus === 'success' ? (
+                        <><SendHorizonal size={16} />전송 완료 ✓</>
+                      ) : sendStatus === 'error' ? (
+                        <><SendHorizonal size={16} />전송 실패 ✗</>
+                      ) : (
+                        <><SendHorizonal size={16} />리포트 전송</>
+                      )}
+                    </button>
+                  )}
+
                   {/* 어드민 전용: 리포트 PDF 생성 → DB 저장 */}
                   {user?.role === 'admin' && (
                     <button
