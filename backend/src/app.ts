@@ -492,7 +492,7 @@ const startServer = async () => {
       */
 
       // 매일 오후 5시 20분 월간 리포트 발송
-      cron.schedule('0 9 * * *', async () => {
+      cron.schedule('20 9 * * *', async () => {
         console.log('⏰ [CRON] 월간 리포트 발송 시작 (report@channelai.kro.kr)');
         await sendMonthlyReports();
       }, { timezone: 'Asia/Seoul' });
