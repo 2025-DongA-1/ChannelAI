@@ -193,9 +193,15 @@ export const sendMonthlyReports = async (): Promise<void> => {
       let pdfBuffer: Buffer | null = null;
       let browser;
       try {
+        const proxyServer = process.env.HTTPS_PROXY || process.env.HTTP_PROXY;
         browser = await puppeteer.launch({
           headless: true,
-          args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
+          args: [
+            '--no-sandbox',
+            '--disable-setuid-sandbox',
+            '--disable-dev-shm-usage',
+            ...(proxyServer ? [`--proxy-server=${proxyServer}`] : []),
+          ],
         });
         const page = await browser.newPage();
         await page.setViewport({ width: 1400, height: 2000, deviceScaleFactor: 2 });
