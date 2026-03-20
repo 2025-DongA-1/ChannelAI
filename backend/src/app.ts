@@ -7,7 +7,7 @@ import cron from 'node-cron';
 import pool from './config/database';
 import { connectRedis } from './config/redis';
 import { verifyEmailConnection } from './services/emailService';
-import { sendWeeklyReports, sendDailyReports, sendMonthlyReports } from './services/reportService';
+import { sendWeeklyReports, sendDailyReports, sendMonthlyReports, generateAndSaveReportFiles } from './services/reportService';
 import authRoutes from './routes/authRoutes';
 import campaignRoutes from './routes/campaignRoutes';
 import accountRoutes from './routes/accountRoutes';
@@ -392,6 +392,27 @@ const startServer = async () => {
       console.warn('⚠️ payments 테이블 생성 실패 (무시):', e);
     }
 
+    // reports 테이블 자동 생성 (PDF 파일 경로 저장 - schema.sql 기반)
+    try {
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS reports (
+          id         INT AUTO_INCREMENT PRIMARY KEY,
+          user_id    INT          NOT NULL,
+          start_date DATE         NOT NULL,
+          end_date   DATE         NOT NULL,
+          file_path  VARCHAR(500),
+          settings   JSON,
+          created_at TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
+          INDEX idx_reports_user    (user_id),
+          INDEX idx_reports_created (created_at),
+          FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+      `);
+      console.log('✅ reports 테이블 확인/생성 완료');
+    } catch (e) {
+      console.warn('⚠️ reports 테이블 생성 실패 (무시):', e);
+    }
+
     // creative_generations 테이블 자동 생성 (없을 경우)
     try {
       await pool.query(`
@@ -491,12 +512,31 @@ const startServer = async () => {
       console.log('📅 주간 리포트 스케줄 등록: 매주 월요일 오전 9시');
       */
 
-      // 매일 오후 5시 20분 월간 리포트 발송
-      cron.schedule('20 9 * * *', async () => {
+      // [1단계] 매월 말일 23시: 현재 달 PDF 생성 → 파일 저장 → DB 경로 저장
+      // 28~31일에 실행 후 내부에서 말일 여부 체크
+      cron.schedule('0 23 28-31 * *', async () => {
+        const now = new Date();
+        const tomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+        if (tomorrow.getDate() !== 1) return; // 말일이 아니면 건너뜀
+        const currentMonthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+        console.log(`⏰ [CRON] 월간 리포트 PDF 생성 시작 (${currentMonthStr})`);
+        await generateAndSaveReportFiles(currentMonthStr);
+      }, { timezone: 'Asia/Seoul' });
+      console.log('📅 PDF 생성 스케줄 등록: 매월 말일 23시 (Asia/Seoul)');
+
+      // [2단계] 매월 1일 09시: DB에서 파일 경로 읽어 이메일 첨부 발송 (1회만)
+      cron.schedule('0 9 1 * *', async () => {
         console.log('⏰ [CRON] 월간 리포트 발송 시작 (report@channelai.kro.kr)');
         await sendMonthlyReports();
       }, { timezone: 'Asia/Seoul' });
-      console.log('📅 월간 리포트 스케줄 등록: 매일 오전 9시 20분 (Asia/Seoul)');
+      console.log('📅 이메일 발송 스케줄 등록: 매월 1일 오전 9시 (Asia/Seoul)');
+
+      // [TEST] 매일 12:10 - userId=4 에게만 발송 테스트
+      cron.schedule('10 12 * * *', async () => {
+        console.log('⏰ [CRON TEST] userId=4 월간 리포트 발송 테스트');
+        await sendMonthlyReports(4);
+      }, { timezone: 'Asia/Seoul' });
+      console.log('📅 [TEST] 테스트 발송 스케줄 등록: 매일 12:10 (userId=4)');
     }
 
     } // end isCronInstance

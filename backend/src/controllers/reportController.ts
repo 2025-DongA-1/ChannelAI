@@ -3,7 +3,7 @@
  * 리포트 이메일 수동 발송 API (관리자/테스트용)
  */
 import { Response } from 'express';
-import { sendWeeklyReports, sendDailyReports, sendTestToEmail } from '../services/reportService';
+import { sendWeeklyReports, sendDailyReports, sendTestToEmail, generateAndSaveReportFiles, generatePdfWithPuppeteer } from '../services/reportService';
 import { sendEmail } from '../services/emailService';
 import { AuthRequest } from '../middlewares/auth';
 import pool from '../config/database';
@@ -27,6 +27,21 @@ export const triggerDailyReport = async (req: AuthRequest, res: Response) => {
     res.json({ success: true, message: '일간 리포트 발송을 시작했습니다. 잠시 후 이메일을 확인하세요.' });
   } catch (error) {
     res.status(500).json({ success: false, message: '리포트 발송 실패' });
+  }
+};
+
+/** 월간 리포트 PDF 생성 → 파일 저장 → DB 경로 저장 (POST /api/v1/report/generate) */
+export const triggerGenerateReports = async (req: AuthRequest, res: Response) => {
+  try {
+    // month 파라미터 없으면 지난달 자동 계산
+    const { month } = req.body;
+    const label = month || '지난달';
+    res.json({ success: true, message: `${label} 리포트 PDF 생성을 시작합니다. 완료 후 reports 테이블에 저장됩니다.` });
+    generateAndSaveReportFiles(month || undefined).catch(err =>
+      console.error('리포트 생성 오류:', err)
+    );
+  } catch (error) {
+    res.status(500).json({ success: false, message: '리포트 생성 실패' });
   }
 };
 
@@ -105,9 +120,13 @@ export const triggerSendToEmail = async (req: AuthRequest, res: Response) => {
 
           // 먼저 같은 도메인에 접속한 뒤 localStorage에 토큰 세팅 (evaluateOnNewDocument는 WAS 환경에서 미작동)
           await page.goto(frontendUrl, { waitUntil: 'domcontentloaded', timeout: 15000 });
-          await page.evaluate((token: string) => {
+          await page.evaluate(({ token, userId: uid, userEmail, name }: { token: string; userId: number; userEmail: string; name: string }) => {
             (globalThis as any).localStorage.setItem('token', token);
-          }, tempToken);
+            (globalThis as any).localStorage.setItem('auth-storage', JSON.stringify({
+              state: { user: { id: uid, email: userEmail, name }, token, isAuthenticated: true },
+              version: 0,
+            }));
+          }, { token: tempToken, userId, userEmail: email, name: userName });
 
           // 보고서 페이지 접속
           await page.goto(reportUrl, { waitUntil: 'networkidle0', timeout: 45000 });
@@ -374,117 +393,6 @@ export const generatePdfFromHtml = async (req: AuthRequest, res: Response) => {
   }
 };
 
-// ─── [2026-03-18] Puppeteer 스크린샷 기반 PDF 생성 공통 헬퍼 ───────────────────────
-// 화면 레이아웃을 100% 그대로 캡처하여 PDF로 변환
-// html2canvas와 달리 동일한 Chrome 렌더링 엔진을 사용하므로 CSS 해석 차이 없음
-const generatePdfWithPuppeteer = async (month: string, userId: number, type: string = 'monthly', originUrl?: string): Promise<Buffer> => {
-  const tempToken = jwt.sign(
-    { id: userId, email: 'pdf-generator@internal' },
-    process.env.JWT_SECRET || 'channel_ai_secret_key_2024',
-    { expiresIn: '1h' }
-  );
-
-  const frontendUrl = originUrl || process.env.FRONTEND_URL || 'http://localhost:5173';
-  const reportUrl = type === 'insights'
-    ? `${frontendUrl}/insights?month=${month}&pdfMode=true`
-    : `${frontendUrl}/monthly-report?month=${month}&pdfMode=true`;
-  console.log(`  🌐 [PDF] 리포트 페이지 접속: ${reportUrl}`);
-
-  let browser;
-  try {
-    browser = await puppeteer.launch({
-      headless: true,
-      args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
-    });
-    const page = await browser.newPage();
-    await page.setViewport({ width: 1280, height: 1800, deviceScaleFactor: 2 });
-
-    // evaluateOnNewDocument: 페이지 로드 전에 localStorage에 인증 정보 주입
-    await page.evaluateOnNewDocument((token: string, uid: number) => {
-      const authState = {
-        state: {
-          user: { id: uid, email: 'pdf-generator@internal', name: 'PDF Generator', role: 'admin' },
-          token: token,
-          isAuthenticated: true,
-        },
-        version: 0,
-      };
-      (globalThis as any).localStorage.setItem('auth-storage', JSON.stringify(authState));
-      (globalThis as any).localStorage.setItem('token', token);
-    }, tempToken, userId);
-
-    // 리포트 페이지로 직접 이동
-    await page.goto(reportUrl, { waitUntil: 'networkidle0', timeout: 45000 });
-
-    // 데이터 렌더링 대기
-    try {
-      await page.waitForSelector('.recharts-responsive-container, .bg-white.border.border-gray-100', { timeout: 15000 });
-      console.log('  ✅ [PDF] 데이터 렌더링 확인됨');
-    } catch (e) {
-      console.warn('  ⚠️ [PDF] 데이터 렌더링 대기 시간 초과');
-    }
-
-    // PDF 요소 숨김 처리 및 레이아웃 교정용 CSS 주입
-    await page.addStyleTag({
-      content: `
-        nav, .floating-tutorial-button, [class*="tutorial"], .pdf-header-container,
-        button[class*="download"], button[class*="email"],
-        [class*="sticky"][class*="top-0"] { display: none !important; }
-        .flex.gap-1.bg-gray-100 { display: none !important; }
-        
-        /* 페이지 잘림 방지 (네이티브 PDF 활용) */
-        tr, .bg-white.border {
-          page-break-inside: avoid !important;
-          break-inside: avoid !important;
-        }
-
-        /* 텍스트/아이콘 상하 정렬 불일치 교정 */
-        svg text { dominant-baseline: central !important; }
-        td, th { vertical-align: middle !important; }
-        .flex.items-center svg { vertical-align: middle !important; margin-bottom: 2px !important; }
-        .flex.items-center span, .flex.items-center p, .flex.items-center div { vertical-align: middle !important; }
-      `
-    });
-
-    // 화면(screen) 모드 에뮬레이션 - 인쇄용 모바일 뷰로 깨지는 것 방지
-    await page.emulateMediaType('screen');
-    
-    // 웹 폰트 로드가 끝날 때까지 대기하여 폰트 높이(line-height) 차이로 인한 정렬 어긋남 방지
-    await page.evaluateHandle('document.fonts.ready');
-    
-    // 차트 애니메이션 완료 대기
-    await new Promise(resolve => setTimeout(resolve, 5000));
-
-    const headerTitle = type === 'insights' ? '인사이트 리포트' : '월별 통합 성과 보고서';
-    const pdf = await page.pdf({
-      width: '1280px',     // 뷰포트 너비 유지
-      height: '1810px',    // A4 비율 맞춤 (1280 / 0.707)
-      printBackground: true,
-      displayHeaderFooter: true,
-      headerTemplate: `
-        <div style="width: 100%; border-bottom: 2px solid #2563eb; margin: 0 40px; padding-bottom: 15px; display: flex; justify-content: space-between; align-items: flex-end; font-family: 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif;">
-          <span style="font-size: 24px; font-weight: bold; color: #1e3a8a;">ChannelAI <span style="font-weight: normal; color: #3b82f6;">${headerTitle}</span></span>
-          <span style="font-size: 18px; font-weight: bold; color: #3b82f6;">${month}</span>
-        </div>`,
-      footerTemplate: `
-        <div style="width: 100%; text-align: center; font-size: 14px; color: #9ca3af; font-family: sans-serif;">
-          Page <span class="pageNumber"></span> of <span class="totalPages"></span>
-        </div>`,
-      margin: {
-        top: '100px',
-        bottom: '80px',
-        left: '0px',
-        right: '0px'
-      }
-    });
-
-    const pdfBuffer = Buffer.from(pdf);
-    console.log(`  📎 [PDF] 네이티브 PDF(선명도+잘림방지 적용) 생성 완료 (${pdfBuffer.length} bytes)`);
-    return pdfBuffer;
-  } finally {
-    if (browser) await browser.close();
-  }
-};
 
 /** [2026-03-18] 서버에서 Puppeteer로 텍스트 PDF 생성 후 다운로드 (GET /api/v1/report/generate-pdf) */
 export const generatePdfFromPage = async (req: AuthRequest, res: Response) => {
