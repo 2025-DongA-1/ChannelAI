@@ -696,7 +696,7 @@ function MarketingAnalysis() {
                       
                       {/* 1. 분석 모델 안내 */}
                       <div style={{ fontSize: '0.85rem', color: '#868e96', letterSpacing: '-0.3px' }}>
-                        본 분석은 연동된 광고 실시간 데이터를 바탕으로 <strong style={{color: '#495057'}}>XGBoost 예측 모델</strong>과 <strong style={{color: '#495057'}}>선형 계획법 알고리즘</strong>을 통해 산출되었습니다.
+                        본 분석은 연동된 광고 실시간 데이터를 바탕으로 <strong style={{color: '#495057'}}>XGBoost+Ridge 모델</strong>과 <strong style={{color: '#495057'}}>선형 계획법 알고리즘</strong>을 통해 산출되었습니다.
                       </div>
 
                       {/* 2. 법적 면책 조항 (가독성 개선) */}
