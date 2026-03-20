@@ -783,7 +783,7 @@ export default function DashboardPage() {
             type="date"
             value={dateRange.startDate}
             onChange={(e) => handleCustomDateChange('start', e.target.value)}
-            max={dateRange.endDate}
+            max={dateRange.endDate || undefined}
             className="flex-1 sm:flex-none px-2 sm:px-3 py-1.5 text-xs sm:text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           />
           <span className="text-gray-400 text-xs">~</span>
@@ -791,7 +791,7 @@ export default function DashboardPage() {
             type="date"
             value={dateRange.endDate}
             onChange={(e) => handleCustomDateChange('end', e.target.value)}
-            min={dateRange.startDate}
+            min={dateRange.startDate || undefined}
             max={new Date().toISOString().split('T')[0]}
             className="flex-1 sm:flex-none px-2 sm:px-3 py-1.5 text-xs sm:text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           />
