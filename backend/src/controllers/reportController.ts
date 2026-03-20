@@ -6,6 +6,7 @@ import { Response } from 'express';
 import { sendWeeklyReports, sendDailyReports, sendTestToEmail, generateAndSaveReportFiles, generatePdfWithPuppeteer, sendMonthlyReports } from '../services/reportService';
 import { sendEmail } from '../services/emailService';
 import { AuthRequest } from '../middlewares/auth';
+import { ERROR_CODES, createErrorResponse } from '../constants/errorCodes';
 import pool from '../config/database';
 import puppeteer from 'puppeteer';
 import jwt from 'jsonwebtoken';
@@ -16,7 +17,7 @@ export const triggerWeeklyReport = async (req: AuthRequest, res: Response) => {
     sendWeeklyReports().catch(err => console.error('주간 리포트 오류:', err));
     res.json({ success: true, message: '주간 리포트 발송을 시작했습니다. 잠시 후 이메일을 확인하세요.' });
   } catch (error) {
-    res.status(500).json({ success: false, message: '리포트 발송 실패' });
+    res.status(500).json(createErrorResponse(ERROR_CODES.REPORT.SEND_FAILED));
   }
 };
 
@@ -26,7 +27,7 @@ export const triggerDailyReport = async (req: AuthRequest, res: Response) => {
     sendDailyReports().catch(err => console.error('일간 리포트 오류:', err));
     res.json({ success: true, message: '일간 리포트 발송을 시작했습니다. 잠시 후 이메일을 확인하세요.' });
   } catch (error) {
-    res.status(500).json({ success: false, message: '리포트 발송 실패' });
+    res.status(500).json(createErrorResponse(ERROR_CODES.REPORT.SEND_FAILED));
   }
 };
 
@@ -36,14 +37,13 @@ export const triggerSendMonthlyReports = async (req: AuthRequest, res: Response)
     res.json({ success: true, message: '월간 리포트 이메일 전송을 시작합니다. 잠시 후 각 유저에게 발송됩니다.' });
     sendMonthlyReports().catch(err => console.error('월간 리포트 전송 오류:', err));
   } catch (error) {
-    res.status(500).json({ success: false, message: '리포트 전송 실패' });
+    res.status(500).json(createErrorResponse(ERROR_CODES.REPORT.SEND_MONTHLY_FAILED));
   }
 };
 
 /** 월간 리포트 PDF 생성 → 파일 저장 → DB 경로 저장 (POST /api/v1/report/generate) */
 export const triggerGenerateReports = async (req: AuthRequest, res: Response) => {
   try {
-    // month 파라미터 없으면 지난달 자동 계산
     const { month } = req.body;
     const label = month || '지난달';
     res.json({ success: true, message: `${label} 리포트 PDF 생성을 시작합니다. 완료 후 reports 테이블에 저장됩니다.` });
@@ -51,7 +51,7 @@ export const triggerGenerateReports = async (req: AuthRequest, res: Response) =>
       console.error('리포트 생성 오류:', err)
     );
   } catch (error) {
-    res.status(500).json({ success: false, message: '리포트 생성 실패' });
+    res.status(500).json(createErrorResponse(ERROR_CODES.REPORT.GENERATE_FAILED));
   }
 };
 
@@ -61,21 +61,20 @@ export const triggerTestReport = async (req: AuthRequest, res: Response) => {
     sendWeeklyReports().catch(err => console.error('테스트 리포트 오류:', err));
     res.json({ success: true, message: '테스트 리포트를 발송했습니다.' });
   } catch (error) {
-    res.status(500).json({ success: false, message: '테스트 발송 실패' });
+    res.status(500).json(createErrorResponse(ERROR_CODES.REPORT.TEST_SEND_FAILED));
   }
 };
 
 /** 입력한 이메일로 월별 보고서 PDF 첨부 발송 (POST /api/v1/report/send-to) */
-// [2026-03-11 15:03] Puppeteer로 월별 성과 보고서 페이지(지난달) 그대로 캡처 → PDF 첨부
 export const triggerSendToEmail = async (req: AuthRequest, res: Response) => {
   try {
     const { email } = req.body;
     if (!email || typeof email !== 'string') {
-      return res.status(400).json({ success: false, message: '이메일 주소를 입력하세요.' });
+      return res.status(400).json(createErrorResponse(ERROR_CODES.EMAIL.REQUIRED));
     }
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) {
-      return res.status(400).json({ success: false, message: '올바른 이메일 형식이 아닙니다.' });
+      return res.status(400).json(createErrorResponse(ERROR_CODES.EMAIL.INVALID_FORMAT));
     }
     const userId = req.user?.id || 1;
 
@@ -211,7 +210,7 @@ export const triggerSendToEmail = async (req: AuthRequest, res: Response) => {
     })();
 
   } catch (error) {
-    res.status(500).json({ success: false, message: '이메일 발송 실패' });
+    res.status(500).json(createErrorResponse(ERROR_CODES.EMAIL.SEND_FAILED));
   }
 };
 
@@ -358,7 +357,7 @@ export const getMonthlyReportData = async (req: AuthRequest, res: Response) => {
     return res.json({ success: true, data: monthlyData });
   } catch (error) {
     console.error('월별 리포트 데이터 조회 오류:', error);
-    res.status(500).json({ success: false, message: '리포트 데이터 조회 실패' });
+    res.status(500).json(createErrorResponse(ERROR_CODES.REPORT.DATA_FETCH_FAILED));
   }
 };
 
@@ -368,7 +367,7 @@ export const generatePdfFromHtml = async (req: AuthRequest, res: Response) => {
   try {
     const { htmlContent, filename } = req.body;
     if (!htmlContent) {
-      return res.status(400).json({ success: false, message: 'HTML 내용이 없습니다.' });
+      return res.status(400).json(createErrorResponse(ERROR_CODES.PDF.NO_CONTENT));
     }
 
     browser = await puppeteer.launch({
@@ -395,7 +394,7 @@ export const generatePdfFromHtml = async (req: AuthRequest, res: Response) => {
 
   } catch (error) {
     console.error('PDF 생성 오류:', error);
-    res.status(500).json({ success: false, message: 'PDF 생성 실패' });
+    res.status(500).json(createErrorResponse(ERROR_CODES.PDF.GENERATE_FAILED));
   } finally {
     if (browser) {
       await browser.close();
@@ -424,7 +423,7 @@ export const generatePdfFromPage = async (req: AuthRequest, res: Response) => {
   } catch (error: any) {
     console.error('PDF 생성 오류:', error);
     require('fs').appendFileSync('pdf-error.log', '\n['+new Date().toISOString()+'] Error: ' + (error?.stack || error?.message || error) + '\n');
-    res.status(500).json({ success: false, message: 'PDF 생성 실패', error: error?.message });
+    res.status(500).json(createErrorResponse(ERROR_CODES.PDF.GENERATE_FAILED, (error as any)?.message));
   }
 };
 
@@ -435,7 +434,7 @@ export const sendPdfByEmail = async (req: AuthRequest, res: Response) => {
     const { email, month } = req.body;
 
     if (!email || typeof email !== 'string') {
-      return res.status(400).json({ success: false, message: '이메일 주소를 입력하세요.' });
+      return res.status(400).json(createErrorResponse(ERROR_CODES.EMAIL.REQUIRED));
     }
 
     const userId = req.user?.id || 1;
@@ -495,7 +494,7 @@ export const sendPdfByEmail = async (req: AuthRequest, res: Response) => {
 
   } catch (error) {
     console.error('PDF 이메일 발송 오류:', error);
-    res.status(500).json({ success: false, message: 'PDF 이메일 발송 실패' });
+    res.status(500).json(createErrorResponse(ERROR_CODES.PDF.SEND_FAILED));
   }
 };
 

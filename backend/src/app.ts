@@ -549,6 +549,8 @@ const startServer = async () => {
       console.log(`🌍 환경: ${process.env.NODE_ENV}`);
       console.log(`🔗 로컬 URL: http://localhost:${PORT}`);
       console.log(`🔗 네트워크 URL: http://0.0.0.0:${PORT}`);
+      console.log(`📁 작업 디렉토리: ${process.cwd()}`);
+      console.log(`📁 리포트 저장 경로: ${path.join(process.cwd(), 'uploads', 'reports')}`);
       console.log('');
       console.log('사용 가능한 엔드포인트:');
       console.log('  GET  /           - API 정보');
