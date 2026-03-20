@@ -1135,13 +1135,14 @@ export const uploadCSV = async (req: AuthRequest, res: Response) => {
         // 3. 지표 처리
         const formattedDate = rawDate.replace(/[\.\/]/g, '-');
 
+        // hour = 0 으로 고정: NULL이면 UNIQUE KEY 중복 감지가 안 되어 매번 중복 삽입됨
         await pool.query(`
             INSERT INTO campaign_metrics (
-                campaign_id, metric_date, impressions, clicks, cost, conversions, revenue,
+                campaign_id, metric_date, hour, impressions, clicks, cost, conversions, revenue,
                 ctr, cpc, cpm, conversion_rate, cpa, roas, roi
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ON DUPLICATE KEY UPDATE 
+            VALUES (?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON DUPLICATE KEY UPDATE
                 impressions = VALUES(impressions),
                 clicks = VALUES(clicks),
                 cost = VALUES(cost),

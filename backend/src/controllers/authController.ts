@@ -357,14 +357,16 @@ export const getSubscription = async (req: Request, res: Response) => {
 export const cancelSubscription = async (req: Request, res: Response) => {
   try {
     const userId = (req as any).user.id;
-    // user_profiles plan 초기화
+    // user_profiles plan 초기화 (행이 없으면 생성, 있으면 NULL로 업데이트)
     await pool.query(
-      `UPDATE user_profiles SET plan = NULL WHERE user_id = ?`,
+      `INSERT INTO user_profiles (user_id, plan) VALUES (?, NULL)
+       ON DUPLICATE KEY UPDATE plan = NULL`,
       [userId]
     );
-    // payment_methods 자동갱신 OFF
+    // payment_methods 자동갱신 OFF (행이 없으면 생성, 있으면 0으로 업데이트)
     await pool.query(
-      `UPDATE payment_methods SET auto_renew = 0 WHERE user_id = ?`,
+      `INSERT INTO payment_methods (user_id, auto_renew) VALUES (?, 0)
+       ON DUPLICATE KEY UPDATE auto_renew = 0`,
       [userId]
     );
 
