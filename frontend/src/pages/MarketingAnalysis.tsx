@@ -275,92 +275,50 @@ function MarketingAnalysis() {
   const safeHistoryList = historyList?.rows ? historyList.rows : (Array.isArray(historyList) ? historyList : []);
 
   return (
-    <div style={{ backgroundColor: BG_COLOR, minHeight: '100vh', padding: '40px 20px', fontFamily: '"Pretendard", sans-serif' }}>
+    <div className="min-h-screen px-4 md:px-6 py-8 md:py-10" style={{ backgroundColor: BG_COLOR, fontFamily: '"Pretendard", sans-serif' }}>
       
       {/* 1. 헤더 및 입력 섹션 */}
-      <div style={{ maxWidth: '1200px', margin: '0 auto', marginBottom: '30px' }}>
-        <header style={{ marginBottom: '40px', textAlign: 'center' }}>
+      <div className="max-w-[1200px] mx-auto mb-8">
+        <header className="mb-8 md:mb-10 text-center">
           
-          <div style={{ 
-            display: 'inline-block', 
-            backgroundColor: '#dfecfa', 
-            color: '#03458c', 
-            padding: '6px 15px', 
-            borderRadius: '20px', 
-            fontSize: '1.2rem', 
-            fontWeight: 'bold', 
-            marginBottom: '15px',
-            border: '1px solid #d9e6f5'
-          }}>
+          <div className="inline-block bg-[#dfecfa] text-[#03458c] px-3 py-1.5 md:px-4 md:py-1.5 rounded-full text-sm md:text-lg font-bold mb-3 md:mb-4 border border-[#d9e6f5]">
             ✅ 4개 채널 데이터 연동 완료
           </div>
 
-          <h1 style={{ 
-            color: '#2D3436', fontSize: '2.5rem', fontWeight: '800', marginBottom: '10px', letterSpacing: '-1px' 
-          }}>
+          <h1 className="text-2xl md:text-[2.5rem] font-extrabold mb-2 md:mb-3 tracking-tight text-[#2D3436]">
             📢 사장님을 위한 AI 광고 예산 비서
           </h1>
-          <p style={{ fontSize: '1.1rem', color: '#636e72' }}>
-            복잡한 데이터 분석은 AI에게 맡기고, <strong style={{ color: '#0984e3' }}>가장 효과 좋은 곳</strong>에만 돈을 쓰세요!
+          <p className="text-base md:text-lg text-[#636e72] px-2 break-keep">
+            복잡한 데이터 분석은 AI에게 맡기고, <strong className="text-[#0984e3]">가장 효과 좋은 곳</strong>에만 돈을 쓰세요!
           </p>
         </header>
 
         {/* 상단 입력 바 */}
-        <div style={{ 
-          backgroundColor: 'white', 
-          padding: '30px 40px', 
-          borderRadius: '20px', 
-          boxShadow: '0 10px 25px rgba(0,0,0,0.05)', 
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          gap: '20px',
-          border: '1px solid #f1f3f5'
-        }}>
-          <span style={{ fontSize: '1.2rem', fontWeight: 'bold', color: '#2D3436' }}>
+        <div className="bg-white p-6 md:px-10 md:py-8 rounded-2xl shadow-[0_10px_25px_rgba(0,0,0,0.05)] border border-[#f1f3f5] flex flex-col md:flex-row items-center justify-center gap-5 md:gap-6">
+          <span className="text-lg md:text-xl font-bold text-[#2D3436] text-center break-keep">
             하루 광고비, 얼마를 최적화할까요?
           </span>
           
-          <div style={{ display: 'flex', flexDirection: 'column', position: 'relative' }}>
-            <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+          <div className="flex flex-col relative w-full md:w-auto items-center">
+            <div className="relative flex items-center w-full md:w-auto justify-center">
                <input
                 type="text" 
                 value={budget}
                 onChange={handleBudgetChange}
                 placeholder="예: 500,000"
+                className="w-full md:w-[220px] px-5 py-3 md:py-3.5 pr-10 text-lg md:text-xl font-bold text-[#2D3436] rounded-xl outline-none text-right bg-[#fdfdfd] transition-colors"
                 style={{ 
-                  width: '220px', 
-                  padding: '14px 40px 14px 20px', 
-                  fontSize: '1.3rem', 
-                  fontWeight: 'bold',
-                  color: '#2D3436',
-                  borderRadius: '12px', 
                   border: budgetWarning ? '2px solid #ff6b6b' : '2px solid #dfe6e9', 
-                  outline: 'none',
-                  textAlign: 'right',
-                  backgroundColor: '#fdfdfd',
-                  transition: 'border-color 0.3s'
                 }}
               />
-              <span style={{ position: 'absolute', right: '15px', fontWeight: 'bold', color: '#b2bec3', fontSize: '1rem' }}>원</span>
+              <span className="absolute right-4 font-bold text-[#b2bec3] text-base md:text-lg pointer-events-none">원</span>
             </div>
             
             {/* 2. 💡 수정한 동적 안내 문구 (여기가 통째로 바뀐 부분!) */}
-            <div style={{ 
-              position: 'absolute', 
-              top: '100%', 
-              left: '50%', 
-              transform: 'translateX(-50%)',
-              fontSize: '0.85rem', 
-              marginTop: '8px', 
-              whiteSpace: 'nowrap',
-              transition: 'color 0.3s ease', // 부드러운 색상 전환 효과
-              color: budgetWarning ? '#ff6b6b' : '#a4b0be', // 경고 시 빨간색, 평소엔 차분한 회색
-              fontWeight: budgetWarning ? 'bold' : '500'    // 경고 시 굵게
-            }}>
+            <div className={`absolute top-full left-1/2 -translate-x-1/2 text-xs md:text-[0.85rem] mt-2 whitespace-nowrap transition-colors duration-300 ${budgetWarning ? 'text-[#ff6b6b] font-bold' : 'text-[#a4b0be] font-medium'}`}>
               {budgetWarning 
                 ? "⚠️ 300만 원까지만 입력 가능합니다." 
-                : "※ AI 정밀 예측을 위한 최적화 한도는 300만 원입니다."}
+                : "※ AI 정밀 예측 최적화 한도는 300만 원입니다."}
             </div>
 
           </div>
@@ -368,21 +326,7 @@ function MarketingAnalysis() {
           <button
             onClick={() => getRecommendation()}
             disabled={loading}
-            style={{ 
-              padding: '14px 35px', 
-              fontSize: '1.1rem', 
-              fontWeight: 'bold', 
-              backgroundColor: '#2d3436cd', 
-              color: '#e9c704', 
-              border: '1px solid #2d3436cd', 
-              borderRadius: '12px', 
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '10px', 
-              boxShadow: '0 4px 15px rgba(233, 199, 4, 0.15)', 
-              transition: 'all 0.3s ease'
-            }}
+            className="w-full md:w-auto mt-6 md:mt-0 px-6 py-3.5 md:px-8 md:py-3.5 text-base md:text-lg font-bold bg-[#2d3436cd] text-[#e9c704] border border-[#2d3436cd] rounded-xl cursor-pointer flex items-center justify-center gap-2 shadow-[0_4px_15px_rgba(233,199,4,0.15)] transition-all duration-300"
             onMouseOver={(e) => {
                 e.currentTarget.style.transform = 'translateY(-2px)';
                 e.currentTarget.style.backgroundColor = '#2d3436';
@@ -395,10 +339,10 @@ function MarketingAnalysis() {
             }}
           >
             {loading ? (
-               <span style={{ color: '#b2bec3' }}>AI 분석 중... ⏳</span>
+               <span className="text-[#b2bec3]">AI 분석 중... ⏳</span>
             ) : (
                <>
-                 <span style={{ fontSize: '1.3rem' }}> AI 트렌드 분석 실행</span> 
+                 <span> AI 트렌드 분석 실행</span> 
                </>
             )}
           </button>
@@ -406,60 +350,48 @@ function MarketingAnalysis() {
       </div>
 
       {/* 2. 하단 결과 대시보드 영역 */}
-      <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
+      <div className="max-w-[1200px] mx-auto">
         {result ? (
           // ▼ 내 입력 데이터가 1원이라도 있니?
           // totalInputCost>0 ? ( -> CASE B가 사라지면서 조건도 없앰
             
             /* ─── CASE A: 데이터가 있어서 그래프를 보여주는 화면 ─── */
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '25px' }}>
+            <div className="flex flex-col gap-6 md:gap-8">
 
               {/* 핵심 지표 (KPI Cards) */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
-                <div style={{ backgroundColor: 'white', padding: '30px', borderRadius: '20px', boxShadow: '0 5px 20px rgba(0,0,0,0.03)', textAlign: 'center' }}>
-                  <span style={{ fontSize: '1rem', color: '#888', fontWeight: 'bold' }}>💰 예측 총 매출액</span>
-                  <div style={{ fontSize: '2.5rem', fontWeight: '900', color: '#2D3436', marginTop: '10px', letterSpacing: '-1px' }}>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-5">
+                <div className="bg-white p-6 md:p-8 rounded-2xl shadow-[0_5px_20px_rgba(0,0,0,0.03)] text-center">
+                  <span className="text-sm md:text-base text-[#888] font-bold">💰 예측 총 매출액</span>
+                  <div className="text-3xl md:text-[2.5rem] font-black text-[#2D3436] mt-2 md:mt-3 tracking-tight">
                     {Math.round(result.expected_revenue).toLocaleString()}원
                   </div>
                 </div>
-                <div style={{ backgroundColor: 'white', padding: '30px', borderRadius: '20px', boxShadow: '0 5px 20px rgba(0,0,0,0.03)', textAlign: 'center' }}>
-                  <span style={{ fontSize: '1rem', color: '#888', fontWeight: 'bold' }}>🏆 베스트 전략</span>
-                  <div style={{ fontSize: '2rem', fontWeight: '900', color: '#0984e3', marginTop: '10px', letterSpacing: '-1px' }}>
+                <div className="bg-white p-6 md:p-8 rounded-2xl shadow-[0_5px_20px_rgba(0,0,0,0.03)] text-center">
+                  <span className="text-sm md:text-base text-[#888] font-bold">🏆 베스트 전략</span>
+                  <div className="text-2xl md:text-[2rem] font-black text-[#0984e3] mt-2 md:mt-3 tracking-tight break-keep">
                     {barData.length > 0 ? barData.reduce((prev, current) => (prev.roas > current.roas) ? prev : current).name : '-'} 집중 공략
                   </div>
                 </div>
               </div>
 
               {/* ★ [복구됨] 꺾은선 그래프를 감싸는 하얀색 배경 박스 시작 */}
-              <div style={{ backgroundColor: 'white', padding: '35px', borderRadius: '20px', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', marginTop: '20px' }}>
+              <div className="bg-white p-6 md:p-9 rounded-2xl shadow-[0_10px_30px_rgba(0,0,0,0.05)] mt-1 md:mt-3">
                 
                 {/* 꺾은선 그래프 상단 타이틀 영역 */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
                   {/* 왼쪽: 제목과 버튼 */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-                    <h3 style={{ fontSize: '1.3rem', margin: 0, color: '#333' }}>📉 AI 플랫폼별 성과 예측 시뮬레이션</h3>
-                    <div style={{ display: 'flex', backgroundColor: '#f1f3f5', borderRadius: '20px', padding: '4px' }}>
+                  <div className="flex flex-col md:flex-row items-start md:items-center gap-4 w-full md:w-auto">
+                    <h3 className="text-xl md:text-[1.3rem] m-0 text-[#333] font-bold">📉 AI 플랫폼별 성과 예측 시뮬레이션</h3>
+                    <div className="flex bg-[#f1f3f5] rounded-full p-1 w-full md:w-auto">
                       <button 
                         onClick={() => handlePeriodChange(7)}
-                        style={{
-                          padding: '5px 15px', borderRadius: '15px', border: 'none', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.9rem',
-                          backgroundColor: period === 7 ? 'white' : 'transparent',
-                          color: period === 7 ? '#2D3436' : '#868e96',
-                          boxShadow: period === 7 ? '0 2px 5px rgba(0,0,0,0.1)' : 'none',
-                          transition: 'all 0.2s'
-                        }}
+                        className={`flex-1 md:flex-none px-4 py-1.5 rounded-full border-none cursor-pointer font-bold text-sm transition-all duration-200 ${period === 7 ? 'bg-white text-[#2D3436] shadow-[0_2px_5px_rgba(0,0,0,0.1)]' : 'bg-transparent text-[#868e96]'}`}
                       >
                         7일 시뮬레이션
                       </button>
                       <button 
                         onClick={() => handlePeriodChange(30)}
-                        style={{
-                          padding: '5px 15px', borderRadius: '15px', border: 'none', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.9rem',
-                          backgroundColor: period === 30 ? 'white' : 'transparent',
-                          color: period === 30 ? '#2D3436' : '#868e96',
-                          boxShadow: period === 30 ? '0 2px 5px rgba(0,0,0,0.1)' : 'none',
-                          transition: 'all 0.2s'
-                        }}
+                        className={`flex-1 md:flex-none px-4 py-1.5 rounded-full border-none cursor-pointer font-bold text-sm transition-all duration-200 ${period === 30 ? 'bg-white text-[#2D3436] shadow-[0_2px_5px_rgba(0,0,0,0.1)]' : 'bg-transparent text-[#868e96]'}`}
                       >
                         30일 시뮬레이션
                       </button>
@@ -467,18 +399,18 @@ function MarketingAnalysis() {
                   </div>
                   
                   {/* 오른쪽 텅 빈 공간에 뱃지 형태로 Tip */}
-                  <div style={{ fontSize: '0.85rem', color: '#0984e3', backgroundColor: '#e3f2fd', padding: '6px 14px', borderRadius: '20px', fontWeight: 'bold' }}>
+                  <div className="text-xs md:text-[0.85rem] text-[#0984e3] bg-[#e3f2fd] px-3 py-1.5 md:px-3.5 md:py-1.5 rounded-full font-bold self-end md:self-auto">
                     💡 Tip. 선이나 플랫폼명에 마우스를 올려보세요!
                   </div>
                 </div>
 
-                <div style={{ width: '100%', minHeight: 320, height: 320, position: 'relative' }}>
+                <div className="w-full min-h-[250px] md:min-h-[320px] h-[250px] md:h-[320px] relative">
                   {mounted && result?.history?.length > 0 && (
-                    <ResponsiveContainer width="100%" height={320} debounce={50}>
-                      <LineChart data={result.history} margin={{ top: 10, right: 30, left: 10, bottom: 0 }}>
+                    <ResponsiveContainer width="100%" height="100%" debounce={50}>
+                      <LineChart data={result.history} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#eee" />
-                        <XAxis dataKey="day" tick={{ fontSize: 12, fill: '#888' }} axisLine={false} tickLine={false} dy={10} />
-                        <YAxis tick={{ fontSize: 12, fill: '#888' }} axisLine={false} tickLine={false} />
+                        <XAxis dataKey="day" tick={{ fontSize: 11, fill: '#888' }} axisLine={false} tickLine={false} dy={10} />
+                        <YAxis tick={{ fontSize: 11, fill: '#888' }} axisLine={false} tickLine={false} />
                         <Tooltip contentStyle={{ borderRadius: '10px', border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.1)' }} />
                         <Legend
                           iconType="circle"
@@ -495,8 +427,8 @@ function MarketingAnalysis() {
                   )}
                 </div>
                 
-                <div style={{ textAlign: 'right', marginTop: '5px', paddingRight: '15px' }}>
-                  <span style={{ fontSize: '0.85rem', color: '#7c7c7c' }}>
+                <div className="text-right mt-2 pr-2 md:pr-4">
+                  <span className="text-[11px] md:text-[0.85rem] text-[#7c7c7c] break-keep">
                     * 본 그래프는 현재 시장 트렌드를 반영하여 AI가 가상으로 시뮬레이션한 예측 흐름입니다.
                   </span>
                 </div>
@@ -504,21 +436,13 @@ function MarketingAnalysis() {
               </div> 
 
               {/* 예산 비중 & 매체 효율 */}
-              <div style={{ 
-                backgroundColor: 'white', 
-                padding: '35px', 
-                borderRadius: '20px', 
-                boxShadow: '0 10px 30px rgba(0,0,0,0.05)',
-                display: 'grid',
-                gridTemplateColumns: '1fr 1fr',
-                gap: '50px'
-              }}>
+              <div className="bg-white p-6 md:p-9 rounded-2xl shadow-[0_10px_30px_rgba(0,0,0,0.05)] grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12">
                   {/* 파이 차트 */}
-                  <div style={{ textAlign: 'center', minWidth:0, overflow: 'hidden'}}>
-                    <h3 style={{ fontSize: '1.2rem', marginBottom: '20px', color: '#333' }}>💰 플랫폼별 예산 추천 비율</h3>
-                    <div style={{ width: '100%', height: 300, minHeight: 300, position: 'relative' }}>
+                  <div className="text-center min-w-0 overflow-hidden">
+                    <h3 className="text-lg md:text-[1.2rem] mb-4 md:mb-5 text-[#333] font-bold">💰 플랫폼별 예산 추천 비율</h3>
+                    <div className="w-full h-[250px] md:h-[300px] relative">
                       {mounted && pieData?.length > 0 && (
-                        <ResponsiveContainer width="100%" height={300} debounce={50}>
+                        <ResponsiveContainer width="100%" height="100%" debounce={50}>
                           <PieChart>
                             <Pie
                               data={pieData}
@@ -542,12 +466,12 @@ function MarketingAnalysis() {
                   </div>
 
                   {/* 막대 차트 */}
-                  <div style={{ borderLeft: '1px solid #f1f3f5', paddingLeft: '50px', minWidth:0, overflow: 'hidden' }}>
-                    <h3 style={{ fontSize: '1.2rem', marginBottom: '20px', color: '#333' }}>📈 플랫폼별 예측 효율 (ROAS)</h3>
-                      <div style={{ width: '100%', height: 300, minHeight: 300, position: 'relative' }}>
+                  <div className="border-t lg:border-t-0 lg:border-l border-[#f1f3f5] pt-8 lg:pt-0 lg:pl-12 min-w-0 overflow-hidden">
+                    <h3 className="text-lg md:text-[1.2rem] mb-4 md:mb-5 text-[#333] font-bold text-center lg:text-left">📈 플랫폼별 예측 효율 (ROAS)</h3>
+                      <div className="w-full h-[250px] md:h-[300px] relative">
                         {mounted && barData?.length > 0 && (
-                          <ResponsiveContainer width="100%" height={300} debounce={50}>
-                            <BarChart data={barData} layout="vertical" margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+                          <ResponsiveContainer width="100%" height="100%" debounce={50}>
+                            <BarChart data={barData} layout="vertical" margin={{ top: 10, right: 30, left: -20, bottom: 0 }}>
                               <CartesianGrid strokeDasharray="3 3" vertical={true} horizontal={false} stroke="#f1f3f5" />
                               <XAxis type="number" hide />
                               <YAxis
@@ -582,28 +506,15 @@ function MarketingAnalysis() {
               </div>
 
               {/* AI 리포트 */}
-              <div style={{
-                backgroundColor: '#F8F9FA',
-                border: '1px solid #E9ECEF',
-                padding: '40px',
-                borderRadius: '16px',
-                marginTop: '10px',
-                boxShadow: '0 4px 12px rgba(0,0,0,0.05)'
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', marginBottom: '25px' }}>
-                  <span style={{ fontSize: '2rem', marginRight: '15px' }}>👩🏻‍🏫</span>
-                  <h3 style={{ fontSize: '1.6rem', fontWeight: '800', color: '#2D3436', margin: 0 }}>
+              <div className="bg-[#F8F9FA] border border-[#E9ECEF] p-6 md:p-10 rounded-2xl md:rounded-[2rem] mt-2 md:mt-3 shadow-[0_4px_12px_rgba(0,0,0,0.05)]">
+                <div className="flex flex-col md:flex-row items-start md:items-center gap-3 md:gap-4 mb-6 md:mb-8">
+                  <span className="text-3xl md:text-4xl">👩🏻‍🏫</span>
+                  <h3 className="text-xl md:text-[1.8rem] font-extrabold text-[#2D3436] m-0 break-keep">
                     AI 마케팅 컨설팅 리포트
                   </h3>
                 </div>
 
-                <div style={{
-                  fontSize: '1.25rem',
-                  lineHeight: '1.8',
-                  color: '#495057',
-                  whiteSpace: 'pre-wrap',
-                  fontFamily: '"Pretendard", sans-serif'
-                }}>
+                <div className="text-[0.95rem] md:text-[1.15rem] lg:text-[1.25rem] leading-[1.7] md:leading-[1.8] text-[#495057] whitespace-pre-wrap font-sans break-keep">
                   {result.ai_report ? (
                     result.ai_report.split('\n').map((line, index) => {
                       
@@ -614,16 +525,16 @@ function MarketingAnalysis() {
                         const descPart = parts.slice(1).join(':').trim(); // 앞의 불필요한 공백 제거
 
                         return (
-                          <div key={index} style={{ marginTop: index > 0 ? '45px' : '0', marginBottom: '15px', lineHeight: '1.6' }}>
-                            {/* ✅ 대제목 영역 (한 줄을 혼자 다 쓰도록 div 적용, 아래 여백 추가) */}
-                            <div style={{ fontWeight: '900', fontSize: '1.4rem', color: '#2D3436', marginBottom: '10px' }}>
+                          <div key={index} className="mb-4 md:mb-5" style={{ marginTop: index > 0 ? (typeof window !== 'undefined' && window.innerWidth < 768 ? '30px' : '45px') : '0' }}>
+                            {/* ✅ 대제목 영역 */}
+                            <div className="font-extrabold text-[1.1rem] md:text-[1.4rem] text-[#2D3436] mb-2 md:mb-3">
                               {titlePart}
                             </div>
                             
                             {/* ✅ 상세 내용 영역 (제목 밑으로 자연스럽게 떨어짐) */}
-                            <div style={{ fontSize: '1.2rem', color: '#636e72', paddingLeft: '35px' }}>
+                            <div className="text-[0.95rem] md:text-[1.2rem] text-[#636e72] pl-3 md:pl-8 leading-relaxed">
                               {descPart.split('**').map((part, i) => 
-                                i % 2 === 1 ? <span key={i} style={{ fontWeight: 'bold', color: '#2D3436' }}>{part}</span> : part
+                                i % 2 === 1 ? <span key={i} className="font-bold text-[#2D3436]">{part}</span> : part
                               )}
                             </div>
                           </div>
@@ -633,13 +544,7 @@ function MarketingAnalysis() {
                       // 2. [소제목들] 📢, ✅, 🔍 기호가 있는 줄: 크고 굵게 (회색 선 삭제 완료)
                       else if (line.includes('📢') || line.includes('✅') || line.includes('🔍')) {
                         return (
-                          <div key={index} style={{ 
-                            fontWeight: '900', 
-                            fontSize: '1.4rem', 
-                            color: '#2D3436', 
-                            marginTop: index > 0 ? '45px' : '0', 
-                            marginBottom: '15px'
-                          }}>
+                          <div key={index} className="font-black text-[1.1rem] md:text-[1.4rem] text-[#2D3436] mb-3 md:mb-4" style={{ marginTop: index > 0 ? (typeof window !== 'undefined' && window.innerWidth < 768 ? '35px' : '45px') : '0' }}>
                             {line}
                           </div>
                         );
@@ -648,17 +553,11 @@ function MarketingAnalysis() {
                       // 3. [매체 이름] • 기호가 있는 줄: ✔ 아이콘으로 바꾸고 노란색 하이라이트
                       else if (line.trim().startsWith('•')) {
                         return (
-                          <div key={index} style={{ 
-                            paddingLeft: '15px', 
-                            marginBottom: '15px', 
-                            marginTop: '35px', 
-                            display: 'flex',
-                            alignItems: 'center'
-                          }}>
-                            <span style={{ marginRight: '10px', color: '#0984e3', fontSize: '1.2rem' }}>✔</span>
-                            <span style={{ fontSize: '1.15rem' }}>
+                          <div key={index} className="pl-1 md:pl-4 mb-3 md:mb-4 mt-6 md:mt-8 flex items-start md:items-center">
+                            <span className="mr-2 md:mr-3 text-[#0984e3] text-[1.1rem] md:text-[1.2rem] mt-[3px] md:mt-0 flex-shrink-0">✔</span>
+                            <span className="text-[0.95rem] md:text-[1.15rem] leading-snug">
                               {line.replace('•', '').split('**').map((part, i) => 
-                                i % 2 === 1 ? <span key={i} style={{ fontWeight: '900', color: '#2D3436', backgroundColor: '#fff5ce', padding: '2px 6px', borderRadius: '4px' }}>{part}</span> : part
+                                i % 2 === 1 ? <span key={i} className="font-bold md:font-extrabold text-[#2D3436] bg-[#fff5ce] px-1 md:px-2 py-0.5 md:py-1 mx-0.5 md:mx-1 rounded md:rounded-md inline-block mt-0.5">{part}</span> : part
                               )}
                             </span>
                           </div>
@@ -668,9 +567,9 @@ function MarketingAnalysis() {
                       // 4. [일반 설명글] - 기호로 시작하는 데이터 근거 등: 폰트 사이즈 줄이고 ** 적용
                       else {
                         return (
-                          <div key={index} style={{ marginBottom: '6px', paddingLeft: '35px', fontSize: '1.2rem', color: '#636e72', lineHeight: '1.6' }}>
+                          <div key={index} className="mb-2 pl-6 md:pl-10 text-[0.9rem] md:text-[1.1rem] text-[#636e72] leading-relaxed">
                             {line.split('**').map((part, i) => 
-                               i % 2 === 1 ? <span key={i} style={{ fontWeight: 'bold', color: '#2D3436' }}>{part}</span> : part
+                               i % 2 === 1 ? <span key={i} className="font-bold text-[#2D3436]">{part}</span> : part
                             )}
                           </div>
                         );
@@ -681,36 +580,21 @@ function MarketingAnalysis() {
                 </div>
 
                 {/* ★ 가독성과 전문성을 높인 하단 안내 영역 ★ */}
-                <div style={{ marginTop: '35px', paddingTop: '25px', borderTop: '1px solid #E9ECEF' }}>
-                  <div style={{ 
-                    backgroundColor: '#ffffff', 
-                    border: '1px solid #dee2e6', 
-                    padding: '24px', 
-                    borderRadius: '12px', 
-                    display: 'flex',
-                    gap: '16px',
-                    alignItems: 'flex-start'
-                  }}>
-                    <div style={{ fontSize: '1.4rem', marginTop: '2px' }}>⚠️</div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', width: '100%' }}>
+                <div className="mt-8 md:mt-10 pt-6 md:pt-8 border-t border-[#E9ECEF]">
+                  <div className="bg-white border border-[#dee2e6] p-4 md:p-6 rounded-xl flex flex-col md:flex-row gap-3 md:gap-4 items-start">
+                    <div className="text-[1.2rem] md:text-[1.4rem] mt-[2px]">⚠️</div>
+                    <div className="flex flex-col gap-2 md:gap-3 w-full">
                       
                       {/* 1. 분석 모델 안내 */}
-                      <div style={{ fontSize: '0.85rem', color: '#868e96', letterSpacing: '-0.3px' }}>
+                      <div className="text-xs md:text-[0.85rem] text-[#868e96] tracking-tight break-keep">
                         본 분석은 연동된 광고 실시간 데이터를 바탕으로 <strong style={{color: '#495057'}}>XGBoost+Ridge 모델</strong>과 <strong style={{color: '#495057'}}>선형 계획법 알고리즘</strong>을 통해 산출되었습니다.
                       </div>
 
                       {/* 2. 법적 면책 조항 (가독성 개선) */}
-                      <div style={{ 
-                        fontSize: '0.95rem', 
-                        color: '#495057', 
-                        lineHeight: '1.7', 
-                        wordBreak: 'keep-all',
-                        borderTop: '1px dashed #eee',
-                        paddingTop: '12px'
-                      }}>
-                        <strong style={{ color: '#2D3436', display: 'block', marginBottom: '4px' }}>[면책 조항 및 분석 한계 안내]</strong>
+                      <div className="text-[0.85rem] md:text-[0.95rem] text-[#495057] leading-relaxed break-keep border-t border-dashed border-[#eee] pt-3">
+                        <strong className="text-[#2D3436] block mb-1.5">[면책 조항 및 분석 한계 안내]</strong>
                         • 위 결과는 AI 모델이 도출한 <strong>'예측값'</strong>이며, 미래의 실제 매출이나 광고 수익률을 보장하지 않습니다.<br />
-                        • 시장 상황 및 외부 요인에 따라 실제 결과는 다를 수 있으므로 <strong style={{ color: '#2D3436' }}>참고용 보조 지표</strong>로만 활용하시기 바랍니다.<br />
+                        • 시장 상황 및 외부 요인에 따라 실제 결과는 다를 수 있으므로 <strong className="text-[#2D3436]">참고용 보조 지표</strong>로만 활용하시기 바랍니다.<br />
                         • 최종적인 예산 집행 및 광고 운영에 대한 모든 책임은 사용자에게 있습니다.
                       </div>
 
@@ -724,77 +608,47 @@ function MarketingAnalysis() {
             
             /* ─── CASE B: 연동은 성공했지만 데이터가 0인 경우 (빈 화면) ─── */
             // 원래는 있었지만 데이터가 없는 콜드 스타트 사용자를 위해 지움 - 이 사용자들은 트렌드스코어로 예측
-            /* <div style={{ 
-              display: 'flex', 
-              flexDirection: 'column', 
-              alignItems: 'center', 
-              justifyContent: 'center', 
-              backgroundColor: '#f8f9fa', 
-              borderRadius: '20px', 
-              border: '2px dashed #ced4da', 
-              color: '#495057', 
-              minHeight: '400px',
-              padding: '40px',
-              textAlign: 'center'
-            }}>
-              <div style={{ fontSize: '4rem', marginBottom: '20px' }}>📭</div>
-              <h3 style={{ fontSize: '1.5rem', fontWeight: 'bold', marginBottom: '10px' }}>분석할 데이터가 부족합니다</h3>
-              <p style={{ fontSize: '1.1rem', color: '#868e96', lineHeight: '1.6' }}>
-                DB에 저장된 광고 성과 데이터가 없습니다.<br/>
-                <span style={{ fontSize: '1rem' }}>데이터가 쌓이면 AI가 자동으로 예산을 분석해 드립니다.</span>
-              </p>
-            </div>
-          )
-        ) : ( */
+            /* <div style={{ ... }}> ... </div> ) : ( */
 
           /* ─── CASE C: 아직 분석 버튼을 누르지 않은 초기 화면 ─── */
           // ✅ 1. 부모 박스(<div style={{ display: 'flex', flexDirection: 'column', gap: '30px' }}>)로 두 영역을 감싸줍니다.
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '30px' }}>
+          <div className="flex flex-col gap-6 md:gap-8">
             
             {/* 1️⃣ 사장님의 기존 안내 문구 영역 (절대 건드리지 않음) */}
-            <div style={{ 
-              display: 'flex', 
-              flexDirection: 'column',
-              alignItems: 'center', 
-              justifyContent: 'center', 
-              backgroundColor: 'white', 
-              borderRadius: '20px', 
-              border: '2px dashed #e0e0e0', 
-              color: '#aaa', 
-              minHeight: '400px' 
-            }}>
-              <div style={{ fontSize: '4rem', marginBottom: '20px', opacity: 0.5 }}>📊</div>
-              <p style={{ fontSize: '1.3rem', textAlign: 'center', lineHeight: '1.6' }}>
+            <div className="flex flex-col items-center justify-center bg-white rounded-2xl md:rounded-[20px] border-2 border-dashed border-[#e0e0e0] text-[#aaa] min-h-[300px] md:min-h-[400px] p-6 md:p-8">
+              <div className="text-5xl md:text-6xl mb-4 md:mb-5 opacity-50">📊</div>
+              <p className="text-base md:text-xl text-center leading-relaxed break-keep">
                 상단에 예산을 입력하고 <strong>AI 트렌드 분석 실행</strong> 버튼을 눌러주세요.<br/>
-                <span style={{ fontSize: '1rem', color: '#bbb' }}>연동된 4개 채널의 데이터를 분석하여 최적의 전략을 제안합니다.</span>
+                <span className="text-sm md:text-base text-[#bbb] block mt-1.5 break-keep">연동된 4개 채널의 데이터를 분석하여 최적의 전략을 제안합니다.</span>
               </p>
             </div>
 
             {/* 2️⃣ 🔥 여기에 드디어 historyList가 쓰입니다! (에러 해결의 핵심) 🔥 */}
-            <div style={{ backgroundColor: 'white', padding: '30px', borderRadius: '20px', boxShadow: '0 5px 15px rgba(0,0,0,0.02)', border: '1px solid #f1f3f5' }}>
-              <h3 style={{ marginBottom: '20px', color: '#2D3436', fontWeight: 'bold' }}>📜 지난 분석 리포트 다시보기</h3>
+            <div className="bg-white p-6 md:p-8 rounded-2xl md:rounded-[20px] shadow-[0_5px_15px_rgba(0,0,0,0.02)] border border-[#f1f3f5]">
+              <h3 className="mb-4 md:mb-5 text-lg md:text-xl text-[#2D3436] font-bold">📜 지난 분석 리포트 다시보기</h3>
 
               {safeHistoryList && safeHistoryList.length > 0 ? (
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: '20px' }}>
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-5">
                   {safeHistoryList.slice(0,8).map((item: any) => (
                     <div 
                       key={item.id} 
                       onClick={()=> handleLoadHistory(item.id)}
-                      style={{ padding: '20px', backgroundColor: '#F8F9FA', borderRadius: '15px', border: '1px solid #eee', cursor: 'pointer' }}>
-                        <div style={{ fontSize: '0.85rem', color: '#888', marginBottom: '8px' }}>
+                      className="p-4 md:p-5 bg-[#F8F9FA] rounded-xl border border-[#eee] cursor-pointer hover:-translate-y-1 hover:shadow-md transition-all duration-200"
+                    >
+                        <div className="text-xs md:text-[0.85rem] text-[#888] mb-2">
                           📅 {new Date(item.created_at).toLocaleDateString()} 분석
                         </div>
-                        <div style={{ fontWeight: '900', fontSize: '1.2rem', color: '#2D3436' }}>
+                        <div className="font-extrabold text-lg md:text-[1.2rem] text-[#2D3436]">
                           {item.budget.toLocaleString()}원 최적화
                         </div>
-                        <div style={{ marginTop: '10px', fontSize: '0.9rem', color: '#0984e3' }}>
+                        <div className="mt-2 md:mt-2.5 text-[0.85rem] md:text-[0.9rem] text-[#0984e3]">
                           ✨ {item.best_channel} 집중 전략
                       </div>
                     </div>
                   ))}
                 </div>
               ) : (
-                <div style={{ color: '#b2bec3', textAlign: 'center', padding: '20px' }}>
+                <div className="text-[#b2bec3] text-center p-5 text-sm md:text-base break-keep">
                   아직 저장된 분석 기록이 없습니다. 사장님의 첫 분석을 시작해 보세요!
                 </div>
               )}
