@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import pool from '../config/database';
 import { AuthRequest } from '../middlewares/auth';
+import { ERROR_CODES, createErrorResponse } from '../constants/errorCodes';
 
 /**
  * 대시보드 요약 통계 조회
@@ -113,10 +114,7 @@ export const getSummary = async (req: AuthRequest, res: Response) => {
     });
   } catch (error) {
     console.error('대시보드 요약 조회 오류:', error);
-    res.status(500).json({ 
-      error: '대시보드 요약을 조회하는 중 오류가 발생했습니다.',
-      details: error instanceof Error ? error.message : '알 수 없는 오류'
-    });
+    res.status(500).json(createErrorResponse(ERROR_CODES.DASHBOARD.SERVER_ERROR, error instanceof Error ? error.message : undefined));
   }
 };
 
@@ -196,10 +194,7 @@ export const getChannelPerformance = async (req: AuthRequest, res: Response) => 
     });
   } catch (error) {
     console.error('채널별 성과 조회 오류:', error);
-    res.status(500).json({ 
-      error: '채널별 성과를 조회하는 중 오류가 발생했습니다.',
-      details: error instanceof Error ? error.message : '알 수 없는 오류'
-    });
+    res.status(500).json(createErrorResponse(ERROR_CODES.DASHBOARD.SERVER_ERROR, error instanceof Error ? error.message : undefined));
   }
 };
 
@@ -259,10 +254,7 @@ export const getInsights = async (req: AuthRequest, res: Response) => {
     });
   } catch (error) {
     console.error('인사이트 조회 오류:', error);
-    res.status(500).json({ 
-      error: '인사이트를 조회하는 중 오류가 발생했습니다.',
-      details: error instanceof Error ? error.message : '알 수 없는 오류'
-    });
+    res.status(500).json(createErrorResponse(ERROR_CODES.DASHBOARD.SERVER_ERROR, error instanceof Error ? error.message : undefined));
   }
 };
 
@@ -356,9 +348,6 @@ export const getBudgetStatus = async (req: AuthRequest, res: Response) => {
     }
   } catch (error) {
     console.error('예산 현황 조회 오류:', error);
-    res.status(500).json({ 
-      error: '예산 현황을 조회하는 중 오류가 발생했습니다.',
-      details: error instanceof Error ? error.message : '알 수 없는 오류'
-    });
+    res.status(500).json(createErrorResponse(ERROR_CODES.DASHBOARD.SERVER_ERROR, error instanceof Error ? error.message : undefined));
   }
 };

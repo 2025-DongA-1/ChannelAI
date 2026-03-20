@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import pool from '../config/database';
 import { AuthRequest } from '../middlewares/auth';
 import { encrypt, decrypt } from '../utils/crypto';
+import { ERROR_CODES, createErrorResponse } from '../constants/errorCodes';
 
 /**
  * 마케팅 계정 목록 조회
@@ -47,11 +48,7 @@ export const getAccounts = async (req: Request, res: Response) => {
     });
   } catch (error: any) {
     console.error('Get accounts error:', error);
-    res.status(500).json({
-      error: 'SERVER_ERROR',
-      message: '계정 목록 조회 중 오류가 발생했습니다.',
-      details: error.message
-    });
+    res.status(500).json(createErrorResponse(ERROR_CODES.ACCOUNT.SERVER_ERROR, error.message));
   }
 };
 
@@ -76,12 +73,9 @@ export const getAccountById = async (req: Request, res: Response) => {
     );
     
     if (rows.length === 0) {
-      return res.status(404).json({
-        error: 'ACCOUNT_NOT_FOUND',
-        message: '계정을 찾을 수 없습니다.',
-      });
+      return res.status(404).json(createErrorResponse(ERROR_CODES.ACCOUNT.NOT_FOUND));
     }
-    
+
     const row = rows[0];
     res.json({
       account: {
@@ -92,11 +86,7 @@ export const getAccountById = async (req: Request, res: Response) => {
     });
   } catch (error: any) {
     console.error('Get account error:', error);
-    res.status(500).json({
-      error: 'SERVER_ERROR',
-      message: '계정 조회 중 오류가 발생했습니다.',
-      details: error.message
-    });
+    res.status(500).json(createErrorResponse(ERROR_CODES.ACCOUNT.SERVER_ERROR, error.message));
   }
 };
 
@@ -116,23 +106,17 @@ export const createAccount = async (req: Request, res: Response) => {
     } = req.body;
     
     if (!platform || !account_name || !account_id) {
-      return res.status(400).json({
-        error: 'INVALID_INPUT',
-        message: '필수 항목을 입력해주세요.',
-      });
+      return res.status(400).json(createErrorResponse(ERROR_CODES.ACCOUNT.INVALID_INPUT));
     }
-    
+
     // 중복 확인
     const { rows: existingAccount } = await pool.query(
       'SELECT id FROM marketing_accounts WHERE user_id = ? AND channel_code = ? AND external_account_id = ?',
       [userId, platform, account_id]
     );
-    
+
     if (existingAccount.length > 0) {
-      return res.status(409).json({
-        error: 'ACCOUNT_EXISTS',
-        message: '이미 연결된 계정입니다.',
-      });
+      return res.status(409).json(createErrorResponse(ERROR_CODES.ACCOUNT.EXISTS));
     }
     
     const result = await pool.query(
@@ -156,11 +140,7 @@ export const createAccount = async (req: Request, res: Response) => {
     });
   } catch (error: any) {
     console.error('Create account error:', error);
-    res.status(500).json({
-      error: 'SERVER_ERROR',
-      message: '계정 연결 중 오류가 발생했습니다.',
-      details: error.message
-    });
+    res.status(500).json(createErrorResponse(ERROR_CODES.ACCOUNT.SERVER_ERROR, error.message));
   }
 };
 
@@ -185,12 +165,9 @@ export const updateAccount = async (req: Request, res: Response) => {
     );
     
     if (authCheck.length === 0) {
-      return res.status(404).json({
-        error: 'ACCOUNT_NOT_FOUND',
-        message: '계정을 찾을 수 없습니다.',
-      });
+      return res.status(404).json(createErrorResponse(ERROR_CODES.ACCOUNT.NOT_FOUND));
     }
-    
+
     await pool.query(
       `UPDATE marketing_accounts SET
         account_name = COALESCE(?, account_name),
@@ -213,11 +190,7 @@ export const updateAccount = async (req: Request, res: Response) => {
     });
   } catch (error: any) {
     console.error('Update account error:', error);
-    res.status(500).json({
-      error: 'SERVER_ERROR',
-      message: '계정 수정 중 오류가 발생했습니다.',
-      details: error.message
-    });
+    res.status(500).json(createErrorResponse(ERROR_CODES.ACCOUNT.SERVER_ERROR, error.message));
   }
 };
 
@@ -236,22 +209,16 @@ export const deleteAccount = async (req: Request, res: Response) => {
     );
     
     if (authCheck.length === 0) {
-      return res.status(404).json({
-        error: 'ACCOUNT_NOT_FOUND',
-        message: '계정을 찾을 수 없습니다.',
-      });
+      return res.status(404).json(createErrorResponse(ERROR_CODES.ACCOUNT.NOT_FOUND));
     }
-    
+
     const { rows: campaignCheck } = await pool.query(
       'SELECT COUNT(*) as count FROM campaigns WHERE marketing_account_id = ?',
       [id]
     );
     
     if (parseInt(campaignCheck[0].count) > 0) {
-      return res.status(400).json({
-        error: 'ACCOUNT_HAS_CAMPAIGNS',
-        message: '연결된 캠페인이 있는 계정은 삭제할 수 없습니다.',
-      });
+      return res.status(400).json(createErrorResponse(ERROR_CODES.ACCOUNT.HAS_CAMPAIGNS));
     }
     
     await pool.query('DELETE FROM marketing_accounts WHERE id = ?', [id]);
@@ -261,10 +228,6 @@ export const deleteAccount = async (req: Request, res: Response) => {
     });
   } catch (error: any) {
     console.error('Delete account error:', error);
-    res.status(500).json({
-      error: 'SERVER_ERROR',
-      message: '계정 삭제 중 오류가 발생했습니다.',
-      details: error.message
-    });
+    res.status(500).json(createErrorResponse(ERROR_CODES.ACCOUNT.SERVER_ERROR, error.message));
   }
 };

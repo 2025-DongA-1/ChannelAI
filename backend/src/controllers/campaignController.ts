@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import pool from '../config/database';
 import { AuthRequest } from '../middlewares/auth';
+import { ERROR_CODES, createErrorResponse } from '../constants/errorCodes';
 
 // 캠페인 목록 조회
 export const getCampaigns = async (req: Request, res: Response) => {
@@ -91,10 +92,7 @@ export const getCampaigns = async (req: Request, res: Response) => {
     });
   } catch (error) {
     console.error('Get campaigns error:', error);
-    res.status(500).json({
-      error: 'SERVER_ERROR',
-      message: '캠페인 목록 조회 중 오류가 발생했습니다.',
-    });
+    res.status(500).json(createErrorResponse(ERROR_CODES.CAMPAIGN.SERVER_ERROR));
   } finally {
     if (client) client.release();
   }
@@ -123,12 +121,9 @@ export const getCampaignById = async (req: Request, res: Response) => {
     
     if (result.rows.length === 0) {
       if (client) client.release();
-      return res.status(404).json({
-        error: 'CAMPAIGN_NOT_FOUND',
-        message: '캠페인을 찾을 수 없습니다.',
-      });
+      return res.status(404).json(createErrorResponse(ERROR_CODES.CAMPAIGN.NOT_FOUND));
     }
-    
+
     // 최신 메트릭 조회
     const metricsResult = await client.query(
       `SELECT * FROM campaign_metrics 
@@ -144,10 +139,7 @@ export const getCampaignById = async (req: Request, res: Response) => {
     });
   } catch (error) {
     console.error('Get campaign error:', error);
-    res.status(500).json({
-      error: 'SERVER_ERROR',
-      message: '캠페인 조회 중 오류가 발생했습니다.',
-    });
+    res.status(500).json(createErrorResponse(ERROR_CODES.CAMPAIGN.SERVER_ERROR));
   } finally {
     if (client) client.release();
   }
@@ -172,24 +164,18 @@ export const createCampaign = async (req: Request, res: Response) => {
     // 입력 검증
     if (!marketing_account_id || !campaign_name || !external_campaign_id) {
       if (client) client.release();
-      return res.status(400).json({
-        error: 'INVALID_INPUT',
-        message: '필수 항목을 입력해주세요.',
-      });
+      return res.status(400).json(createErrorResponse(ERROR_CODES.CAMPAIGN.INVALID_INPUT));
     }
-    
+
     // 마케팅 계정 권한 확인
     const accountCheck = await client.query(
       'SELECT id FROM marketing_accounts WHERE id = ? AND user_id = ?',
       [marketing_account_id, userId]
     );
-    
+
     if (accountCheck.rows.length === 0) {
       if (client) client.release();
-      return res.status(403).json({
-        error: 'FORBIDDEN',
-        message: '해당 마케팅 계정에 대한 권한이 없습니다.',
-      });
+      return res.status(403).json(createErrorResponse(ERROR_CODES.COMMON.FORBIDDEN));
     }
     
     const insertResult = await client.query(
@@ -218,10 +204,7 @@ export const createCampaign = async (req: Request, res: Response) => {
     });
   } catch (error) {
     console.error('Create campaign error:', error);
-    res.status(500).json({
-      error: 'SERVER_ERROR',
-      message: '캠페인 생성 중 오류가 발생했습니다.',
-    });
+    res.status(500).json(createErrorResponse(ERROR_CODES.CAMPAIGN.SERVER_ERROR));
   } finally {
     if (client) client.release();
   }
@@ -252,12 +235,9 @@ export const updateCampaign = async (req: Request, res: Response) => {
     
     if (authCheck.rows.length === 0) {
       if (client) client.release();
-      return res.status(404).json({
-        error: 'CAMPAIGN_NOT_FOUND',
-        message: '캠페인을 찾을 수 없습니다.',
-      });
+      return res.status(404).json(createErrorResponse(ERROR_CODES.CAMPAIGN.NOT_FOUND));
     }
-    
+
     await client.query(
       `UPDATE campaigns SET
         campaign_name = COALESCE(?, campaign_name),
@@ -275,10 +255,7 @@ export const updateCampaign = async (req: Request, res: Response) => {
     });
   } catch (error) {
     console.error('Update campaign error:', error);
-    res.status(500).json({
-      error: 'SERVER_ERROR',
-      message: '캠페인 수정 중 오류가 발생했습니다.',
-    });
+    res.status(500).json(createErrorResponse(ERROR_CODES.CAMPAIGN.SERVER_ERROR));
   } finally {
     if (client) client.release();
   }
@@ -303,12 +280,9 @@ export const deleteCampaign = async (req: Request, res: Response) => {
     
     if (authCheck.rows.length === 0) {
       if (client) client.release();
-      return res.status(404).json({
-        error: 'CAMPAIGN_NOT_FOUND',
-        message: '캠페인을 찾을 수 없습니다.',
-      });
+      return res.status(404).json(createErrorResponse(ERROR_CODES.CAMPAIGN.NOT_FOUND));
     }
-    
+
     // ON DELETE CASCADE가 설정되어 있다고 가정하거나,
     // 필요하다면 metrics > creatives > ad groups > campaign 순으로 삭제해야 함
     
@@ -321,10 +295,7 @@ export const deleteCampaign = async (req: Request, res: Response) => {
     });
   } catch (error) {
     console.error('Delete campaign error:', error);
-    res.status(500).json({
-      error: 'SERVER_ERROR',
-      message: '캠페인 삭제 중 오류가 발생했습니다.',
-    });
+    res.status(500).json(createErrorResponse(ERROR_CODES.CAMPAIGN.SERVER_ERROR));
   } finally {
     if (client) client.release();
   }
@@ -350,12 +321,9 @@ export const getCampaignMetrics = async (req: Request, res: Response) => {
     
     if (authCheck.rows.length === 0) {
       if (client) client.release();
-      return res.status(404).json({
-        error: 'CAMPAIGN_NOT_FOUND',
-        message: '캠페인을 찾을 수 없습니다.',
-      });
+      return res.status(404).json(createErrorResponse(ERROR_CODES.CAMPAIGN.NOT_FOUND));
     }
-    
+
     let query = `
       SELECT * FROM campaign_metrics
       WHERE campaign_id = ?
@@ -383,10 +351,7 @@ export const getCampaignMetrics = async (req: Request, res: Response) => {
     });
   } catch (error) {
     console.error('Get metrics error:', error);
-    res.status(500).json({
-      error: 'SERVER_ERROR',
-      message: '메트릭 조회 중 오류가 발생했습니다.',
-    });
+    res.status(500).json(createErrorResponse(ERROR_CODES.CAMPAIGN.SERVER_ERROR));
   } finally {
     if (client) client.release();
   }

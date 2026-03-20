@@ -19,6 +19,7 @@ export const ERROR_CODES = {
     UNAUTHORIZED:         { code: 'AUTH_005', message: '인증이 필요합니다.' },
     SOCIAL_ACCOUNT:       { code: 'AUTH_006', message: '소셜 로그인으로 가입된 계정입니다. 소셜 로그인을 이용해주세요.' },
     WRONG_PASSWORD:       { code: 'AUTH_007', message: '현재 비밀번호가 올바르지 않습니다.' },
+    INVALID_TOKEN:        { code: 'AUTH_008', message: '유효하지 않은 토큰입니다.' },
     USER_NOT_FOUND:       { code: 'AUTH_100', message: '사용자를 찾을 수 없습니다.' },
     SERVER_ERROR:         { code: 'AUTH_500', message: '인증 처리 중 오류가 발생했습니다.' },
   },
@@ -74,6 +75,8 @@ export const ERROR_CODES = {
   // ── 광고 계정 (ACCOUNT) ───────────────────────────────────────────────────
   ACCOUNT: {
     INVALID_INPUT:        { code: 'ACC_001', message: '광고 계정 입력값이 올바르지 않습니다.' },
+    EXISTS:               { code: 'ACC_002', message: '이미 연결된 계정입니다.' },
+    HAS_CAMPAIGNS:        { code: 'ACC_003', message: '연결된 캠페인이 있는 계정은 삭제할 수 없습니다.' },
     NOT_FOUND:            { code: 'ACC_100', message: '광고 계정을 찾을 수 없습니다.' },
     SERVER_ERROR:         { code: 'ACC_500', message: '광고 계정 처리 중 오류가 발생했습니다.' },
   },
@@ -110,6 +113,20 @@ export const ERROR_CODES = {
   // ── 대시보드 (DASHBOARD) ──────────────────────────────────────────────────
   DASHBOARD: {
     SERVER_ERROR:         { code: 'DSH_500', message: '대시보드 데이터 조회 중 오류가 발생했습니다.' },
+  },
+
+  // ── 메트릭 (METRIC) ───────────────────────────────────────────────────────
+  METRIC: {
+    INVALID_INPUT:        { code: 'MTR_001', message: '삭제할 데이터 ID 목록이 없습니다.' },
+    NOT_FOUND:            { code: 'MTR_100', message: '메트릭 데이터를 찾을 수 없습니다.' },
+    SERVER_ERROR:         { code: 'MTR_500', message: '메트릭 처리 중 오류가 발생했습니다.' },
+  },
+
+  // ── 연동 (INTEGRATION) ────────────────────────────────────────────────────
+  INTEGRATION: {
+    INVALID_INPUT:        { code: 'INT_001', message: '연동 요청값이 올바르지 않습니다.' },
+    NOT_FOUND:            { code: 'INT_100', message: '연동 데이터를 찾을 수 없습니다.' },
+    SERVER_ERROR:         { code: 'INT_500', message: '연동 처리 중 오류가 발생했습니다.' },
   },
 
   // ── 공통 (COMMON) ─────────────────────────────────────────────────────────

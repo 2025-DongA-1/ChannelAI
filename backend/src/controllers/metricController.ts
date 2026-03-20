@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import pool from '../config/database';
 import { AuthRequest } from '../middlewares/auth';
+import { ERROR_CODES, createErrorResponse } from '../constants/errorCodes';
 
 // 전체 메트릭(Raw 데이터) 조회
 export const getAllMetrics = async (req: Request, res: Response) => {
@@ -30,10 +31,7 @@ export const getAllMetrics = async (req: Request, res: Response) => {
     });
   } catch (error) {
     console.error('Get all metrics error:', error);
-    res.status(500).json({
-      error: 'SERVER_ERROR',
-      message: '메트릭 목록 조회 중 오류가 발생했습니다.',
-    });
+    res.status(500).json(createErrorResponse(ERROR_CODES.METRIC.SERVER_ERROR));
   } finally {
     client.release();
   }
@@ -58,10 +56,7 @@ export const updateMetric = async (req: Request, res: Response) => {
     );
     
     if (authCheck.rows.length === 0) {
-      return res.status(404).json({
-        error: 'METRIC_NOT_FOUND',
-        message: '메트릭 데이터를 찾을 수 없습니다.',
-      });
+      return res.status(404).json(createErrorResponse(ERROR_CODES.METRIC.NOT_FOUND));
     }
     
     await client.query(
@@ -81,10 +76,7 @@ export const updateMetric = async (req: Request, res: Response) => {
     });
   } catch (error) {
     console.error('Update metric error:', error);
-    res.status(500).json({
-      error: 'SERVER_ERROR',
-      message: '메트릭 수정 중 오류가 발생했습니다.',
-    });
+    res.status(500).json(createErrorResponse(ERROR_CODES.METRIC.SERVER_ERROR));
   } finally {
     client.release();
   }
@@ -108,10 +100,7 @@ export const deleteMetric = async (req: Request, res: Response) => {
     );
     
     if (authCheck.rows.length === 0) {
-      return res.status(404).json({
-        error: 'METRIC_NOT_FOUND',
-        message: '메트릭 데이터를 찾을 수 없습니다.',
-      });
+      return res.status(404).json(createErrorResponse(ERROR_CODES.METRIC.NOT_FOUND));
     }
     
     await client.query('DELETE FROM campaign_metrics WHERE id = ?', [id]);
@@ -121,10 +110,7 @@ export const deleteMetric = async (req: Request, res: Response) => {
     });
   } catch (error) {
     console.error('Delete metric error:', error);
-    res.status(500).json({
-      error: 'SERVER_ERROR',
-      message: '메트릭 삭제 중 오류가 발생했습니다.',
-    });
+    res.status(500).json(createErrorResponse(ERROR_CODES.METRIC.SERVER_ERROR));
   } finally {
     client.release();
   }
@@ -139,10 +125,7 @@ export const deleteBulkMetrics = async (req: Request, res: Response) => {
     const { ids } = req.body;
     
     if (!ids || !Array.isArray(ids) || ids.length === 0) {
-      return res.status(400).json({
-        error: 'INVALID_INPUT',
-        message: '삭제할 데이터 ID 목록이 없습니다.',
-      });
+      return res.status(400).json(createErrorResponse(ERROR_CODES.METRIC.INVALID_INPUT));
     }
     
     const placeholders = ids.map(() => '?').join(',');
@@ -173,10 +156,7 @@ export const deleteBulkMetrics = async (req: Request, res: Response) => {
     });
   } catch (error) {
     console.error('Delete bulk generic metrics error:', error);
-    res.status(500).json({
-      error: 'SERVER_ERROR',
-      message: '메트릭 일괄 삭제 중 오류가 발생했습니다.',
-    });
+    res.status(500).json(createErrorResponse(ERROR_CODES.METRIC.SERVER_ERROR));
   } finally {
     client.release();
   }

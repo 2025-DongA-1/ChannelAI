@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
+import { ERROR_CODES, createErrorResponse } from '../constants/errorCodes';
 
 export interface AuthRequest extends Request {
   user?: {
@@ -14,10 +15,7 @@ export const authenticate = (req: Request, res: Response, next: NextFunction) =>
     const authHeader = req.headers.authorization;
     
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return res.status(401).json({
-        error: 'UNAUTHORIZED',
-        message: '인증 토큰이 필요합니다.',
-      });
+      return res.status(401).json(createErrorResponse(ERROR_CODES.AUTH.UNAUTHORIZED));
     }
 
     const token = authHeader.substring(7);
@@ -31,10 +29,7 @@ export const authenticate = (req: Request, res: Response, next: NextFunction) =>
     
     next();
   } catch (error) {
-    return res.status(401).json({
-      error: 'INVALID_TOKEN',
-      message: '유효하지 않은 토큰입니다.',
-    });
+    return res.status(401).json(createErrorResponse(ERROR_CODES.AUTH.INVALID_TOKEN));
   }
 };
 
@@ -43,10 +38,7 @@ export const authorize = (...roles: string[]) => {
     const user = (req as AuthRequest).user;
     
     if (!user || !roles.includes(user.role)) {
-      return res.status(403).json({
-        error: 'FORBIDDEN',
-        message: '권한이 없습니다.',
-      });
+      return res.status(403).json(createErrorResponse(ERROR_CODES.COMMON.FORBIDDEN));
     }
     
     next();
