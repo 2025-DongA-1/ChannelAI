@@ -274,6 +274,215 @@ function MarketingAnalysis() {
   // rows에서 데이터만 가져오기
   const safeHistoryList = historyList?.rows ? historyList.rows : (Array.isArray(historyList) ? historyList : []);
 
+  // ─── [추가할 코드] AI 리포트를 카드 형태로 예쁘게 조립해주는 파서 함수 ───
+  // ─── [최종 완성본] 카드 헤더 색상 채우기 및 1/2순위 정밀 강조 적용 ───
+  const renderReportCards = (reportText: string) => {
+    if (!reportText) return <p className="text-center text-[#868e96]">분석 중입니다...</p>;
+
+    const lines = reportText.split('\n').map(line => line.trim()).filter(line => line !== '');
+    const elements = [];
+    let currentCards: any[] = [];
+    let currentSection = 'summary';
+
+    const flushCards = () => {
+      if (currentCards.length > 0) {
+        elements.push(
+          <div key={`card-grid-${elements.length}`} className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6 mt-4 mb-8">
+            {currentCards}
+          </div>
+        );
+        currentCards = [];
+      }
+    };
+
+    // 💡 [개선] 1순위 문장인지(isPrimaryLine) 판별하여 강조 효과를 다르게 줍니다.
+    const renderFormattedText = (text: string, section: string, isPrimaryLine: boolean = false) => {
+      let cleanText = text.replace(/\*\*/g, '');
+
+      if (section === 'summary') {
+        // 플랫폼 이름과 숫자%p 를 동시에 찾아냅니다.
+        const parts = cleanText.split(/(네이버|인스타그램\/페이스북|인스타그램|페이스북|메타|구글\/유튜브|구글|유튜브|당근|\d+(?:\.\d+)?%p)/);
+        
+        return parts.map((part, idx) => {
+          // 1. 수익률(숫자%p)은 위치 상관없이 무조건 굵게 처리
+          if (/\d+(?:\.\d+)?%p/.test(part)) {
+             return <strong key={idx} className="font-extrabold text-[#2D3436] text-[1.05em]">{part}</strong>;
+          }
+          // 2. 플랫폼 이름은 첫 번째 줄(isPrimaryLine)일 때만 색상을 입힙니다.
+          if (isPrimaryLine && ['네이버', '인스타그램/페이스북', '인스타그램', '페이스북', '메타', '구글/유튜브', '구글', '유튜브', '당근'].includes(part)) {
+            let highlightColor = "text-[#2D3436]";
+            if (part.includes('네이버')) highlightColor = "text-[#2DB400]";
+            else if (part.includes('구글') || part.includes('유튜브')) highlightColor = "text-[#EA4335]";
+            else if (part.includes('인스타') || part.includes('메타') || part.includes('페이스북')) highlightColor = "text-[#1877F2]";
+            else if (part.includes('당근')) highlightColor = "text-[#FF6F0F]";
+            
+            return <strong key={idx} className={`font-extrabold text-[1.1em] ${highlightColor}`}>{part}</strong>;
+          }
+          // 2순위 플랫폼이거나 나머지 텍스트는 원래대로 얌전하게 출력
+          return part;
+        });
+      } else if (section === 'action' || section === 'platform') {
+        return text.split('**').map((part, idx) => {
+          if (idx % 2 === 1) return <strong key={idx} className="font-extrabold text-[1.05em] text-[#2D3436]">{part}</strong>;
+          return part;
+        });
+      } else {
+        return cleanText;
+      }
+    };
+
+    for (let i = 0; i < lines.length; i++) {
+      let line = lines[i];
+
+      // 1. 대제목 (🎯 등 핵심 요약)
+      if (line.includes('🎯')) {
+        flushCards();
+        currentSection = 'summary';
+        const parts = line.replace('🎯', '').split(':');
+        const title = parts[0].trim();
+        const restOfLine = parts.slice(1).join(':').trim(); 
+
+        elements.push(
+          <div key={`title-${i}`} className="mb-4 mt-6">
+             <h4 className="text-[1.3rem] md:text-[1.5rem] font-extrabold text-[#2D3436] inline-block shadow-[inset_0_-10px_0_rgba(255,234,167,0.5)]">
+               🎯 {title}
+             </h4>
+          </div>
+        );
+
+        if (restOfLine) {
+          elements.push(
+            <div key={`text-${i}-inline`} className="text-[1.1rem] md:text-[1.25rem] text-[#343a40] mb-3 pl-1 break-keep leading-relaxed font-medium">
+              {/* 요약본 첫 줄이므로 true를 보내어 1순위 플랫폼 색상을 켭니다 */}
+              {renderFormattedText(restOfLine, 'summary', true)}
+            </div>
+          );
+        }
+      }
+      // 2. 소제목
+      else if (line.includes('📢') || line.includes('✅') || line.includes('🔍') || line.includes('📌') || line.includes('알고리즘')) {
+        flushCards();
+        
+        if (line.includes('진단')) currentSection = 'platform';
+        else if (line.includes('가이드')) currentSection = 'action';
+        else if (line.includes('알고리즘') || line.includes('제약조건')) currentSection = 'algorithm';
+
+        elements.push(
+          <div key={`subtitle-${i}`} className="text-[1.15rem] md:text-[1.4rem] font-black text-[#2D3436] mt-10 mb-5 border-b pb-2 border-[#f1f3f5]">
+            {line}
+          </div>
+        );
+      }
+      // 3. 내용 파싱
+      else if (line.startsWith('•') || line.startsWith('-')) {
+        const cleanLine = line.replace(/^[•-]/, '').trim();
+
+        if (currentSection === 'platform') {
+          const platformName = cleanLine.replace(/\*\*/g, '');
+          const cardDetails = [];
+          
+          while (i + 1 < lines.length && !lines[i + 1].startsWith('•') && !lines[i + 1].includes('✅') && !lines[i + 1].includes('📌') && lines[i + 1].trim() !== '') {
+             i++;
+             cardDetails.push(lines[i].replace(/^-/, '').trim());
+          }
+
+          // 💡 [핵심 개선] 카드 헤더의 배경색, 글자색, 테두리색을 통째로 제어합니다.
+          let headerBgClass = 'bg-[#f1f3f5]';
+          let headerTextClass = 'text-[#2D3436]';
+          let borderClass = 'border-[#e9ecef]';
+
+          if (platformName.includes('네이버')) {
+             headerBgClass = 'bg-[#2DB400]'; headerTextClass = 'text-white'; borderClass = 'border-[#2DB400]';
+          } else if (platformName.includes('인스타') || platformName.includes('메타') || platformName.includes('페이스북')) {
+             headerBgClass = 'bg-[#1877F2]'; headerTextClass = 'text-white'; borderClass = 'border-[#1877F2]';
+          } else if (platformName.includes('구글') || platformName.includes('유튜브')) {
+             headerBgClass = 'bg-[#EA4335]'; headerTextClass = 'text-white'; borderClass = 'border-[#EA4335]';
+          } else if (platformName.includes('당근')) {
+             headerBgClass = 'bg-[#FF6F0F]'; headerTextClass = 'text-white'; borderClass = 'border-[#FF6F0F]';
+          }
+
+          currentCards.push(
+            <div key={`card-${i}`} className={`bg-white rounded-xl border ${borderClass} shadow-[0_4px_12px_rgba(0,0,0,0.03)] hover:shadow-[0_8px_20px_rgba(0,0,0,0.08)] transition-all overflow-hidden flex flex-col`}>
+              
+              {/* 💡 헤더 영역: 배경색 채우기 + 흰색 글씨 */}
+              <div className={`${headerBgClass} px-5 py-3 md:px-6 md:py-3.5`}>
+                <h5 className={`text-lg font-bold m-0 ${headerTextClass}`}>
+                  {platformName}
+                </h5>
+              </div>
+              
+              {/* 본문 영역: 기존 흰색 바탕 유지 */}
+              <div className="p-5 md:p-6 flex-1 bg-white">
+                <ul className="flex flex-col gap-3">
+                  {cardDetails.map((detail, idx) => {
+                    const parts = detail.split(':');
+                    const cleanLabel = parts[0]?.trim().replace(/\*\*/g, '') || ''; 
+                    const value = parts.slice(1).join(':').trim(); 
+
+                    if (!value) {
+                       return <li key={idx} className="text-[#636e72] font-medium text-[0.95rem] md:text-[1rem] leading-snug break-keep">{cleanLabel}</li>;
+                    }
+
+                    let valueStyle = "text-[#636e72] font-medium";
+                    let labelStyle = "text-[#868e96] font-bold w-[90px] shrink-0 mt-[2px]";
+
+                    if (cleanLabel.includes('전략 제안')) {
+                      valueStyle = "text-[#0984e3] font-extrabold bg-[#e3f2fd] px-2 py-1 rounded-md inline-block";
+                      labelStyle = "text-[#2D3436] font-extrabold w-[90px] shrink-0 mt-[2px]";
+                    } else if (cleanLabel.includes('현상') || cleanLabel.includes('기대 효과')) {
+                      valueStyle = "text-[#2D3436] font-bold";
+                    }
+
+                    return (
+                      <li key={idx} className="flex flex-col sm:flex-row sm:gap-4 text-[0.95rem] md:text-[1rem] leading-snug">
+                        <span className={labelStyle}>{cleanLabel}</span>
+                        <span className={`flex-1 break-keep ${valueStyle}`}>{renderFormattedText(value, 'platform')}</span>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            </div>
+          );
+        }
+        else if (currentSection === 'action') {
+           flushCards(); 
+           elements.push(
+             <div key={`guide-${i}`} className="flex gap-3 items-start mb-4 bg-[#f8f9fa] border border-[#e9ecef] p-4 md:p-5 rounded-xl">
+               <span className="font-bold mt-[2px] text-[#2DB400] text-lg">✔</span>
+               <span className="font-medium leading-relaxed break-keep text-[1.05rem] md:text-[1.15rem] text-[#2D3436]">
+                 {renderFormattedText(cleanLine, 'action')}
+               </span>
+             </div>
+           );
+        }
+        else if (currentSection === 'algorithm') {
+           flushCards();
+           elements.push(
+             <div key={`algo-${i}`} className="flex gap-3 items-start mb-2 pl-2 mt-1">
+               <span className="font-bold mt-[2px] text-[#868e96]">•</span>
+               <span className="text-[0.95rem] md:text-[1.05rem] text-[#495057] font-medium leading-relaxed break-keep">
+                 {renderFormattedText(cleanLine, 'algorithm')}
+               </span>
+             </div>
+           );
+        }
+      }
+      else {
+        flushCards();
+        elements.push(
+          <div key={`text-${i}`} className={`mb-3 pl-1 break-keep leading-relaxed font-medium ${currentSection === 'summary' ? 'text-[1.1rem] md:text-[1.25rem] text-[#343a40]' : 'text-[0.95rem] md:text-[1.05rem] text-[#495057]'}`}>
+            {/* 요약본의 두 번째 줄(2순위 등)이므로 기본값 false 적용 -> 색상 없음 */}
+            {renderFormattedText(line, currentSection)}
+          </div>
+        );
+      }
+    }
+    
+    flushCards();
+    return elements;
+  };
+
   return (
     <div className="min-h-screen px-4 md:px-6 py-8 md:py-10" style={{ backgroundColor: BG_COLOR, fontFamily: '"Pretendard", sans-serif' }}>
       
@@ -409,7 +618,17 @@ function MarketingAnalysis() {
                     <ResponsiveContainer width="100%" height="100%" debounce={50}>
                       <LineChart data={result.history} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#eee" />
-                        <XAxis dataKey="day" tick={{ fontSize: 11, fill: '#888' }} axisLine={false} tickLine={false} dy={10} />
+                        <XAxis 
+  dataKey="day" 
+  tick={{ fontSize: 11, fill: '#888' }} 
+  axisLine={false} 
+  tickLine={false} 
+  dy={10} 
+  // 💡 1. 7일은 무조건 다 보여주고(0), 30일은 양끝(1일차, D-Day)을 살리되 중간은 알아서 생략하라는 명령어
+  interval={period === 7 ? 0 : "preserveStartEnd"} 
+  // 💡 2. 라벨과 라벨 사이에 최소 20px의 여백을 무조건 보장하라는 강력한 제약 조건
+  minTickGap={20} 
+/>
                         <YAxis tick={{ fontSize: 11, fill: '#888' }} axisLine={false} tickLine={false} />
                         <Tooltip contentStyle={{ borderRadius: '10px', border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.1)' }} />
                         <Legend
@@ -514,69 +733,9 @@ function MarketingAnalysis() {
                   </h3>
                 </div>
 
-                <div className="text-[0.95rem] md:text-[1.15rem] lg:text-[1.25rem] leading-[1.7] md:leading-[1.8] text-[#495057] whitespace-pre-wrap font-sans break-keep">
-                  {result.ai_report ? (
-                    result.ai_report.split('\n').map((line, index) => {
-                      
-                      // 1. [핵심 요약] 🎯 기호가 있는 줄: 제목은 독립된 줄로, 내용은 그 아래로!
-                      if (line.includes('🎯')) {
-                        const parts = line.split(':');
-                        const titlePart = parts[0]; // 콜론(:)을 빼버려서 더 깔끔한 대제목으로 만듭니다.
-                        const descPart = parts.slice(1).join(':').trim(); // 앞의 불필요한 공백 제거
-
-                        return (
-                          <div key={index} className="mb-4 md:mb-5" style={{ marginTop: index > 0 ? (typeof window !== 'undefined' && window.innerWidth < 768 ? '30px' : '45px') : '0' }}>
-                            {/* ✅ 대제목 영역 */}
-                            <div className="font-extrabold text-[1.1rem] md:text-[1.4rem] text-[#2D3436] mb-2 md:mb-3">
-                              {titlePart}
-                            </div>
-                            
-                            {/* ✅ 상세 내용 영역 (제목 밑으로 자연스럽게 떨어짐) */}
-                            <div className="text-[0.95rem] md:text-[1.2rem] text-[#636e72] pl-3 md:pl-8 leading-relaxed">
-                              {descPart.split('**').map((part, i) => 
-                                i % 2 === 1 ? <span key={i} className="font-bold text-[#2D3436]">{part}</span> : part
-                              )}
-                            </div>
-                          </div>
-                        );
-                      }
-                      
-                      // 2. [소제목들] 📢, ✅, 🔍 기호가 있는 줄: 크고 굵게 (회색 선 삭제 완료)
-                      else if (line.includes('📢') || line.includes('✅') || line.includes('🔍')) {
-                        return (
-                          <div key={index} className="font-black text-[1.1rem] md:text-[1.4rem] text-[#2D3436] mb-3 md:mb-4" style={{ marginTop: index > 0 ? (typeof window !== 'undefined' && window.innerWidth < 768 ? '35px' : '45px') : '0' }}>
-                            {line}
-                          </div>
-                        );
-                      }
-                      
-                      // 3. [매체 이름] • 기호가 있는 줄: ✔ 아이콘으로 바꾸고 노란색 하이라이트
-                      else if (line.trim().startsWith('•')) {
-                        return (
-                          <div key={index} className="pl-1 md:pl-4 mb-3 md:mb-4 mt-6 md:mt-8 flex items-start md:items-center">
-                            <span className="mr-2 md:mr-3 text-[#0984e3] text-[1.1rem] md:text-[1.2rem] mt-[3px] md:mt-0 flex-shrink-0">✔</span>
-                            <span className="text-[0.95rem] md:text-[1.15rem] leading-snug">
-                              {line.replace('•', '').split('**').map((part, i) => 
-                                i % 2 === 1 ? <span key={i} className="font-bold md:font-extrabold text-[#2D3436] bg-[#fff5ce] px-1 md:px-2 py-0.5 md:py-1 mx-0.5 md:mx-1 rounded md:rounded-md inline-block mt-0.5">{part}</span> : part
-                              )}
-                            </span>
-                          </div>
-                        );
-                      }
-                      
-                      // 4. [일반 설명글] - 기호로 시작하는 데이터 근거 등: 폰트 사이즈 줄이고 ** 적용
-                      else {
-                        return (
-                          <div key={index} className="mb-2 pl-6 md:pl-10 text-[0.9rem] md:text-[1.1rem] text-[#636e72] leading-relaxed">
-                            {line.split('**').map((part, i) => 
-                               i % 2 === 1 ? <span key={i} className="font-bold text-[#2D3436]">{part}</span> : part
-                            )}
-                          </div>
-                        );
-                      }
-                      
-                    })
-                  ) : "분석 중입니다..."}
+                {/* 👇 복잡했던 map 로직 대신 새로 만든 함수를 호출합니다 👇 */}
+                <div className="font-sans break-keep">
+                  {result.ai_report ? renderReportCards(result.ai_report) : "분석 중입니다..."}
                 </div>
 
                 {/* ★ 가독성과 전문성을 높인 하단 안내 영역 ★ */}
