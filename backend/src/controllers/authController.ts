@@ -3,6 +3,7 @@ import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import pool from '../config/database';
 import { logAuth } from '../utils/logger';
+import { ERROR_CODES, createErrorResponse } from '../constants/errorCodes';
 
 // ──────────────────────────────────────────────────────────────
 // 회원가입
@@ -13,10 +14,7 @@ export const register = async (req: Request, res: Response) => {
     const { email, password, name } = req.body;
 
     if (!email || !password || !name) {
-      return res.status(400).json({
-        error: 'INVALID_INPUT',
-        message: '이메일, 비밀번호, 이름은 필수입니다.',
-      });
+      return res.status(400).json({ success: false, code: ERROR_CODES.AUTH.INVALID_INPUT.code, message: '이메일, 비밀번호, 이름은 필수입니다.' });
     }
 
     // 이메일 중복 확인
@@ -25,10 +23,7 @@ export const register = async (req: Request, res: Response) => {
       [email]
     );
     if (existingUser.rows.length > 0) {
-      return res.status(409).json({
-        error: 'EMAIL_EXISTS',
-        message: '이미 사용 중인 이메일입니다.',
-      });
+      return res.status(409).json(createErrorResponse(ERROR_CODES.AUTH.EMAIL_EXISTS));
     }
 
     // 비밀번호 해싱
@@ -64,10 +59,7 @@ export const register = async (req: Request, res: Response) => {
     });
   } catch (error) {
     console.error('Register error:', error);
-    return res.status(500).json({
-      error: 'SERVER_ERROR',
-      message: '회원가입 중 오류가 발생했습니다.',
-    });
+    return res.status(500).json({ success: false, code: ERROR_CODES.AUTH.SERVER_ERROR.code, message: '회원가입 중 오류가 발생했습니다.' });
   }
 };
 
@@ -79,10 +71,7 @@ export const login = async (req: Request, res: Response) => {
     const { email, password } = req.body;
 
     if (!email || !password) {
-      return res.status(400).json({
-        error: 'INVALID_INPUT',
-        message: '이메일과 비밀번호를 입력해주세요.',
-      });
+      return res.status(400).json({ success: false, code: ERROR_CODES.AUTH.INVALID_INPUT.code, message: '이메일과 비밀번호를 입력해주세요.' });
     }
 
     // users + user_profiles JOIN으로 name, plan 함께 조회
@@ -100,10 +89,7 @@ export const login = async (req: Request, res: Response) => {
 
     if (result.rows.length === 0) {
       logAuth('Login Attempt Failed - User not found', false, { email });
-      return res.status(401).json({
-        error: 'INVALID_CREDENTIALS',
-        message: '이메일 또는 비밀번호가 올바르지 않습니다.',
-      });
+      return res.status(401).json(createErrorResponse(ERROR_CODES.AUTH.INVALID_CREDENTIALS));
     }
 
     const user = result.rows[0];
@@ -111,20 +97,14 @@ export const login = async (req: Request, res: Response) => {
     // 소셜 로그인 계정
     if (!user.password_hash) {
       logAuth('Login Attempt Failed - Used Email for Social Account', false, { email });
-      return res.status(400).json({
-        error: 'SOCIAL_ACCOUNT',
-        message: '소셜 로그인으로 가입된 계정입니다. 소셜 로그인을 이용해주세요.',
-      });
+      return res.status(400).json(createErrorResponse(ERROR_CODES.AUTH.SOCIAL_ACCOUNT));
     }
 
     // 비밀번호 검증
     const isMatch = await bcrypt.compare(password, user.password_hash);
     if (!isMatch) {
       logAuth('Login Attempt Failed - Wrong Password', false, { email });
-      return res.status(401).json({
-        error: 'INVALID_CREDENTIALS',
-        message: '이메일 또는 비밀번호가 올바르지 않습니다.',
-      });
+      return res.status(401).json(createErrorResponse(ERROR_CODES.AUTH.INVALID_CREDENTIALS));
     }
 
     const actualProvider = user.provider || 'email';
@@ -153,10 +133,7 @@ export const login = async (req: Request, res: Response) => {
   } catch (error) {
     logAuth('Login Error Resulting in Exception', false, { email: req.body?.email, error: String(error) });
     console.error('Login error:', error);
-    return res.status(500).json({
-      error: 'SERVER_ERROR',
-      message: '로그인 중 오류가 발생했습니다.',
-    });
+    return res.status(500).json({ success: false, code: ERROR_CODES.AUTH.SERVER_ERROR.code, message: '로그인 중 오류가 발생했습니다.' });
   }
 };
 
@@ -168,10 +145,7 @@ export const checkEmail = async (req: Request, res: Response) => {
     const { email } = req.query;
 
     if (!email || typeof email !== 'string') {
-      return res.status(400).json({
-        error: 'INVALID_INPUT',
-        message: '이메일을 입력해주세요.',
-      });
+      return res.status(400).json({ success: false, code: ERROR_CODES.AUTH.INVALID_INPUT.code, message: '이메일을 입력해주세요.' });
     }
 
     const result = await pool.query(
@@ -186,10 +160,7 @@ export const checkEmail = async (req: Request, res: Response) => {
     });
   } catch (error) {
     console.error('Check email error:', error);
-    return res.status(500).json({
-      error: 'SERVER_ERROR',
-      message: '이메일 확인 중 오류가 발생했습니다.',
-    });
+    return res.status(500).json({ success: false, code: ERROR_CODES.AUTH.SERVER_ERROR.code, message: '이메일 확인 중 오류가 발생했습니다.' });
   }
 };
 
@@ -211,10 +182,7 @@ export const getMe = async (req: Request, res: Response) => {
     );
 
     if (result.rows.length === 0) {
-      return res.status(404).json({
-        error: 'USER_NOT_FOUND',
-        message: '사용자를 찾을 수 없습니다.',
-      });
+      return res.status(404).json(createErrorResponse(ERROR_CODES.AUTH.USER_NOT_FOUND));
     }
 
     const user = result.rows[0];
@@ -237,10 +205,7 @@ export const getMe = async (req: Request, res: Response) => {
     return res.json({ user: { ...rest, provider } });
   } catch (error) {
     console.error('GetMe error:', error);
-    return res.status(500).json({
-      error: 'SERVER_ERROR',
-      message: '사용자 정보 조회 중 오류가 발생했습니다.',
-    });
+    return res.status(500).json({ success: false, code: ERROR_CODES.AUTH.SERVER_ERROR.code, message: '사용자 정보 조회 중 오류가 발생했습니다.' });
   }
 };
 
@@ -264,10 +229,7 @@ export const updateProfile = async (req: Request, res: Response) => {
           [email, userId]
         );
         if (existing.rows.length > 0) {
-          return res.status(409).json({
-            error: 'EMAIL_EXISTS',
-            message: '이미 사용 중인 이메일입니다.',
-          });
+          return res.status(409).json(createErrorResponse(ERROR_CODES.AUTH.EMAIL_EXISTS));
         }
         // 이메일 업데이트
         await pool.query('UPDATE users SET email = ? WHERE id = ?', [email, userId]);
@@ -303,10 +265,7 @@ export const updateProfile = async (req: Request, res: Response) => {
     });
   } catch (error) {
     console.error('UpdateProfile error:', error);
-    return res.status(500).json({
-      error: 'SERVER_ERROR',
-      message: '프로필 수정 중 오류가 발생했습니다.',
-    });
+    return res.status(500).json({ success: false, code: ERROR_CODES.AUTH.SERVER_ERROR.code, message: '프로필 수정 중 오류가 발생했습니다.' });
   }
 };
 
@@ -320,17 +279,11 @@ export const changePassword = async (req: Request, res: Response) => {
     const { currentPassword, newPassword } = req.body;
 
     if (!currentPassword || !newPassword) {
-      return res.status(400).json({
-        error: 'INVALID_INPUT',
-        message: '현재 비밀번호와 새 비밀번호를 모두 입력해주세요.',
-      });
+      return res.status(400).json({ success: false, code: ERROR_CODES.AUTH.INVALID_INPUT.code, message: '현재 비밀번호와 새 비밀번호를 모두 입력해주세요.' });
     }
 
     if (newPassword.length < 6) {
-      return res.status(400).json({
-        error: 'INVALID_INPUT',
-        message: '새 비밀번호는 6자 이상이어야 합니다.',
-      });
+      return res.status(400).json({ success: false, code: ERROR_CODES.AUTH.INVALID_INPUT.code, message: '새 비밀번호는 6자 이상이어야 합니다.' });
     }
 
     const result = await pool.query(
@@ -339,7 +292,7 @@ export const changePassword = async (req: Request, res: Response) => {
     );
 
     if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'USER_NOT_FOUND', message: '사용자를 찾을 수 없습니다.' });
+      return res.status(404).json(createErrorResponse(ERROR_CODES.AUTH.USER_NOT_FOUND));
     }
 
     const user = result.rows[0];
@@ -347,19 +300,13 @@ export const changePassword = async (req: Request, res: Response) => {
     // 소셜 로그인 계정은 비밀번호 없음
     if (!user.password_hash || user.password_hash.startsWith('KAKAO:') ||
         user.password_hash.startsWith('NAVER:') || user.password_hash.startsWith('GOOGLE:')) {
-      return res.status(400).json({
-        error: 'SOCIAL_ACCOUNT',
-        message: '소셜 로그인 계정은 비밀번호를 변경할 수 없습니다.',
-      });
+      return res.status(400).json({ success: false, code: ERROR_CODES.AUTH.SOCIAL_ACCOUNT.code, message: '소셜 로그인 계정은 비밀번호를 변경할 수 없습니다.' });
     }
 
     // 현재 비밀번호 확인
     const isMatch = await bcrypt.compare(currentPassword, user.password_hash);
     if (!isMatch) {
-      return res.status(401).json({
-        error: 'WRONG_PASSWORD',
-        message: '현재 비밀번호가 올바르지 않습니다.',
-      });
+      return res.status(401).json(createErrorResponse(ERROR_CODES.AUTH.WRONG_PASSWORD));
     }
 
     // 새 비밀번호 해싱 후 저장
@@ -369,10 +316,7 @@ export const changePassword = async (req: Request, res: Response) => {
     return res.json({ message: '비밀번호가 변경되었습니다.' });
   } catch (error) {
     console.error('ChangePassword error:', error);
-    return res.status(500).json({
-      error: 'SERVER_ERROR',
-      message: '비밀번호 변경 중 오류가 발생했습니다.',
-    });
+    return res.status(500).json({ success: false, code: ERROR_CODES.AUTH.SERVER_ERROR.code, message: '비밀번호 변경 중 오류가 발생했습니다.' });
   }
 };
 
@@ -402,10 +346,7 @@ export const getSubscription = async (req: Request, res: Response) => {
     });
   } catch (error) {
     console.error('GetSubscription error:', error);
-    return res.status(500).json({
-      error: 'SERVER_ERROR',
-      message: '구독 정보 조회 중 오류가 발생했습니다.',
-    });
+    return res.status(500).json({ success: false, code: ERROR_CODES.AUTH.SERVER_ERROR.code, message: '구독 정보 조회 중 오류가 발생했습니다.' });
   }
 };
 
@@ -416,14 +357,16 @@ export const getSubscription = async (req: Request, res: Response) => {
 export const cancelSubscription = async (req: Request, res: Response) => {
   try {
     const userId = (req as any).user.id;
-    // user_profiles plan 초기화
+    // user_profiles plan 초기화 (행이 없으면 생성, 있으면 NULL로 업데이트)
     await pool.query(
-      `UPDATE user_profiles SET plan = NULL WHERE user_id = ?`,
+      `INSERT INTO user_profiles (user_id, plan) VALUES (?, NULL)
+       ON DUPLICATE KEY UPDATE plan = NULL`,
       [userId]
     );
-    // payment_methods 자동갱신 OFF
+    // payment_methods 자동갱신 OFF (행이 없으면 생성, 있으면 0으로 업데이트)
     await pool.query(
-      `UPDATE payment_methods SET auto_renew = 0 WHERE user_id = ?`,
+      `INSERT INTO payment_methods (user_id, auto_renew) VALUES (?, 0)
+       ON DUPLICATE KEY UPDATE auto_renew = 0`,
       [userId]
     );
 
@@ -437,10 +380,7 @@ export const cancelSubscription = async (req: Request, res: Response) => {
     return res.json({ message: '구독이 해지되었습니다.' });
   } catch (error) {
     console.error('CancelSubscription error:', error);
-    return res.status(500).json({
-      error: 'SERVER_ERROR',
-      message: '구독 해지 중 오류가 발생했습니다.',
-    });
+    return res.status(500).json({ success: false, code: ERROR_CODES.AUTH.SERVER_ERROR.code, message: '구독 해지 중 오류가 발생했습니다.' });
   }
 };
 
@@ -483,10 +423,7 @@ export const activateSubscription = async (req: Request, res: Response) => {
     return res.json({ message: '구독이 활성화되었습니다.', plan_expires_at: expiresAt });
   } catch (error) {
     console.error('ActivateSubscription error:', error);
-    return res.status(500).json({
-      error: 'SERVER_ERROR',
-      message: '구독 활성화 중 오류가 발생했습니다.',
-    });
+    return res.status(500).json({ success: false, code: ERROR_CODES.AUTH.SERVER_ERROR.code, message: '구독 활성화 중 오류가 발생했습니다.' });
   }
 };
 
@@ -500,7 +437,7 @@ export const updateAutoRenew = async (req: Request, res: Response) => {
     const userId = (req as any).user.id;
     const { auto_renew } = req.body;
     if (auto_renew !== 0 && auto_renew !== 1) {
-      return res.status(400).json({ error: 'INVALID_INPUT', message: 'auto_renew는 0 또는 1이어야 합니다.' });
+      return res.status(400).json({ success: false, code: ERROR_CODES.AUTH.INVALID_INPUT.code, message: 'auto_renew는 0 또는 1이어야 합니다.' });
     }
     
     await pool.query(
@@ -510,10 +447,7 @@ export const updateAutoRenew = async (req: Request, res: Response) => {
     return res.json({ message: '자동 갱신 설정이 변경되었습니다.', pay_auto_renew: auto_renew });
   } catch (error) {
     console.error('UpdateAutoRenew error:', error);
-    return res.status(500).json({
-      error: 'SERVER_ERROR',
-      message: '자동 갱신 설정 변경 중 오류가 발생했습니다.',
-    });
+    return res.status(500).json({ success: false, code: ERROR_CODES.AUTH.SERVER_ERROR.code, message: '자동 갱신 설정 변경 중 오류가 발생했습니다.' });
   }
 };
 
@@ -553,7 +487,7 @@ export const testExpireSubscription = async (req: Request, res: Response) => {
     }
   } catch (error) {
     console.error('TestExpireSubscription error:', error);
-    return res.status(500).json({ error: 'SERVER_ERROR', message: '테스트 실행 중 오류가 발생했습니다.' });
+    return res.status(500).json({ success: false, code: ERROR_CODES.AUTH.SERVER_ERROR.code, message: '테스트 실행 중 오류가 발생했습니다.' });
   }
 };
 
@@ -571,9 +505,6 @@ export const deletePaymentMethod = async (req: Request, res: Response) => {
     return res.json({ message: '결제 수단이 삭제되었습니다.' });
   } catch (error) {
     console.error('DeletePaymentMethod error:', error);
-    return res.status(500).json({
-      error: 'SERVER_ERROR',
-      message: '결제 수단 삭제 중 오류가 발생했습니다.',
-    });
+    return res.status(500).json({ success: false, code: ERROR_CODES.AUTH.SERVER_ERROR.code, message: '결제 수단 삭제 중 오류가 발생했습니다.' });
   }
 };

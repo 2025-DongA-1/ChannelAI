@@ -1,6 +1,7 @@
 import { Response } from 'express';
 import pool from '../config/database';
 import { AuthRequest } from '../middlewares/auth';
+import { ERROR_CODES, createErrorResponse } from '../constants/errorCodes';
 
 /**
  * 예산 요약 조회
@@ -56,7 +57,7 @@ export const getBudgetSummary = async (req: AuthRequest, res: Response) => {
     });
   } catch (error) {
     console.error('Budget Summary Error:', error);
-    res.status(500).json({ error: '예산 요약 조회 중 오류가 발생했습니다.' });
+    res.status(500).json(createErrorResponse(ERROR_CODES.BUDGET.SERVER_ERROR));
   }
 };
 
@@ -111,10 +112,7 @@ export const getBudgetByPlatform = async (req: AuthRequest, res: Response) => {
     res.json({ platforms });
   } catch (error) {
     console.error('플랫폼별 예산 조회 오류:', error);
-    res.status(500).json({
-      error: '플랫폼별 예산을 조회하는 중 오류가 발생했습니다.',
-      details: error instanceof Error ? error.message : '알 수 없는 오류',
-    });
+    res.status(500).json(createErrorResponse(ERROR_CODES.BUDGET.SERVER_ERROR, error instanceof Error ? error.message : undefined));
   }
 };
 
@@ -187,10 +185,7 @@ export const getBudgetByCampaign = async (req: AuthRequest, res: Response) => {
     res.json({ campaigns });
   } catch (error) {
     console.error('캠페인별 예산 조회 오류:', error);
-    res.status(500).json({
-      error: '캠페인별 예산을 조회하는 중 오류가 발생했습니다.',
-      details: error instanceof Error ? error.message : '알 수 없는 오류',
-    });
+    res.status(500).json(createErrorResponse(ERROR_CODES.BUDGET.SERVER_ERROR, error instanceof Error ? error.message : undefined));
   }
 };
 
@@ -213,9 +208,7 @@ export const updateCampaignBudget = async (req: AuthRequest, res: Response) => {
     );
 
     if (authCheck.rows.length === 0) {
-      return res.status(404).json({
-        error: '캠페인을 찾을 수 없습니다.',
-      });
+      return res.status(404).json(createErrorResponse(ERROR_CODES.CAMPAIGN.NOT_FOUND));
     }
 
     // 예산 업데이트
@@ -236,10 +229,7 @@ export const updateCampaignBudget = async (req: AuthRequest, res: Response) => {
     });
   } catch (error) {
     console.error('예산 수정 오류:', error);
-    res.status(500).json({
-      error: '예산을 수정하는 중 오류가 발생했습니다.',
-      details: error instanceof Error ? error.message : '알 수 없는 오류',
-    });
+    res.status(500).json(createErrorResponse(ERROR_CODES.BUDGET.SERVER_ERROR, error instanceof Error ? error.message : undefined));
   }
 };
 
@@ -275,9 +265,6 @@ export const updateTotalBudget = async (req: AuthRequest, res: Response) => {
     });
   } catch (error) {
     console.error('Update Total Budget Error:', error);
-    res.status(500).json({ 
-      error: '예산 설정을 저장하는 중 오류가 발생했습니다.',
-      details: error instanceof Error ? error.message : 'DB 에러'
-    });
+    res.status(500).json(createErrorResponse(ERROR_CODES.BUDGET.SERVER_ERROR, error instanceof Error ? error.message : undefined));
   }
 };

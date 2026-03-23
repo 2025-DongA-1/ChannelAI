@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import pool from '../config/database';
 import { AIAnalysisService } from '../services/ai/aiAnalysisService';
+import { ERROR_CODES, createErrorResponse } from '../constants/errorCodes';
 
 const aiAnalysisService = new AIAnalysisService();
 
@@ -150,10 +151,7 @@ export const getTrends = async (req: Request, res: Response) => {
     });
   } catch (error) {
     console.error('Get trends error:', error);
-    res.status(500).json({
-      error: 'SERVER_ERROR',
-      message: '추세 분석 중 오류가 발생했습니다.',
-    });
+    res.status(500).json(createErrorResponse(ERROR_CODES.INSIGHT.SERVER_ERROR));
   } finally {
     client.release();
   }
@@ -249,10 +247,7 @@ export const getComparison = async (req: Request, res: Response) => {
     });
   } catch (error) {
     console.error('Get comparison error:', error);
-    res.status(500).json({
-      error: 'SERVER_ERROR',
-      message: '플랫폼 비교 중 오류가 발생했습니다.',
-    });
+    res.status(500).json(createErrorResponse(ERROR_CODES.INSIGHT.SERVER_ERROR));
   } finally {
     client.release();
   }
@@ -427,10 +422,7 @@ export const getRecommendations = async (req: Request, res: Response) => {
     });
   } catch (error) {
     console.error('Get recommendations error:', error);
-    res.status(500).json({
-      error: 'SERVER_ERROR',
-      message: 'AI 추천 생성 중 오류가 발생했습니다.',
-    });
+    res.status(500).json(createErrorResponse(ERROR_CODES.INSIGHT.SERVER_ERROR));
   } finally {
     client.release();
   }

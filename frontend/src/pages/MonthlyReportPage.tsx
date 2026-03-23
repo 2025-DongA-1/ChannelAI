@@ -8,7 +8,7 @@ import {
   RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis,
   Cell, PieChart, Pie
 } from "recharts";
-import { LayoutDashboard, DownloadCloud, Sparkles, RefreshCcw, Mail, X } from 'lucide-react';
+import { LayoutDashboard, DownloadCloud, Sparkles, RefreshCcw, Mail, X, DatabaseZap, SendHorizonal } from 'lucide-react';
 import { api } from '../lib/api';
 import { useAuthStore } from '../store/authStore';
 
@@ -158,6 +158,8 @@ export default function MonthlyReportPage() {
   const [showEmailPanel, setShowEmailPanel] = useState(false);
   const [emailTarget, setEmailTarget] = useState('');
   const [emailSending, setEmailSending] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
+  const [generateStatus, setGenerateStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
+  const [sendStatus, setSendStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
 
   // const reportRef = useRef<HTMLDivElement>(null);
 
@@ -304,6 +306,36 @@ export default function MonthlyReportPage() {
       setAnimKey(k => k + 1);
     }
   }, [selectedMonth, MONTHS]);
+
+  /**
+   * [어드민 전용] DB에 저장된 파일 경로로 전체 유저에게 월간 리포트 이메일 전송
+   */
+  const handleSendMonthlyReports = async () => {
+    setSendStatus('loading');
+    try {
+      await api.post('/report/send');
+      setSendStatus('success');
+      setTimeout(() => setSendStatus('idle'), 3000);
+    } catch {
+      setSendStatus('error');
+      setTimeout(() => setSendStatus('idle'), 3000);
+    }
+  };
+
+  /**
+   * [어드민 전용] 선택된 월의 리포트 PDF를 서버에서 생성하고 reports DB에 경로 저장
+   */
+  const handleGenerateReport = async () => {
+    setGenerateStatus('loading');
+    try {
+      await api.post('/report/generate', { month: selectedMonth });
+      setGenerateStatus('success');
+      setTimeout(() => setGenerateStatus('idle'), 3000);
+    } catch {
+      setGenerateStatus('error');
+      setTimeout(() => setGenerateStatus('idle'), 3000);
+    }
+  };
 
   /**
    * 서버 API(Puppeteer)를 호출하여 완벽한 PDF 파일을 다운로드합니다.
@@ -482,6 +514,46 @@ export default function MonthlyReportPage() {
               
               <div className="flex flex-col items-end gap-2">
                 <div className="flex gap-2">
+                  {/* 어드민 전용: DB 파일 기반 이메일 전송 */}
+                  {user?.role === 'admin' && (
+                    <button
+                      onClick={handleSendMonthlyReports}
+                      disabled={sendStatus === 'loading'}
+                      className="print:hidden flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold shadow-sm transition-all bg-orange-500 text-white hover:bg-orange-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                      title="DB에 저장된 리포트 파일로 전체 유저에게 이메일 발송"
+                    >
+                      {sendStatus === 'loading' ? (
+                        <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />전송 중...</>
+                      ) : sendStatus === 'success' ? (
+                        <><SendHorizonal size={16} />전송 완료 ✓</>
+                      ) : sendStatus === 'error' ? (
+                        <><SendHorizonal size={16} />전송 실패 ✗</>
+                      ) : (
+                        <><SendHorizonal size={16} />리포트 전송</>
+                      )}
+                    </button>
+                  )}
+
+                  {/* 어드민 전용: 리포트 PDF 생성 → DB 저장 */}
+                  {user?.role === 'admin' && (
+                    <button
+                      onClick={handleGenerateReport}
+                      disabled={generateStatus === 'loading'}
+                      className="print:hidden flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold shadow-sm transition-all bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                      title={`${selectedMonth} 리포트 PDF 생성 후 DB 저장`}
+                    >
+                      {generateStatus === 'loading' ? (
+                        <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />생성 중...</>
+                      ) : generateStatus === 'success' ? (
+                        <><DatabaseZap size={16} />저장 완료 ✓</>
+                      ) : generateStatus === 'error' ? (
+                        <><DatabaseZap size={16} />생성 실패 ✗</>
+                      ) : (
+                        <><DatabaseZap size={16} />리포트 생성</>
+                      )}
+                    </button>
+                  )}
+
                   {/* PDF 다운로드 */}
                   <button
                     onClick={handleDownloadPDF}
@@ -1126,8 +1198,9 @@ export default function MonthlyReportPage() {
                           </div>
                         </div>
 
-                        {/* 4. AI 인공지능 캠페인 진단 리포트 (하단 배치) */}
-                        {isPro ? (
+                        {/* 4. AI 인공지능 캠페인 진단 리포트 */}
+                        {insights?.campaigns?.[c.campaign_id] ? (
+                          // DB에 내용 있으면 페이지+PDF 모두 표시
                           <div className="bg-indigo-50/40 border-2 border-dashed border-indigo-500/50 rounded-xl p-5 mt-2 relative">
                             <div className="absolute top-3 right-3 bg-indigo-600 text-white text-[10px] px-2 py-1 rounded-full font-bold shadow-sm z-20 animate-pulse"> AI 분석</div>
                             <div className="absolute top-0 left-0 w-1 h-full bg-indigo-400 rounded-l-xl opacity-70" />
@@ -1138,21 +1211,37 @@ export default function MonthlyReportPage() {
                               </div>
                             </div>
                             <div className="text-[12px] text-gray-700 leading-relaxed font-medium">
-                              {isLlmLoading ? (
-                                <div className="space-y-2">
-                                  <div className="h-3 bg-indigo-100/50 animate-pulse rounded w-full" />
-                                  <div className="h-3 bg-indigo-100/50 animate-pulse rounded w-5/6" />
-                                </div>
-                              ) : (
-                                insights?.campaigns?.[c.campaign_id] || "⚠️ 해당 캠페인의 상세 분석 데이터가 없습니다. 상단 AI 분석 버튼을 클릭하여 생성해주세요."
-                              )}
+                              {insights.campaigns[c.campaign_id]}
                             </div>
                           </div>
-                        ) : (
-                          <div className="print:hidden mt-2 flex items-center gap-2 bg-gray-50 border border-dashed border-gray-300 rounded-xl p-3 text-[11px] text-gray-400">
-                            <Sparkles size={12} className="text-indigo-300 shrink-0" />
-                            <span>AI 캠페인 진단은 <button onClick={() => navigate('/payment')} className="text-indigo-500 font-bold hover:underline">PRO 요금제</button>에서만 이용할 수 있습니다.</span>
-                          </div>
+                        ) : !isExporting && (
+                          // DB에 내용 없고 페이지 모드일 때만 안내 표시
+                          isPro ? (
+                            <div className="bg-indigo-50/40 border-2 border-dashed border-indigo-500/50 rounded-xl p-5 mt-2 relative">
+                              <div className="absolute top-0 left-0 w-1 h-full bg-indigo-400 rounded-l-xl opacity-70" />
+                              <div className="flex items-center gap-2 mb-3">
+                                <div className="p-1 px-2 bg-indigo-500 text-white rounded-md flex items-center gap-1.5 shadow-sm">
+                                  <Sparkles size={12} />
+                                  <span className="text-[10px] font-black uppercase tracking-wider">AI 인공지능 캠페인 진단 리포트</span>
+                                </div>
+                              </div>
+                              <div className="text-[12px] text-gray-500">
+                                {isLlmLoading ? (
+                                  <div className="space-y-2">
+                                    <div className="h-3 bg-indigo-100/50 animate-pulse rounded w-full" />
+                                    <div className="h-3 bg-indigo-100/50 animate-pulse rounded w-5/6" />
+                                  </div>
+                                ) : (
+                                  "⚠️ 해당 캠페인의 상세 분석 데이터가 없습니다. 상단 AI 분석 버튼을 클릭하여 생성해주세요."
+                                )}
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="mt-2 flex items-center gap-2 bg-gray-50 border border-dashed border-gray-300 rounded-xl p-3 text-[11px] text-gray-400">
+                              <Sparkles size={12} className="text-indigo-300 shrink-0" />
+                              <span>AI 캠페인 진단은 <button onClick={() => navigate('/payment')} className="text-indigo-500 font-bold hover:underline">PRO 요금제</button>에서만 이용할 수 있습니다.</span>
+                            </div>
+                          )
                         )}
                       </div>
                     );

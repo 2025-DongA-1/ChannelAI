@@ -5,6 +5,7 @@ import { spawn } from 'child_process'; // Python 스크립트 호출용
 import path from 'path';               // 스크립트 경로 계산용
 import dotenv from 'dotenv';
 import { AIAnalysisService } from '../services/ai/aiAnalysisService';
+import { ERROR_CODES, createErrorResponse } from '../constants/errorCodes';
 // 💡 [추가됨] LangChain 및 OpenAI 패키지 임포트
 import { ChatOpenAI } from '@langchain/openai';
 import { PromptTemplate } from '@langchain/core/prompts';
@@ -65,7 +66,7 @@ export const analyzeAndRecommend = async (req: AuthRequest, res: Response) => {
     const { totalBudget, period = 30, campaignId } = req.body;
 
     if (!userId) {
-      return res.status(401).json({ success: false, error: '인증이 필요합니다.' });
+      return res.status(401).json(createErrorResponse(ERROR_CODES.COMMON.UNAUTHORIZED));
     }
 
     const startDate = new Date(Date.now() - period * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
@@ -260,7 +261,7 @@ export const getAdvancedMetrics = async (req: AuthRequest, res: Response) => {
     const userId = req.user?.id;
 
     if (!userId) {
-      return res.status(401).json({ success: false, error: '인증이 필요합니다.' });
+      return res.status(401).json(createErrorResponse(ERROR_CODES.COMMON.UNAUTHORIZED));
     }
 
     // 쿼리 파라미터에서 기간 필터 및 프로바이더 추출
@@ -562,17 +563,17 @@ export const getMLRealtime = async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user?.id;
     if (!userId) {
-      return res.status(401).json({ success: false, error: '인증이 필요합니다.' });
+      return res.status(401).json(createErrorResponse(ERROR_CODES.COMMON.UNAUTHORIZED));
     }
 
     const { startDate, endDate, provider } = req.query as { startDate?: string; endDate?: string; provider?: string };
 
     const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
     if (startDate && !dateRegex.test(startDate)) {
-      return res.status(400).json({ success: false, error: '시작 날짜 형식이 올바르지 않습니다. (YYYY-MM-DD)' });
+      return res.status(400).json(createErrorResponse(ERROR_CODES.AI.INVALID_INPUT, '시작 날짜 형식이 올바르지 않습니다. (YYYY-MM-DD)'));
     }
     if (endDate && !dateRegex.test(endDate)) {
-      return res.status(400).json({ success: false, error: '종료 날짜 형식이 올바르지 않습니다. (YYYY-MM-DD)' });
+      return res.status(400).json(createErrorResponse(ERROR_CODES.AI.INVALID_INPUT, '종료 날짜 형식이 올바르지 않습니다. (YYYY-MM-DD)'));
     }
 
     // Python 스크립트 절대 경로 (backend/python/ml_predict.py)
@@ -669,19 +670,19 @@ export const getMLRealtime = async (req: AuthRequest, res: Response) => {
         });
       } catch {
         console.error('Python 결과 파싱 실패:', stdout);
-        return res.status(500).json({ success: false, error: 'ML 결과 파싱 실패' });
+        return res.status(500).json(createErrorResponse(ERROR_CODES.AI.SERVER_ERROR, 'ML 결과 파싱 실패'));
       }
     });
 
     // Python 프로세스 자체 실행 실패 (파일 없음 등)
     pyProcess.on('error', (err) => {
       console.error('Python 프로세스 실행 실패:', err);
-      return res.status(500).json({ success: false, error: `Python 실행 실패: ${err.message}` });
+      return res.status(500).json(createErrorResponse(ERROR_CODES.AI.SERVER_ERROR, `Python 실행 실패: ${err.message}`));
     });
 
   } catch (error: any) {
     console.error('ML 실시간 예측 오류:', error);
-    return res.status(500).json({ success: false, error: 'ML 예측 중 오류가 발생했습니다.' });
+    return res.status(500).json(createErrorResponse(ERROR_CODES.AI.SERVER_ERROR));
   }
 };
 
@@ -696,11 +697,11 @@ export const generateLLMInsights = async (req: AuthRequest, res: Response) => {
     const { trendsData, platformData, forceRefresh } = req.body;
 
     if (!userId) {
-      return res.status(401).json({ success: false, error: '인증이 필요합니다.' });
+      return res.status(401).json(createErrorResponse(ERROR_CODES.COMMON.UNAUTHORIZED));
     }
 
     if (!process.env.OPENAI_API_KEY) {
-      return res.status(500).json({ success: false, error: 'OpenAI API 키가 설정되지 않았습니다.' });
+      return res.status(500).json(createErrorResponse(ERROR_CODES.AI.API_KEY_MISSING));
     }
 
     const cacheKey = generateCacheKey('trends', { trendsData, platformData });
@@ -768,7 +769,7 @@ export const generateLLMInsights = async (req: AuthRequest, res: Response) => {
 
   } catch (error: any) {
     console.error('LLM 인사이트 생성 오류:', error);
-    return res.status(500).json({ success: false, error: 'LLM 인사이트 생성 중 오류가 발생했습니다.' });
+    return res.status(500).json(createErrorResponse(ERROR_CODES.AI.SERVER_ERROR));
   }
 };
 
@@ -783,11 +784,11 @@ export const generatePlatformInsights = async (req: AuthRequest, res: Response) 
     const { platformData, forceRefresh } = req.body;
 
     if (!userId) {
-      return res.status(401).json({ success: false, error: '인증이 필요합니다.' });
+      return res.status(401).json(createErrorResponse(ERROR_CODES.COMMON.UNAUTHORIZED));
     }
 
     if (!process.env.OPENAI_API_KEY) {
-      return res.status(500).json({ success: false, error: 'OpenAI API 키가 설정되지 않았습니다.' });
+      return res.status(500).json(createErrorResponse(ERROR_CODES.AI.API_KEY_MISSING));
     }
 
     const cacheKey = generateCacheKey('platform', { platformData });
@@ -854,7 +855,7 @@ export const generatePlatformInsights = async (req: AuthRequest, res: Response) 
 
   } catch (error: any) {
     console.error('LLM 매체 분석 오류:', error);
-    return res.status(500).json({ success: false, error: 'LLM 매체 분석 중 오류가 발생했습니다.' });
+    return res.status(500).json(createErrorResponse(ERROR_CODES.AI.SERVER_ERROR));
   }
 };
 
@@ -864,7 +865,7 @@ export const getMonthlyReportInsights = async (req: AuthRequest, res: Response) 
     const userId = req.user?.id;
     const { month } = req.query;
 
-    if (!userId || !month) return res.status(400).json({ success: false, error: '유효하지 않은 요청입니다.' });
+    if (!userId || !month) return res.status(400).json(createErrorResponse(ERROR_CODES.AI.INVALID_INPUT));
 
     const query = `
       SELECT content 
@@ -881,7 +882,7 @@ export const getMonthlyReportInsights = async (req: AuthRequest, res: Response) 
     }
   } catch (error: any) {
     console.error('월별 보고서 AI 분석 DB 조회 오류:', error);
-    return res.status(500).json({ success: false, error: '조회 중 오류가 발생했습니다.' });
+    return res.status(500).json(createErrorResponse(ERROR_CODES.AI.SERVER_ERROR));
   }
 };
 
@@ -892,11 +893,11 @@ export const generateMonthlyReportInsights = async (req: AuthRequest, res: Respo
     const { trendsData, platformData, campaignData, selectedMonth, forceRefresh } = req.body;
 
     if (!userId) {
-      return res.status(401).json({ success: false, error: '인증이 필요합니다.' });
+      return res.status(401).json(createErrorResponse(ERROR_CODES.COMMON.UNAUTHORIZED));
     }
 
     if (!process.env.OPENAI_API_KEY) {
-      return res.status(500).json({ success: false, error: 'OpenAI API 키가 설정되지 않았습니다.' });
+      return res.status(500).json(createErrorResponse(ERROR_CODES.AI.API_KEY_MISSING));
     }
 
     const cacheKey = generateCacheKey('monthly_report_v2', { selectedMonth, userId, trendsData, platformData, campaignData });
@@ -1071,7 +1072,7 @@ export const generateMonthlyReportInsights = async (req: AuthRequest, res: Respo
 
   } catch (error: any) {
     console.error('월별 보고서 AI 분석 오류:', error);
-    return res.status(500).json({ success: false, error: '상세 분석 생성 중 오류가 발생했습니다.' });
+    return res.status(500).json(createErrorResponse(ERROR_CODES.AI.SERVER_ERROR));
   }
 };
 
@@ -1081,7 +1082,7 @@ export const getInsightReport = async (req: AuthRequest, res: Response) => {
     const userId = req.user?.id;
     const { month } = req.query;
 
-    if (!userId || !month) return res.status(400).json({ success: false, error: '유효하지 않은 요청입니다.' });
+    if (!userId || !month) return res.status(400).json(createErrorResponse(ERROR_CODES.AI.INVALID_INPUT));
 
     const result = await pool.query(
       `SELECT content FROM insights WHERE user_id = ? AND type = 'insight_report' AND title = ? ORDER BY created_at DESC LIMIT 1`,
@@ -1095,7 +1096,7 @@ export const getInsightReport = async (req: AuthRequest, res: Response) => {
     return res.json({ success: true, data: null });
   } catch (error: any) {
     console.error('인사이트 AI 분석 DB 조회 오류:', error);
-    return res.status(500).json({ success: false, error: '조회 중 오류가 발생했습니다.' });
+    return res.status(500).json(createErrorResponse(ERROR_CODES.AI.SERVER_ERROR));
   }
 };
 
@@ -1105,8 +1106,8 @@ export const generateInsightReport = async (req: AuthRequest, res: Response) => 
     const userId = req.user?.id;
     const { trendsData, platformData, selectedMonth, forceRefresh } = req.body;
 
-    if (!userId) return res.status(401).json({ success: false, error: '인증이 필요합니다.' });
-    if (!process.env.OPENAI_API_KEY) return res.status(500).json({ success: false, error: 'OpenAI API 키가 설정되지 않았습니다.' });
+    if (!userId) return res.status(401).json(createErrorResponse(ERROR_CODES.COMMON.UNAUTHORIZED));
+    if (!process.env.OPENAI_API_KEY) return res.status(500).json(createErrorResponse(ERROR_CODES.AI.API_KEY_MISSING));
 
     const cacheKey = generateCacheKey('insight_report', { userId, selectedMonth, trendsData, platformData });
     const cachedData = insightsCache.get(cacheKey);
@@ -1160,7 +1161,7 @@ export const generateInsightReport = async (req: AuthRequest, res: Response) => 
 
   } catch (error: any) {
     console.error('인사이트 AI 분석 생성 오류:', error);
-    return res.status(500).json({ success: false, error: '인사이트 분석 생성 중 오류가 발생했습니다.' });
+    return res.status(500).json(createErrorResponse(ERROR_CODES.AI.SERVER_ERROR));
   }
 };
 

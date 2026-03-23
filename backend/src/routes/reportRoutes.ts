@@ -7,16 +7,20 @@ import {
   triggerDailyReport,
   triggerTestReport,
   triggerSendToEmail,
+  triggerGenerateReports,
+  triggerSendMonthlyReports,
   getMonthlyReportData,
   generatePdfFromHtml,
   sendPdfByEmail,
-  generatePdfFromPage,  // [2026-03-18] Puppeteer 텍스트 PDF
+  generatePdfFromPage,
 } from '../controllers/reportController';
 
 const router = Router();
 // [2026-03-11 12:07] PDF 업로드용 multer 설정 (LEGACY: 서버 생성 방식 전환으로 미사용)
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 
+router.post('/generate', authenticate, triggerGenerateReports); // PDF 생성 → reports DB 저장
+router.post('/send', authenticate, triggerSendMonthlyReports);  // DB 파일 기반 이메일 전송
 router.post('/weekly', authenticate, triggerWeeklyReport);
 router.post('/daily', authenticate, triggerDailyReport);
 router.post('/test', authenticate, triggerTestReport);

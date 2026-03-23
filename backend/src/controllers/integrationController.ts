@@ -31,7 +31,7 @@ export const updateKarrotManualCampaign = async (req: AuthRequest, res: Response
       cpc: number;
     } = req.body;
     if (!campaignId) {
-      return res.status(400).json({ error: '캠페인 ID가 필요합니다.' });
+      return res.status(400).json(createErrorResponse(ERROR_CODES.INTEGRATION.INVALID_INPUT, '캠페인 ID가 필요합니다.'));
     }
     // 캠페인 소유 및 karrot 플랫폼 확인
     const campaignResult = await pool.query(
@@ -41,7 +41,7 @@ export const updateKarrotManualCampaign = async (req: AuthRequest, res: Response
       [campaignId, userId]
     );
     if (!campaignResult.rows || campaignResult.rows.length === 0) {
-      return res.status(404).json({ error: '해당 캠페인을 찾을 수 없습니다.' });
+      return res.status(404).json(createErrorResponse(ERROR_CODES.CAMPAIGN.NOT_FOUND));
     }
     // 캠페인 정보 수정
     await pool.query(
@@ -70,7 +70,7 @@ export const updateKarrotManualCampaign = async (req: AuthRequest, res: Response
     return res.json({ success: true, message: '캠페인 정보가 수정되었습니다.' });
   } catch (error) {
     console.error('Karrot 캠페인 수정 오류:', error);
-    res.status(500).json({ error: '캠페인 수정 중 서버 오류가 발생했습니다.' });
+    res.status(500).json(createErrorResponse(ERROR_CODES.INTEGRATION.SERVER_ERROR));
   }
 };
 /**
@@ -83,7 +83,7 @@ export const deleteKarrotManualCampaign = async (req: AuthRequest, res: Response
     const { campaignId } = req.params;
     const userId = req.user?.id;
     if (!campaignId) {
-      return res.status(400).json({ error: '캠페인 ID가 필요합니다.' });
+      return res.status(400).json(createErrorResponse(ERROR_CODES.INTEGRATION.INVALID_INPUT, '캠페인 ID가 필요합니다.'));
     }
     // 캠페인 소유 및 karrot 플랫폼 확인
     const campaignResult = await pool.query(
@@ -93,7 +93,7 @@ export const deleteKarrotManualCampaign = async (req: AuthRequest, res: Response
       [campaignId, userId]
     );
     if (!campaignResult.rows || campaignResult.rows.length === 0) {
-      return res.status(404).json({ error: '해당 캠페인을 찾을 수 없습니다.' });
+      return res.status(404).json(createErrorResponse(ERROR_CODES.CAMPAIGN.NOT_FOUND));
     }
     // 메트릭 삭제
     await pool.query('DELETE FROM campaign_metrics WHERE campaign_id = ?', [campaignId]);
@@ -102,7 +102,7 @@ export const deleteKarrotManualCampaign = async (req: AuthRequest, res: Response
     return res.json({ success: true, message: '캠페인이 삭제되었습니다.' });
   } catch (error) {
     console.error('Karrot 캠페인 삭제 오류:', error);
-    res.status(500).json({ error: '캠페인 삭제 중 서버 오류가 발생했습니다.' });
+    res.status(500).json(createErrorResponse(ERROR_CODES.INTEGRATION.SERVER_ERROR));
   }
 };
 /**
@@ -209,7 +209,7 @@ export const crawlKarrotAdResultManual = async (req: AuthRequest, res: Response)
     if (conn) await conn.query('ROLLBACK');
     if (conn) conn.release();
     console.error('당근마켓 광고 수동 입력 저장 오류:', error);
-    return res.status(500).json({ error: '광고 데이터 저장 중 서버 오류가 발생했습니다.' });
+    return res.status(500).json(createErrorResponse(ERROR_CODES.INTEGRATION.SERVER_ERROR));
   } finally {
     if (conn) conn.release();
   }
@@ -228,6 +228,7 @@ import path from 'path';
 import csvParser from 'csv-parser';
 import * as iconv from 'iconv-lite';
 import { logIntegration } from '../utils/logger';
+import { ERROR_CODES, createErrorResponse } from '../constants/errorCodes';
 
 /**
  * 플랫폼별 서비스 매핑
@@ -249,7 +250,7 @@ export const getAuthUrl = async (req: AuthRequest, res: Response) => {
 
     const service = serviceMap[platform];
     if (!service) {
-      return res.status(400).json({ error: '지원하지 않는 플랫폼입니다.' });
+      return res.status(400).json(createErrorResponse(ERROR_CODES.INTEGRATION.INVALID_INPUT, '지원하지 않는 플랫폼입니다.'));
     }
 
     const redirectUri = `${process.env.BACKEND_URL || 'http://localhost:3000'}/api/v1/integration/callback/${platform}`;
@@ -285,12 +286,12 @@ export const handleOAuthCallback = async (req: AuthRequest, res: Response) => {
     const { code, state } = req.query;
 
     if (!code || !state) {
-      return res.status(400).json({ error: '인증 코드가 없습니다.' });
+      return res.status(400).json(createErrorResponse(ERROR_CODES.INTEGRATION.INVALID_INPUT, '인증 코드가 없습니다.'));
     }
 
     const service = serviceMap[platform];
     if (!service) {
-      return res.status(400).json({ error: '지원하지 않는 플랫폼입니다.' });
+      return res.status(400).json(createErrorResponse(ERROR_CODES.INTEGRATION.INVALID_INPUT, '지원하지 않는 플랫폼입니다.'));
     }
 
     // State 검증
@@ -516,7 +517,7 @@ export const syncMetrics = async (req: AuthRequest, res: Response) => {
     const userId = req.user?.id;
 
     if (!startDate || !endDate) {
-      return res.status(400).json({ error: '시작일과 종료일을 지정해주세요.' });
+      return res.status(400).json(createErrorResponse(ERROR_CODES.INTEGRATION.INVALID_INPUT, '시작일과 종료일을 지정해주세요.'));
     }
 
     // 캠페인 및 계정 정보 조회
@@ -528,7 +529,7 @@ export const syncMetrics = async (req: AuthRequest, res: Response) => {
     `, [campaignId, userId]);
 
     if (campaignResult.rows.length === 0) {
-      return res.status(404).json({ error: '캠페인을 찾을 수 없습니다.' });
+      return res.status(404).json(createErrorResponse(ERROR_CODES.CAMPAIGN.NOT_FOUND));
     }
 
     const campaign = campaignResult.rows[0];
@@ -536,7 +537,7 @@ export const syncMetrics = async (req: AuthRequest, res: Response) => {
     const service = serviceMap[campaign.platform];
 
     if (!service) {
-      return res.status(400).json({ error: '지원하지 않는 플랫폼입니다.' });
+      return res.status(400).json(createErrorResponse(ERROR_CODES.INTEGRATION.INVALID_INPUT, '지원하지 않는 플랫폼입니다.'));
     }
 
     // 메트릭 가져오기
@@ -644,7 +645,7 @@ export const syncAllMetrics = async (req: AuthRequest, res: Response) => {
     console.log('[Sync All] 계정 조회 완료:', accounts.length, '개');
 
     if (accounts.length === 0) {
-      return res.status(404).json({ error: '연동된 계정이 없습니다.' });
+      return res.status(404).json(createErrorResponse(ERROR_CODES.INTEGRATION.NOT_FOUND, '연동된 계정이 없습니다.'));
     }
 
     let totalCampaigns = 0;
@@ -971,7 +972,7 @@ export const disconnectAccount = async (req: AuthRequest, res: Response) => {
     );
 
     if (accountResult.rows.length === 0) {
-      return res.status(404).json({ error: '연동된 계정을 찾을 수 없습니다.' });
+      return res.status(404).json(createErrorResponse(ERROR_CODES.INTEGRATION.NOT_FOUND, '연동된 계정을 찾을 수 없습니다.'));
     }
 
     const accountId = accountResult.rows[0].id;
@@ -1002,7 +1003,7 @@ export const disconnectAccount = async (req: AuthRequest, res: Response) => {
 export const uploadCSV = async (req: AuthRequest, res: Response) => {
   const file = (req as any).file;
   if (!file) {
-    return res.status(400).json({ error: '파일이 없습니다.' });
+    return res.status(400).json(createErrorResponse(ERROR_CODES.INTEGRATION.INVALID_INPUT, '파일이 없습니다.'));
   }
 
   const userId = req.user?.id;
@@ -1134,13 +1135,14 @@ export const uploadCSV = async (req: AuthRequest, res: Response) => {
         // 3. 지표 처리
         const formattedDate = rawDate.replace(/[\.\/]/g, '-');
 
+        // hour = 0 으로 고정: NULL이면 UNIQUE KEY 중복 감지가 안 되어 매번 중복 삽입됨
         await pool.query(`
             INSERT INTO campaign_metrics (
-                campaign_id, metric_date, impressions, clicks, cost, conversions, revenue,
+                campaign_id, metric_date, hour, impressions, clicks, cost, conversions, revenue,
                 ctr, cpc, cpm, conversion_rate, cpa, roas, roi
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ON DUPLICATE KEY UPDATE 
+            VALUES (?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON DUPLICATE KEY UPDATE
                 impressions = VALUES(impressions),
                 clicks = VALUES(clicks),
                 cost = VALUES(cost),
@@ -1282,7 +1284,7 @@ export const exportCSV = async (req: any, res: any) => {
 
   } catch (error) {
     console.error('CSV export error:', error);
-    res.status(500).json({ error: 'CSV 파일 생성 중 서버 오류가 발생했습니다.' });
+    res.status(500).json(createErrorResponse(ERROR_CODES.INTEGRATION.SERVER_ERROR));
   } finally {
     client.release();
   }
@@ -1299,7 +1301,7 @@ export const mockConnectPlatform = async (req: AuthRequest, res: Response) => {
     const userId = req.user?.id;
 
     if (!platform) {
-      return res.status(400).json({ error: '플랫폼 정보가 필요합니다.' });
+      return res.status(400).json(createErrorResponse(ERROR_CODES.INTEGRATION.INVALID_INPUT, '플랫폼 정보가 필요합니다.'));
     }
 
     // 매체별 고정 데이터 설정
@@ -1312,7 +1314,7 @@ export const mockConnectPlatform = async (req: AuthRequest, res: Response) => {
 
     const mockInfo = mockDataMap[platform];
     if (!mockInfo) {
-      return res.status(400).json({ error: '지원하지 않는 플랫폼입니다.' });
+      return res.status(400).json(createErrorResponse(ERROR_CODES.INTEGRATION.INVALID_INPUT, '지원하지 않는 플랫폼입니다.'));
     }
 
     // marketing_accounts 테이블에 강제 삽입/업데이트
@@ -1344,6 +1346,6 @@ export const mockConnectPlatform = async (req: AuthRequest, res: Response) => {
     });
   } catch (error) {
     console.error('Mock Connect Error:', error);
-    res.status(500).json({ error: '임시 연동 처리 중 서버 오류가 발생했습니다.' });
+    res.status(500).json(createErrorResponse(ERROR_CODES.INTEGRATION.SERVER_ERROR));
   }
 };

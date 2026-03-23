@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { spawn } from 'child_process';
 import path from 'path';
+import { ERROR_CODES, createErrorResponse } from '../constants/errorCodes';
 
 /**
  * AI 추천 컨트롤러
@@ -15,10 +16,7 @@ export const getAIRecommendation = async (req: Request, res: Response) => {
     const requiredFields = ['name', 'industry'];
     for (const field of requiredFields) {
       if (!productInfo[field]) {
-        return res.status(400).json({
-          success: false,
-          error: `${field} is required`,
-        });
+        return res.status(400).json(createErrorResponse(ERROR_CODES.AI.INVALID_INPUT, `${field} 필드가 필요합니다.`));
       }
     }
 
@@ -68,12 +66,7 @@ export const getAIRecommendation = async (req: Request, res: Response) => {
         console.error('stderr:', errorString);
         console.error('stdout:', dataString);
         console.error('==========================');
-        return res.status(500).json({
-          success: false,
-          error: 'AI 추론 실패',
-          details: errorString || 'Python script exited with non-zero code',
-          stdout: dataString,
-        });
+        return res.status(500).json(createErrorResponse(ERROR_CODES.AI.SERVER_ERROR, errorString || 'Python script exited with non-zero code'));
       }
 
       try {
@@ -85,19 +78,12 @@ export const getAIRecommendation = async (req: Request, res: Response) => {
       } catch (error) {
         console.error('JSON 파싱 오류:', error);
         console.error('Received data:', dataString);
-        return res.status(500).json({
-          success: false,
-          error: 'AI 추론 결과 파싱 실패',
-        });
+        return res.status(500).json(createErrorResponse(ERROR_CODES.AI.SERVER_ERROR, 'AI 추론 결과 파싱 실패'));
       }
     });
   } catch (error: any) {
     console.error('AI 추천 오류:', error);
-    return res.status(500).json({
-      success: false,
-      error: 'Internal server error',
-      message: error.message,
-    });
+    return res.status(500).json(createErrorResponse(ERROR_CODES.AI.SERVER_ERROR, error.message));
   }
 };
 
@@ -148,10 +134,6 @@ export const checkModelStatus = async (req: Request, res: Response) => {
     }
   } catch (error: any) {
     console.error('모델 상태 확인 오류:', error);
-    return res.status(500).json({
-      success: false,
-      error: 'Internal server error',
-      message: error.message,
-    });
+    return res.status(500).json(createErrorResponse(ERROR_CODES.AI.SERVER_ERROR, error.message));
   }
 };
