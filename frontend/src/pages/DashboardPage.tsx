@@ -1104,8 +1104,8 @@ export default function DashboardPage() {
             {/* ========================================================================= */}
             {/* 2. 사장님이 새롭게 교체한 AI 트렌드 분석 (프리미엄) 카드 */}
             {/* ========================================================================= */}
-            <div id="dashboard-ai-trend" className="xl:col-span-2 space-y-3">
-              <div className="bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-500 rounded-xl shadow-lg p-4 sm:p-6 text-white h-full flex flex-col justify-between min-h-[280px]">
+            <div id="dashboard-ai-trend" className="xl:col-span-2 space-y-3 self-start">
+              <div className="bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-500 rounded-xl shadow-lg p-4 sm:p-6 text-white flex flex-col justify-between min-h-[280px]">
                 <div>
                   <div className="flex items-center gap-2 sm:gap-3 mb-2 sm:mb-3">
                     <div className="p-1.5 sm:p-2 bg-white/20 backdrop-blur rounded-lg">
