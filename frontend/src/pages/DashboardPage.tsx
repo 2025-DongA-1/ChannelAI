@@ -1,4 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { DayPicker } from 'react-day-picker';
+import 'react-day-picker/style.css';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { dashboardAPI, aiAgentAPI, campaignAPI } from '@/lib/api';
 import { formatCurrency, formatPercent, formatCompactNumber, getComparisonText, getPreviousDateRange, calculateChangeRate } from '@/lib/utils';
@@ -18,10 +20,20 @@ export default function DashboardPage() {
     startDate: '',
     endDate: '',
   });
+  // 선택된 프리셋 버튼 (전체/오늘/어제/7일/30일/90일/custom)
   const [selectedPreset, setSelectedPreset] = useState('all');
+  // 현재 활성 탭: 'overall'=전체 성과, 'campaign'=캠페인별 성과
   const [activeTab, setActiveTab] = useState<'overall' | 'campaign'>('overall');
+  // 캠페인 탭에서 선택된 캠페인 ID ('all'이면 전체)
   const [selectedCampaignId, setSelectedCampaignId] = useState<string>('all');
+  // 모바일 화면에서 날짜 직접 입력 섹션 표시 여부 (sm 이상에서는 항상 표시)
   const [showDatePicker, setShowDatePicker] = useState(false);
+  // 시작일/종료일 달력 팝업 표시 여부 (각각 독립적으로 제어)
+  const [showStartCalendar, setShowStartCalendar] = useState(false);
+  const [showEndCalendar, setShowEndCalendar] = useState(false);
+  // 달력 팝업 외부 클릭 감지를 위한 ref
+  const startCalendarRef = useRef<HTMLDivElement>(null);
+  const endCalendarRef = useRef<HTMLDivElement>(null);
   const [isTutorialMenuOpen, setIsTutorialMenuOpen] = useState(false);
 
   // --- Navigation & Dashboard Tutorial State ---
@@ -211,6 +223,7 @@ export default function DashboardPage() {
     }
   };
 
+  // 투어 단계 변경·화면 크기·스크롤 시 하이라이트 박스 위치를 재계산
   useEffect(() => {
     updateRect();
     window.addEventListener('resize', updateRect);
@@ -221,8 +234,9 @@ export default function DashboardPage() {
     };
   }, [showTour, currentTourStep, tourType]);
 
+  // 튜토리얼 모드가 켜지면 최초 1회 네비게이션 투어를 자동 실행하고
+  // localStorage에 완료 여부를 저장하여 재방문 시 중복 실행을 방지
   useEffect(() => {
-    // If we want auto-show on first load
     const tourDone = localStorage.getItem('dashboard_tour_done');
     if (!tourDone && isTutorialModeEnabled) {
       setTourType('nav');
@@ -252,6 +266,7 @@ export default function DashboardPage() {
     }, 2300);
   };
 
+  // 네비게이션 투어 시작: 모바일이면 햄버거 메뉴를 열어 항목이 보이도록 한 뒤 투어 실행
   const handleStartTour = () => {
     setTourType('nav');
     if (window.innerWidth < 768) {
@@ -263,6 +278,7 @@ export default function DashboardPage() {
     });
   };
 
+  // 대시보드 투어 시작: 전체 성과 탭으로 이동하고 페이지 최상단에서 투어 실행
   const handleStartDashTour = () => {
     setActiveTab('overall');
     setTourType('dashboard');
@@ -274,6 +290,7 @@ export default function DashboardPage() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
+  // 투어 종료: 모바일 네비게이션 투어였다면 메뉴를 닫음
   const handleCloseTour = () => {
     setShowTour(false);
     if (window.innerWidth < 768 && tourType === 'nav') {
@@ -281,6 +298,7 @@ export default function DashboardPage() {
     }
   };
 
+  // 다른 페이지에서 투어 요청이 들어오면 해당 타입의 투어를 실행하고 요청 소비
   useEffect(() => {
     if (pendingTour === 'nav') {
       handleStartTour();
@@ -291,27 +309,53 @@ export default function DashboardPage() {
     }
   }, [pendingTour, consumeTour]);
 
+  // 시작일 달력: 팝업이 열려 있을 때만 mousedown 이벤트를 등록하고,
+  // 달력 영역(startCalendarRef) 바깥을 클릭하면 팝업을 닫음
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (startCalendarRef.current && !startCalendarRef.current.contains(e.target as Node)) {
+        setShowStartCalendar(false);
+      }
+    };
+    if (showStartCalendar) document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [showStartCalendar]);
 
+  // 종료일 달력: 팝업이 열려 있을 때만 mousedown 이벤트를 등록하고,
+  // 달력 영역(endCalendarRef) 바깥을 클릭하면 팝업을 닫음
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (endCalendarRef.current && !endCalendarRef.current.contains(e.target as Node)) {
+        setShowEndCalendar(false);
+      }
+    };
+    if (showEndCalendar) document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [showEndCalendar]);
 
-  const navigate = useNavigate(); 
-  
+  const navigate = useNavigate();
+
+  // 현재 기간에 대한 비교 텍스트 (예: "전주 대비") - 날짜가 없으면 빈 문자열
   const comparisonText = dateRange.startDate && dateRange.endDate
     ? getComparisonText(dateRange.startDate, dateRange.endDate)
     : '';
 
+  // 대시보드 전체 요약 데이터 (총 노출/클릭/비용/전환 등)
+  // 날짜가 설정되지 않으면 전체 기간 데이터를 가져옴
   const { data: summary, isLoading } = useQuery({
     queryKey: ['dashboard-summary', dateRange.startDate, dateRange.endDate],
     queryFn: () => dashboardAPI.getSummary(
-      dateRange.startDate && dateRange.endDate 
+      dateRange.startDate && dateRange.endDate
         ? { startDate: dateRange.startDate, endDate: dateRange.endDate }
         : undefined
     ),
   });
 
+  // 채널(플랫폼)별 성과 데이터 (메타/구글/네이버/당근 등)
   const { data: performance } = useQuery({
     queryKey: ['channel-performance', dateRange.startDate, dateRange.endDate],
     queryFn: () => dashboardAPI.getChannelPerformance(
-      dateRange.startDate && dateRange.endDate 
+      dateRange.startDate && dateRange.endDate
         ? { startDate: dateRange.startDate, endDate: dateRange.endDate }
         : undefined
     ),
@@ -331,9 +375,10 @@ export default function DashboardPage() {
     }
   }, [activeTab, selectedCampaignId, campaigns.length]);
 
+  // 비교 기간 계산: 현재 선택 기간과 동일한 길이의 직전 기간 (증감률 계산에 사용)
   const prevDates = getPreviousDateRange(dateRange.startDate, dateRange.endDate);
 
-  // 프론트엔드에서 데이터를 기간별로 직접 쪼개줍니다
+  // 선택된 캠페인의 전체 일별 지표를 가져온 뒤, 프론트에서 날짜 범위로 직접 필터링
   const { data: selectedCampaignMetrics } = useQuery({
     queryKey: ['campaign-metrics', selectedCampaignId],
     queryFn: () => campaignAPI.getMetrics(Number(selectedCampaignId)),
@@ -342,7 +387,8 @@ export default function DashboardPage() {
   
   const allCampaignMetrics = selectedCampaignMetrics?.data?.metrics || [];
   
-  // 프론트엔드 시차 버그 완벽 해결
+  // UTC 기준 날짜 문자열을 로컬 타임존 기준 'YYYY-MM-DD'로 변환
+  // (서버에서 UTC로 내려온 날짜가 한국 시간으로 하루 밀리는 시차 버그를 방지)
   const getLocalDataString = (dateString: string) => {
     if (!dateString) return '';
     const dateObj = new Date(dateString);
@@ -395,6 +441,7 @@ export default function DashboardPage() {
   const campaignCpc = campaignTotals.clicks > 0 ? campaignTotals.cost / campaignTotals.clicks : 0;
   const campaignRoas = campaignTotals.cost > 0 ? campaignTotals.revenue / campaignTotals.cost : 0;
 
+  // 이전 기간 전체 요약 데이터 (증감률 비교용, prevDates가 없으면 쿼리 비활성화)
   const { data: prevSummary } = useQuery({
     queryKey: ['dashboard-summary-prev', prevDates?.startDate, prevDates?.endDate],
     queryFn: () => dashboardAPI.getSummary(
@@ -403,6 +450,7 @@ export default function DashboardPage() {
     enabled: !!prevDates,
   });
 
+  // 현재/이전 기간 지표 및 예산 데이터 추출
   const metrics = summary?.data?.metrics;
   const prevMetrics = prevSummary?.data?.metrics;
   const budget = summary?.data?.budget;
@@ -446,6 +494,7 @@ export default function DashboardPage() {
         startDate = endDate;
         break;
       case 'yesterday':
+        // 어제는 시작일=종료일이므로 동일 값으로 설정 후 조기 반환
         const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000);
         startDate = yesterday.toISOString().split('T')[0];
         setDateRange({ startDate, endDate: startDate });
@@ -464,7 +513,8 @@ export default function DashboardPage() {
     setDateRange({ startDate, endDate });
   };
 
-  // 사용자 지정 날짜 변경
+  // DayPicker 이외 방식으로 날짜를 직접 변경할 때 호출
+  // 프리셋을 'custom'으로 바꿔 버튼 하이라이트를 해제함
   const handleCustomDateChange = (type: 'start' | 'end', value: string) => {
     setSelectedPreset('custom');
     setDateRange(prev => ({
@@ -473,20 +523,43 @@ export default function DashboardPage() {
     }));
   };
 
+  // Date → 'YYYY-MM-DD' 문자열 변환 유틸
+  const toDateStr = (d: Date) => d.toISOString().split('T')[0];
+
+  // 시작일 선택: 선택한 날짜를 startDate에 저장하고 달력 닫음
+  // 종료일이 시작일보다 앞서지 않도록 DayPicker의 disabled 옵션으로 제한함
+  const handleStartSelect = (day: Date | undefined) => {
+    if (!day) return;
+    setSelectedPreset('custom');
+    setDateRange(prev => ({ ...prev, startDate: toDateStr(day) }));
+    setShowStartCalendar(false);
+  };
+
+  // 종료일 선택: 선택한 날짜를 endDate에 저장하고 달력 닫음
+  // 시작일 이전 날짜 및 오늘 이후 날짜는 비활성화 처리됨
+  const handleEndSelect = (day: Date | undefined) => {
+    if (!day) return;
+    setSelectedPreset('custom');
+    setDateRange(prev => ({ ...prev, endDate: toDateStr(day) }));
+    setShowEndCalendar(false);
+  };
+
   // 날짜 범위 텍스트
   const getDateRangeText = () => {
     if (!dateRange.startDate || !dateRange.endDate) {
       return '전체 기간';
     }
-    
-    const start = new Date(dateRange.startDate);
-    const end = new Date(dateRange.endDate);
-    
+
+    const start = new Date(dateRange.startDate + 'T00:00:00');
+    const end = new Date(dateRange.endDate + 'T00:00:00');
+
+    const fmt = (d: Date) => d.toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' });
+
     if (dateRange.startDate === dateRange.endDate) {
-      return start.toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' });
+      return fmt(start);
     }
-    
-    return `${start.toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' })} - ${end.toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' })}`;
+
+    return `${fmt(start)} ~ ${fmt(end)}`;
   };
 
 
@@ -778,23 +851,61 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        <div className={`${showDatePicker ? 'flex' : 'hidden'} sm:flex items-center gap-1.5 sm:gap-2 mt-2 sm:mt-3`}>
-          <input
-            type="date"
-            value={dateRange.startDate}
-            onChange={(e) => handleCustomDateChange('start', e.target.value)}
-            max={dateRange.endDate || undefined}
-            className="flex-1 sm:flex-none px-2 sm:px-3 py-1.5 text-xs sm:text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          />
-          <span className="text-gray-400 text-xs">~</span>
-          <input
-            type="date"
-            value={dateRange.endDate}
-            onChange={(e) => handleCustomDateChange('end', e.target.value)}
-            min={dateRange.startDate || undefined}
-            max={new Date().toISOString().split('T')[0]}
-            className="flex-1 sm:flex-none px-2 sm:px-3 py-1.5 text-xs sm:text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          />
+        <div className="flex items-center gap-2 mt-2 sm:mt-3 flex-wrap">
+          {/* 시작일 */}
+          <div className="relative" ref={startCalendarRef}>
+            <button
+              onClick={() => { setShowStartCalendar(prev => !prev); setShowEndCalendar(false); }}
+              className="flex items-center gap-2 px-3 py-1.5 text-xs sm:text-sm border border-gray-300 rounded-lg hover:border-blue-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white text-gray-700 transition"
+            >
+              <Calendar className="w-3.5 h-3.5 text-gray-400" />
+              <span>{dateRange.startDate || '시작일'}</span>
+              <ChevronDown className={`w-3 h-3 text-gray-400 transition-transform ${showStartCalendar ? 'rotate-180' : ''}`} />
+            </button>
+            {showStartCalendar && (
+              <div className="absolute z-50 top-full mt-1 left-0 bg-white rounded-xl shadow-2xl border border-gray-200 p-2">
+                <DayPicker
+                  mode="single"
+                  selected={dateRange.startDate ? new Date(dateRange.startDate + 'T00:00:00') : undefined}
+                  onSelect={handleStartSelect}
+                  disabled={{ after: dateRange.endDate ? new Date(dateRange.endDate + 'T00:00:00') : new Date() }}
+                  captionLayout="dropdown"
+                  startMonth={new Date(2020, 0)}
+                  endMonth={new Date()}
+                />
+              </div>
+            )}
+          </div>
+
+          <span className="text-gray-400 text-sm">~</span>
+
+          {/* 종료일 */}
+          <div className="relative" ref={endCalendarRef}>
+            <button
+              onClick={() => { setShowEndCalendar(prev => !prev); setShowStartCalendar(false); }}
+              className="flex items-center gap-2 px-3 py-1.5 text-xs sm:text-sm border border-gray-300 rounded-lg hover:border-blue-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white text-gray-700 transition"
+            >
+              <Calendar className="w-3.5 h-3.5 text-gray-400" />
+              <span>{dateRange.endDate || '종료일'}</span>
+              <ChevronDown className={`w-3 h-3 text-gray-400 transition-transform ${showEndCalendar ? 'rotate-180' : ''}`} />
+            </button>
+            {showEndCalendar && (
+              <div className="absolute z-50 top-full mt-1 left-0 bg-white rounded-xl shadow-2xl border border-gray-200 p-2">
+                <DayPicker
+                  mode="single"
+                  selected={dateRange.endDate ? new Date(dateRange.endDate + 'T00:00:00') : undefined}
+                  onSelect={handleEndSelect}
+                  disabled={[
+                    { before: dateRange.startDate ? new Date(dateRange.startDate + 'T00:00:00') : undefined },
+                    { after: new Date() },
+                  ]}
+                  captionLayout="dropdown"
+                  startMonth={dateRange.startDate ? new Date(dateRange.startDate + 'T00:00:00') : new Date(2020, 0)}
+                  endMonth={new Date()}
+                />
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
