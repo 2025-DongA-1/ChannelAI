@@ -513,15 +513,6 @@ export default function DashboardPage() {
     setDateRange({ startDate, endDate });
   };
 
-  // DayPicker 이외 방식으로 날짜를 직접 변경할 때 호출
-  // 프리셋을 'custom'으로 바꿔 버튼 하이라이트를 해제함
-  const handleCustomDateChange = (type: 'start' | 'end', value: string) => {
-    setSelectedPreset('custom');
-    setDateRange(prev => ({
-      ...prev,
-      [type === 'start' ? 'startDate' : 'endDate']: value,
-    }));
-  };
 
   // Date → 'YYYY-MM-DD' 문자열 변환 유틸
   const toDateStr = (d: Date) => d.toISOString().split('T')[0];
@@ -896,7 +887,7 @@ export default function DashboardPage() {
                   selected={dateRange.endDate ? new Date(dateRange.endDate + 'T00:00:00') : undefined}
                   onSelect={handleEndSelect}
                   disabled={[
-                    { before: dateRange.startDate ? new Date(dateRange.startDate + 'T00:00:00') : undefined },
+                    ...(dateRange.startDate ? [{ before: new Date(dateRange.startDate + 'T00:00:00') }] : []),
                     { after: new Date() },
                   ]}
                   captionLayout="dropdown"
