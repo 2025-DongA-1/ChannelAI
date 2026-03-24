@@ -207,7 +207,6 @@ export const crawlKarrotAdResultManual = async (req: AuthRequest, res: Response)
     return res.json({ success: true, message: '광고 데이터가 정상적으로 저장되었습니다.' });
   } catch (error) {
     if (conn) await conn.query('ROLLBACK');
-    if (conn) conn.release();
     console.error('당근마켓 광고 수동 입력 저장 오류:', error);
     return res.status(500).json(createErrorResponse(ERROR_CODES.INTEGRATION.SERVER_ERROR));
   } finally {

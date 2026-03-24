@@ -4,20 +4,47 @@ import { ResultSetHeader } from 'mysql2';
 
 dotenv.config();
 
-// MySQL 연결 풀 생성
-const mysqlPool = mysql.createPool({
+// 리모트 DB 풀 (기본, .env 기준)
+const remotePool = mysql.createPool({
   host: process.env.DB_HOST || 'localhost',
   port: parseInt(process.env.DB_PORT || '3306'),
   database: process.env.DB_NAME || 'ad_mate_db',
   user: process.env.DB_USER || 'root',
   password: process.env.DB_PASSWORD || '1234',
   waitForConnections: true,
-  connectionLimit: 10,       // 외부 DB 부하 방지를 위해 10개로 제한
+  connectionLimit: 10,
   queueLimit: 0,
-  connectTimeout: 30000,     // 연결 시도 최대 30초 (외부 DB 지연 감안, 원래 10초였으나 늘림)
-  enableKeepAlive: true,     // 유휴 연결에 keepAlive 패킷을 보내 끊긴 연결 감지
-  keepAliveInitialDelay: 10000, // 10초 이상 유휴 상태면 keepAlive 시작
+  connectTimeout: 30000,
+  enableKeepAlive: true,
+  keepAliveInitialDelay: 10000,
 });
+
+// 로컬 DB 풀
+const localPool = mysql.createPool({
+  host: process.env.LOCAL_DB_HOST || 'localhost',
+  port: parseInt(process.env.LOCAL_DB_PORT || '3306'),
+  database: process.env.LOCAL_DB_NAME || process.env.DB_NAME || 'ad_mate_db',
+  user: process.env.LOCAL_DB_USER || 'root',
+  password: process.env.LOCAL_DB_PASSWORD || '1234',
+  waitForConnections: true,
+  connectionLimit: 10,
+  queueLimit: 0,
+  connectTimeout: 10000,
+});
+
+// 현재 DB 모드 (서버 재시작 시 remote로 초기화)
+let currentMode: 'remote' | 'local' = 'remote';
+
+export const getDbMode = () => currentMode;
+export const setDbMode = (mode: 'remote' | 'local') => {
+  currentMode = mode;
+  console.log(`[DB] 모드 전환: ${mode.toUpperCase()}`);
+};
+
+const getActivePool = () => currentMode === 'local' ? localPool : remotePool;
+
+// 기존 코드와 호환되는 mysqlPool (하위 호환용)
+const mysqlPool = remotePool;
 
 // 기존 코드와의 호환성을 위한 래퍼(Wrapper) 
 // (다른 파일들이 pool.query(), pool.connect() 방식을 쓰고 있어서 유지해야 함)
@@ -53,14 +80,14 @@ const executeQuery = async (
 };
 
 const pool = {
-  // 1. pool.query() 지원
+  // 1. pool.query() 지원 — 현재 활성 풀 사용
   query: async (sql: string, params?: any[]): Promise<QueryResult> => {
-    return executeQuery(mysqlPool, sql, params);
+    return executeQuery(getActivePool(), sql, params);
   },
 
-  // 2. pool.connect() 지원
+  // 2. pool.connect() 지원 — 현재 활성 풀 사용
   connect: async (): Promise<PoolClient> => {
-    const connection = await mysqlPool.getConnection();
+    const connection = await getActivePool().getConnection();
     return {
       query: async (sql: string, params?: any[]): Promise<QueryResult> => {
         return executeQuery(connection, sql, params);
@@ -68,8 +95,8 @@ const pool = {
       release: () => connection.release(),
     };
   },
-  
-  // 3. 네이티브 풀 접근이 필요할 경우를 대비해 노출
+
+  // 3. 네이티브 풀 접근 (하위 호환)
   originalPool: mysqlPool
 };
 
