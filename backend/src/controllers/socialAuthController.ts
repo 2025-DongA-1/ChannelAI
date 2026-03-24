@@ -119,19 +119,6 @@ export const handleKakaoCallback = async (req: Request, res: Response) => {
           [authId]
         );
 
-        // (하위 호환성) 예전 방식 체크
-        if (idResult.rows.length === 0) {
-          const oldUserResult = await client.query(
-              'SELECT * FROM users WHERE password_hash = ?',
-              [authId]
-          );
-          if (oldUserResult.rows.length > 0) {
-                const oldUser = oldUserResult.rows[0];
-                await client.query('UPDATE users SET provider = ?, provider_id = ? WHERE id = ?', ['kakao', authId, oldUser.id]);
-                idResult = { rows: [oldUser] } as any;
-          }
-        }
-
         let user;
 
         if (idResult.rows.length > 0) {
@@ -288,20 +275,6 @@ export const handleNaverCallback = async (req: Request, res: Response) => {
         [authId]
       );
 
-      // (하위 호환성) 예전 방식(password_hash에 저장된 경우)도 체크
-      if (idResult.rows.length === 0) {
-        const oldUserResult = await client.query(
-           'SELECT * FROM users WHERE password_hash = ?',
-           [authId]
-        );
-        if (oldUserResult.rows.length > 0) {
-          // 구 방식 유저 발견 -> 마이그레이션 (provider_id로 옮기고, password_hash는 초기화하거나 둠)
-          const oldUser = oldUserResult.rows[0];
-          await client.query('UPDATE users SET provider = ?, provider_id = ? WHERE id = ?', ['naver', authId, oldUser.id]);
-          idResult = { rows: [oldUser] } as any;
-        }
-      }
-
       let user;
 
       if (idResult.rows.length > 0) {
@@ -446,19 +419,6 @@ export const handleGoogleCallback = async (req: Request, res: Response) => {
           'SELECT * FROM users WHERE provider_id = ?',
           [authId]
         );
-
-        // (하위 호환성) 예전 방식 체크
-        if (idResult.rows.length === 0) {
-          const oldUserResult = await client.query(
-              'SELECT * FROM users WHERE password_hash = ?',
-              [authId]
-          );
-          if (oldUserResult.rows.length > 0) {
-                const oldUser = oldUserResult.rows[0];
-                await client.query('UPDATE users SET provider = ?, provider_id = ? WHERE id = ?', ['google', authId, oldUser.id]);
-                idResult = { rows: [oldUser] } as any;
-          }
-        }
 
         let user;
 
