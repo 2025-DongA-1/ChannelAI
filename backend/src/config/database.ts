@@ -4,23 +4,64 @@ import { ResultSetHeader } from 'mysql2';
 
 dotenv.config();
 
-// MySQL 연결 풀 생성
-const mysqlPool = mysql.createPool({
+// 원본 리모트 DB 풀 (항상 유지)
+const remotePool = mysql.createPool({
   host: process.env.DB_HOST || 'localhost',
   port: parseInt(process.env.DB_PORT || '3306'),
   database: process.env.DB_NAME || 'ad_mate_db',
   user: process.env.DB_USER || 'root',
   password: process.env.DB_PASSWORD || '1234',
   waitForConnections: true,
-  connectionLimit: 10,       // 외부 DB 부하 방지를 위해 10개로 제한
+  connectionLimit: 10,
   queueLimit: 0,
-  connectTimeout: 30000,     // 연결 시도 최대 30초 (외부 DB 지연 감안, 원래 10초였으나 늘림)
-  enableKeepAlive: true,     // 유휴 연결에 keepAlive 패킷을 보내 끊긴 연결 감지
-  keepAliveInitialDelay: 10000, // 10초 이상 유휴 상태면 keepAlive 시작
+  connectTimeout: 30000,
+  enableKeepAlive: true,
+  keepAliveInitialDelay: 10000,
 });
 
-// 기존 코드와의 호환성을 위한 래퍼(Wrapper)
-// (다른 파일들이 pool.query(), pool.connect() 방식을 쓰고 있어서 유지해야 함)
+// 임시 커스텀 풀 (ngrok 등 임시 DB용, null이면 remotePool 사용)
+let customPool: mysql.Pool | null = null;
+let customConfig: { host: string; port: number; database: string; user: string } | null = null;
+
+export const getDbStatus = () => ({
+  mode: customPool ? 'custom' : 'remote',
+  config: customConfig,
+});
+
+export const switchToCustomDb = async (config: {
+  host: string;
+  port: number;
+  database: string;
+  user: string;
+  password: string;
+}) => {
+  // 기존 커스텀 풀 종료
+  if (customPool) {
+    await customPool.end().catch(() => {});
+    customPool = null;
+  }
+  const newPool = mysql.createPool({
+    ...config,
+    waitForConnections: true,
+    connectionLimit: 5,
+    connectTimeout: 10000,
+  });
+  // 연결 테스트
+  const conn = await newPool.getConnection();
+  conn.release();
+  customPool = newPool;
+  customConfig = { host: config.host, port: config.port, database: config.database, user: config.user };
+};
+
+export const switchToRemoteDb = async () => {
+  if (customPool) {
+    await customPool.end().catch(() => {});
+    customPool = null;
+    customConfig = null;
+  }
+};
+
+const getActivePool = () => customPool ?? remotePool;
 
 interface QueryResult {
   rows: any[];
@@ -42,7 +83,6 @@ const executeQuery = async (
   if (Array.isArray(result)) {
     return { rows: result as any[] };
   } else {
-    // INSERT, UPDATE 등의 결과 처리
     const header = result as ResultSetHeader;
     return {
       rows: [],
@@ -53,14 +93,12 @@ const executeQuery = async (
 };
 
 const pool = {
-  // 1. pool.query() 지원
   query: async (sql: string, params?: any[]): Promise<QueryResult> => {
-    return executeQuery(mysqlPool, sql, params);
+    return executeQuery(getActivePool(), sql, params);
   },
 
-  // 2. pool.connect() 지원
   connect: async (): Promise<PoolClient> => {
-    const connection = await mysqlPool.getConnection();
+    const connection = await getActivePool().getConnection();
     return {
       query: async (sql: string, params?: any[]): Promise<QueryResult> => {
         return executeQuery(connection, sql, params);
@@ -69,8 +107,7 @@ const pool = {
     };
   },
 
-  // 3. 네이티브 풀 접근이 필요할 경우를 대비해 노출
-  originalPool: mysqlPool
+  originalPool: remotePool,
 };
 
 export default pool;
