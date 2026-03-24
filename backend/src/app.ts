@@ -20,7 +20,6 @@ import reportRoutes from './routes/reportRoutes';
 import metricRoutes from './routes/metricRoutes';
 import creativeRoutes from './routes/creativeRoutes';
 import paymentRoutes from './routes/paymentRoutes';
-import adminRoutes from './routes/adminRoutes';
 import { spawn } from 'child_process';
 import path from 'path';
 
@@ -266,7 +265,6 @@ app.use('/api/v1/ai/creative', creativeRoutes);  // AI 소재 에이전트 API
 app.use('/api/v1/report', reportRoutes);   // 리포트 이메일 발송 API
 app.use('/api/v1/metrics', metricRoutes);  // 로우 데이터/메트릭 관리 API
 app.use('/api/v1/payment', paymentRoutes); // 결제 API
-app.use('/api/admin', adminRoutes);        // DB 전환 API (임시)
 
 app.get('/api/v1', (req: Request, res: Response) => {
   res.json({ 

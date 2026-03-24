@@ -25,7 +25,6 @@ import EmailReportPage from './pages/EmailReportPage';
 import MonthlyReportPage from './pages/MonthlyReportPage';
 import MarketingAnalysis from './pages/MarketingAnalysis';
 import CreativeAgentPage from './pages/CreativeAgentPage';
-import LocalDbPage from './pages/LocalDbPage';
 import logo from "./assets/logo_crop.png";
 import MainPage from './pages/MainPage';
 import FloatingTutorialButton from './components/FloatingTutorialButton';
@@ -421,7 +420,6 @@ function App() {
           />
 
 
-          <Route path="/localdb" element={<LocalDbPage />} />
 
           <Route
             path="/me"
