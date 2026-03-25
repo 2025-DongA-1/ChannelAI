@@ -1,7 +1,7 @@
 // 💡 [수정됨] React에서 useEffect를 추가로 불러옵니다.
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useQuery, useMutation } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuthStore } from '@/store/authStore';
 import { insightsAPI, api } from '@/lib/api';
 import {
@@ -87,6 +87,7 @@ export default function InsightsPage() {
     return new Date().toISOString().slice(0, 7);
   });
   
+  const queryClient = useQueryClient();
   const { user } = useAuthStore();
   const isFreePlan = !user?.plan || user.plan.toUpperCase() === 'FREE';
   
@@ -223,6 +224,9 @@ export default function InsightsPage() {
         forceRefresh,
       });
       return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['insight-report', selectedMonth] });
     },
   });
 

@@ -889,9 +889,17 @@ export default function IntegrationPage() {
                     <p className="text-sm text-gray-600 capitalize">{account.platform}</p>
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-sm text-green-600 font-medium">연동됨</span>
-                  <CheckCircle className="w-5 h-5 text-green-600" />
+                <div className="flex items-center gap-3">
+                  <span className="text-sm text-green-600 font-medium flex items-center gap-1">
+                    <CheckCircle className="w-4 h-4" />
+                    연동됨
+                  </span>
+                  <button
+                    onClick={() => handleDisconnect(account.platform)}
+                    className="text-xs px-3 py-1.5 bg-red-50 text-red-600 border border-red-200 rounded-lg hover:bg-red-100 transition font-medium"
+                  >
+                    해제
+                  </button>
                 </div>
               </div>
             ))}
