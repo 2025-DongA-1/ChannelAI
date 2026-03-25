@@ -183,11 +183,11 @@ export default function LoginPage() {
           </div>
 
           {/* Test Account Info */}
-          <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 text-xs text-gray-600">
+          {/* <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 text-xs text-gray-600">
             <p className="font-medium mb-1">테스트 계정:</p>
             <p>이메일: test@example.com</p>
             <p>비밀번호: password123</p>
-          </div>
+          </div>*/}
         </div>
       </div>
     </div>
