@@ -1,8 +1,14 @@
 import mysql from 'mysql2/promise';
 import dotenv from 'dotenv';
 import { ResultSetHeader } from 'mysql2';
+import fs from 'fs';
+import path from 'path';
+import os from 'os';
 
 dotenv.config();
+
+// 오버라이드 설정 파일 (모든 PM2 인스턴스가 공유)
+const OVERRIDE_FILE = path.join(os.tmpdir(), 'channelai_db_override.json');
 
 // MySQL 연결 풀 생성
 const mysqlPool = mysql.createPool({
@@ -12,40 +18,69 @@ const mysqlPool = mysql.createPool({
   user: process.env.DB_USER || 'root',
   password: process.env.DB_PASSWORD || '1234',
   waitForConnections: true,
-  connectionLimit: 10,       // 외부 DB 부하 방지를 위해 10개로 제한
+  connectionLimit: 10,
   queueLimit: 0,
-  connectTimeout: 30000,     // 연결 시도 최대 30초 (외부 DB 지연 감안, 원래 10초였으나 늘림)
-  enableKeepAlive: true,     // 유휴 연결에 keepAlive 패킷을 보내 끊긴 연결 감지
-  keepAliveInitialDelay: 10000, // 10초 이상 유휴 상태면 keepAlive 시작
+  connectTimeout: 30000,
+  enableKeepAlive: true,
+  keepAliveInitialDelay: 10000,
 });
 
-// 현재 활성 풀 (기본: 원격 DB)
-let activePool: ReturnType<typeof mysql.createPool> = mysqlPool;
+// 현재 활성 풀
+let activePool = mysqlPool;
 let activeDbInfo: { host: string; port: number; database: string } = {
   host: process.env.DB_HOST || 'localhost',
   port: parseInt(process.env.DB_PORT || '3306'),
   database: process.env.DB_NAME || 'ad_mate_db',
 };
 
-// 커스텀 DB로 전환
-export const switchToCustomPool = (host: string, port: number, user: string, password: string, database: string) => {
-  activePool = mysql.createPool({
-    host, port, database, user, password,
-    waitForConnections: true,
-    connectionLimit: 5,
-    connectTimeout: 15000,
-  });
-  activeDbInfo = { host, port, database };
+// 오버라이드 파일 로드 (모든 인스턴스가 공유 파일에서 읽음)
+const loadOverrideFile = () => {
+  try {
+    if (fs.existsSync(OVERRIDE_FILE)) {
+      const config = JSON.parse(fs.readFileSync(OVERRIDE_FILE, 'utf-8'));
+      activePool = mysql.createPool({
+        host: config.host,
+        port: config.port,
+        database: config.database,
+        user: config.user,
+        password: config.password,
+        waitForConnections: true,
+        connectionLimit: 5,
+        connectTimeout: 15000,
+      });
+      activeDbInfo = { host: config.host, port: config.port, database: config.database };
+      console.log(`[DB] 로컬 DB로 전환: ${config.host}:${config.port}/${config.database}`);
+    } else {
+      activePool = mysqlPool;
+      activeDbInfo = {
+        host: process.env.DB_HOST || 'localhost',
+        port: parseInt(process.env.DB_PORT || '3306'),
+        database: process.env.DB_NAME || 'ad_mate_db',
+      };
+    }
+  } catch (err) {
+    console.error('[DB] 오버라이드 파일 로드 실패:', err);
+  }
 };
 
-// 원래 원격 DB로 복원
+// 시작 시 로드 + 파일 변경 감시 (모든 PM2 인스턴스가 자동 동기화)
+loadOverrideFile();
+fs.watchFile(OVERRIDE_FILE, { interval: 500 }, () => {
+  console.log('[DB] 오버라이드 파일 변경 감지, 풀 재구성 중...');
+  loadOverrideFile();
+});
+
+// 커스텀 DB로 전환 (파일에 저장 → 모든 인스턴스에 전파)
+export const switchToCustomPool = (host: string, port: number, user: string, password: string, database: string) => {
+  const config = { host, port, user, password, database };
+  fs.writeFileSync(OVERRIDE_FILE, JSON.stringify(config), 'utf-8');
+  loadOverrideFile(); // 현재 인스턴스 즉시 반영
+};
+
+// 원래 원격 DB로 복원 (파일 삭제 → 모든 인스턴스에 전파)
 export const restoreOriginalPool = () => {
-  activePool = mysqlPool;
-  activeDbInfo = {
-    host: process.env.DB_HOST || 'localhost',
-    port: parseInt(process.env.DB_PORT || '3306'),
-    database: process.env.DB_NAME || 'ad_mate_db',
-  };
+  try { fs.unlinkSync(OVERRIDE_FILE); } catch {}
+  loadOverrideFile(); // 현재 인스턴스 즉시 반영
 };
 
 export const getActiveDbInfo = () => ({
@@ -53,8 +88,9 @@ export const getActiveDbInfo = () => ({
   isCustom: activePool !== mysqlPool,
 });
 
+// ─────────────────────────────────────────────────────────────
 // 기존 코드와의 호환성을 위한 래퍼(Wrapper)
-// (다른 파일들이 pool.query(), pool.connect() 방식을 쓰고 있어서 유지해야 함)
+// ─────────────────────────────────────────────────────────────
 
 interface QueryResult {
   rows: any[];
@@ -76,7 +112,6 @@ const executeQuery = async (
   if (Array.isArray(result)) {
     return { rows: result as any[] };
   } else {
-    // INSERT, UPDATE 등의 결과 처리
     const header = result as ResultSetHeader;
     return {
       rows: [],
@@ -87,12 +122,10 @@ const executeQuery = async (
 };
 
 const pool = {
-  // 1. pool.query() 지원
   query: async (sql: string, params?: any[]): Promise<QueryResult> => {
     return executeQuery(activePool, sql, params);
   },
 
-  // 2. pool.connect() 지원
   connect: async (): Promise<PoolClient> => {
     const connection = await activePool.getConnection();
     return {
@@ -103,7 +136,6 @@ const pool = {
     };
   },
 
-  // 3. 네이티브 풀 접근이 필요할 경우를 대비해 노출
   originalPool: mysqlPool
 };
 
