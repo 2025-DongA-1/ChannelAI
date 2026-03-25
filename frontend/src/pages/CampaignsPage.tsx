@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { campaignAPI, budgetAPI } from '@/lib/api';
-import { formatCurrency, formatPercent, getStatusColor, getPlatformColor } from '@/lib/utils';
+import { formatCurrency, formatPercent, getPlatformColor } from '@/lib/utils';
 import { Plus, Search, Filter, RefreshCw, TrendingUp, AlertTriangle, Edit, Trash2, Send, CheckCircle2 } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recharts';
 import { useTutorialStore } from '../store/tutorialStore';
@@ -27,7 +27,6 @@ export default function CampaignsPage() {
   const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState('');
   const [platformFilter, setPlatformFilter] = useState('all');
-  const [statusFilter, setStatusFilter] = useState('all');
   const [dateRange] = useState({
     startDate: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
     endDate: new Date().toISOString().split('T')[0],
@@ -179,8 +178,7 @@ export default function CampaignsPage() {
   const filteredCampaigns = campaigns.filter((campaign: any) => {
     const matchesSearch = campaign.campaign_name.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesPlatform = platformFilter === 'all' || campaign.platform === platformFilter;
-    const matchesStatus = statusFilter === 'all' || campaign.status === statusFilter;
-    return matchesSearch && matchesPlatform && matchesStatus;
+    return matchesSearch && matchesPlatform;
   });
 
   // 차트 데이터 (platforms 매핑)
@@ -230,7 +228,7 @@ export default function CampaignsPage() {
 
       {/* Filters */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-3 sm:p-4">
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-3 md:gap-4">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 md:gap-4">
           {/* Search */}
           <div className="relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
@@ -259,19 +257,6 @@ export default function CampaignsPage() {
             </select>
           </div>
 
-          {/* Status Filter */}
-          <div>
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent appearance-none"
-            >
-              <option value="all">모든 상태</option>
-              <option value="active">활성</option>
-              <option value="paused">일시정지</option>
-              <option value="completed">완료</option>
-            </select>
-          </div>
         </div>
       </div>
 
@@ -401,7 +386,7 @@ export default function CampaignsPage() {
             </div>
             <h3 className="text-lg font-medium text-gray-900 mb-2">캠페인이 없습니다</h3>
             <p className="text-gray-600 mb-6">
-              {searchTerm || platformFilter !== 'all' || statusFilter !== 'all'
+              {searchTerm || platformFilter !== 'all'
                 ? '검색 조건에 맞는 캠페인이 없습니다.'
                 : '새 캠페인을 생성하거나 광고 플랫폼을 연동하세요.'}
             </p>
@@ -422,9 +407,6 @@ export default function CampaignsPage() {
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     플랫폼
-                  </th>
-                  <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    상태
                   </th>
                   <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                     진행 기간
@@ -475,11 +457,6 @@ export default function CampaignsPage() {
                       <td className="px-6 py-4 text-center">
                         <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getPlatformColor(campaign.platform)}`}>
                           {campaign.platform.toUpperCase()}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 text-center">
-                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(campaign.status)}`}>
-                          {campaign.status === 'active' ? '활성' : campaign.status === 'paused' ? '일시정지' : '완료'}
                         </span>
                       </td>
                       <td className="px-6 py-4 text-sm text-center text-gray-500">
