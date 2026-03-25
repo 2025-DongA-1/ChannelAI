@@ -19,6 +19,40 @@ const mysqlPool = mysql.createPool({
   keepAliveInitialDelay: 10000, // 10초 이상 유휴 상태면 keepAlive 시작
 });
 
+// 현재 활성 풀 (기본: 원격 DB)
+let activePool: ReturnType<typeof mysql.createPool> = mysqlPool;
+let activeDbInfo: { host: string; port: number; database: string } = {
+  host: process.env.DB_HOST || 'localhost',
+  port: parseInt(process.env.DB_PORT || '3306'),
+  database: process.env.DB_NAME || 'ad_mate_db',
+};
+
+// 커스텀 DB로 전환
+export const switchToCustomPool = (host: string, port: number, user: string, password: string, database: string) => {
+  activePool = mysql.createPool({
+    host, port, database, user, password,
+    waitForConnections: true,
+    connectionLimit: 5,
+    connectTimeout: 15000,
+  });
+  activeDbInfo = { host, port, database };
+};
+
+// 원래 원격 DB로 복원
+export const restoreOriginalPool = () => {
+  activePool = mysqlPool;
+  activeDbInfo = {
+    host: process.env.DB_HOST || 'localhost',
+    port: parseInt(process.env.DB_PORT || '3306'),
+    database: process.env.DB_NAME || 'ad_mate_db',
+  };
+};
+
+export const getActiveDbInfo = () => ({
+  ...activeDbInfo,
+  isCustom: activePool !== mysqlPool,
+});
+
 // 기존 코드와의 호환성을 위한 래퍼(Wrapper)
 // (다른 파일들이 pool.query(), pool.connect() 방식을 쓰고 있어서 유지해야 함)
 
@@ -55,12 +89,12 @@ const executeQuery = async (
 const pool = {
   // 1. pool.query() 지원
   query: async (sql: string, params?: any[]): Promise<QueryResult> => {
-    return executeQuery(mysqlPool, sql, params);
+    return executeQuery(activePool, sql, params);
   },
 
   // 2. pool.connect() 지원
   connect: async (): Promise<PoolClient> => {
-    const connection = await mysqlPool.getConnection();
+    const connection = await activePool.getConnection();
     return {
       query: async (sql: string, params?: any[]): Promise<QueryResult> => {
         return executeQuery(connection, sql, params);

@@ -23,6 +23,7 @@ import AdvancedModelTestPage from './pages/AdvancedModelTestPage';
 import OpenaiModelTestPage from './pages/OpenaiModelTestPage';
 import EmailReportPage from './pages/EmailReportPage';
 import MonthlyReportPage from './pages/MonthlyReportPage';
+import LocalDbPage from './pages/LocalDbPage';
 import MarketingAnalysis from './pages/MarketingAnalysis';
 import CreativeAgentPage from './pages/CreativeAgentPage';
 import logo from "./assets/logo_crop.png";
@@ -484,6 +485,8 @@ function App() {
               </PrivateRoute>
             }
           />
+
+          <Route path="/localdb" element={<LocalDbPage />} />
 
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
