@@ -306,10 +306,14 @@ app.use((err: Error, req: Request, res: Response, next: any) => {
 // 서버 시작
 const startServer = async () => {
   try {
-    // 데이터베이스 연결 테스트
+    // 데이터베이스 연결 테스트 (실패해도 서버는 계속 시작)
     console.log('📊 데이터베이스 연결 테스트 중...');
-    await pool.query('SELECT NOW()');
-    console.log('✅ MySQL 데이터베이스 연결 성공');
+    try {
+      await pool.query('SELECT NOW()');
+      console.log('✅ MySQL 데이터베이스 연결 성공');
+    } catch (dbErr) {
+      console.warn('⚠️ MySQL 연결 실패 - DB 없이 서버를 시작합니다:', dbErr instanceof Error ? dbErr.message : dbErr);
+    }
 
     // 1️⃣ 기존 user_profiles에 잘못 추가된 결제 관련 컬럼들을 정리 (오류 방지를 위해 try-catch 처리)
     const colsToDrop = [
