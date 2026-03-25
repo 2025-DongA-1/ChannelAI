@@ -86,6 +86,7 @@ id_rsa.pub
 *.docx
 *.doc
 *.csv
+!frontend/public/channel_ai_export.csv
 *.ppt
 *.pptx
 
